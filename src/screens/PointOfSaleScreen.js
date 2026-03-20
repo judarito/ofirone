@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createSale,
@@ -45,6 +46,33 @@ import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.servic
 
 const OCR_MAX_BYTES = 980 * 1024;
 const QUICK_CASH_AMOUNTS = [5000, 10000, 20000, 50000];
+
+let NativeDateTimePicker = null;
+try {
+  NativeDateTimePicker = require('@react-native-community/datetimepicker').default;
+} catch (_error) {
+  NativeDateTimePicker = null;
+}
+
+const WEB_DATE_TIME_INPUT_DARK_STYLE = {
+  width: '100%',
+  border: 'none',
+  outline: 'none',
+  backgroundColor: 'transparent',
+  color: '#f8fafc',
+  fontSize: 14,
+  minHeight: 24,
+};
+
+const WEB_DATE_TIME_INPUT_LIGHT_STYLE = {
+  width: '100%',
+  border: 'none',
+  outline: 'none',
+  backgroundColor: 'transparent',
+  color: '#0f172a',
+  fontSize: 14,
+  minHeight: 24,
+};
 
 function favoritesCacheKey(tenantId, userId) {
   return `pos-favorites:${tenantId}:${userId}`;
@@ -218,6 +246,33 @@ async function buildEnhancedImageForNativeOcr(asset) {
   }
 }
 
+function padDateTimePart(value) {
+  return String(value).padStart(2, '0');
+}
+
+function getCurrentSaleDateTimeLocalValue() {
+  const now = new Date();
+  return toLocalDateTimeInputValue(now);
+}
+
+function toLocalDateTimeInputValue(date) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${parsed.getFullYear()}-${padDateTimePart(parsed.getMonth() + 1)}-${padDateTimePart(parsed.getDate())}T${padDateTimePart(parsed.getHours())}:${padDateTimePart(parsed.getMinutes())}`;
+}
+
+function parseSaleDateTimeValue(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatSaleDateTimeDisplay(value) {
+  const parsed = parseSaleDateTimeValue(value);
+  if (!parsed) return 'Seleccionar fecha y hora';
+  return parsed.toLocaleString();
+}
+
 function scoreOcrTextForInvoice(text) {
   const normalized = String(text || '').replace(/\r/g, '\n');
   const lines = normalized
@@ -354,6 +409,11 @@ export default function PointOfSaleScreen({
   const [payments, setPayments] = useState([{ method: '', amount: 0, reference: '' }]);
   const [currentSession, setCurrentSession] = useState(null);
   const [saleNote, setSaleNote] = useState('');
+  const [saleDateTime, setSaleDateTime] = useState('');
+  const [saleDateTimeTouched, setSaleDateTimeTouched] = useState(false);
+  const [saleDatePickerOpen, setSaleDatePickerOpen] = useState(false);
+  const [saleDatePickerMode, setSaleDatePickerMode] = useState('date');
+  const [saleDatePickerValue, setSaleDatePickerValue] = useState(new Date());
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -438,10 +498,53 @@ export default function PointOfSaleScreen({
   const remaining = useMemo(() => Math.max(0, totals.total - paidTotal), [totals.total, paidTotal]);
   const change = useMemo(() => Math.max(0, paidTotal - totals.total), [totals.total, paidTotal]);
 
-  const isAdmin = useMemo(
-    () => (userProfile?.roles || []).some((role) => role?.name === 'ADMINISTRADOR'),
+  const canManageDiscounts = useMemo(
+    () => (userProfile?.roles || []).some((role) => (
+      role?.name === 'ADMINISTRADOR' || role?.name === 'GERENTE'
+    )),
     [userProfile],
   );
+  const cashSessionMaxHours = resolveCashSessionMaxHours(tenantSettings, 24);
+  const sessionAgeHours = useMemo(
+    () => getCashSessionAgeHours(currentSession),
+    [currentSession?.opened_at],
+  );
+  const sessionExpired = useMemo(
+    () => isCashSessionExpired(currentSession, cashSessionMaxHours),
+    [currentSession?.opened_at, cashSessionMaxHours],
+  );
+  const canSelectSaleDateTime = canManageDiscounts && tenantSettings?.pos_allow_manual_sale_datetime === true;
+  const saleDateTimeInputValue = saleDateTimeTouched ? saleDateTime : getCurrentSaleDateTimeLocalValue();
+  const selectedSaleDate = useMemo(() => {
+    if (!canSelectSaleDateTime) return null;
+    return parseSaleDateTimeValue(saleDateTimeInputValue);
+  }, [canSelectSaleDateTime, saleDateTimeInputValue]);
+  const posMaxBackdateHours = Number(tenantSettings?.pos_max_backdate_hours || 24);
+  const saleDateTimeError = useMemo(() => {
+    if (!canSelectSaleDateTime) return '';
+    if (!selectedSaleDate) return 'Selecciona una fecha/hora valida.';
+
+    const now = new Date();
+    if (selectedSaleDate.getTime() > now.getTime()) {
+      return 'La fecha/hora de venta no puede estar en el futuro.';
+    }
+
+    const safeMaxBackdateHours = Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0
+      ? posMaxBackdateHours
+      : 24;
+    if ((now.getTime() - selectedSaleDate.getTime()) > safeMaxBackdateHours * 3600000) {
+      return `La retrofecha maxima permitida es de ${safeMaxBackdateHours} hora(s).`;
+    }
+
+    if (currentSession?.opened_at) {
+      const sessionOpenedAt = new Date(currentSession.opened_at);
+      if (!Number.isNaN(sessionOpenedAt.getTime()) && selectedSaleDate.getTime() < sessionOpenedAt.getTime()) {
+        return 'La fecha/hora de venta no puede ser anterior a la apertura de la caja.';
+      }
+    }
+
+    return '';
+  }, [canSelectSaleDateTime, currentSession?.opened_at, posMaxBackdateHours, selectedSaleDate]);
 
   const effectiveThirdPartyId = selectedCustomer?.customer_id || null;
   const localLlmMode = useMemo(
@@ -644,6 +747,54 @@ export default function PointOfSaleScreen({
     if (!message) return;
     showFloatingNotice(message, 'info', 2800);
   }, [message]);
+
+  const openSaleDateTimePicker = () => {
+    if (Platform.OS === 'web' || !NativeDateTimePicker) return;
+    const baseDate = selectedSaleDate || new Date();
+    setSaleDatePickerValue(baseDate);
+    if (Platform.OS === 'ios') {
+      setSaleDatePickerMode('datetime');
+      setSaleDatePickerOpen((prev) => !prev);
+      return;
+    }
+    setSaleDatePickerMode('date');
+    setSaleDatePickerOpen(true);
+  };
+
+  const handleSaleDateTimePickerChange = (event, pickedValue) => {
+    if (event?.type === 'dismissed') {
+      setSaleDatePickerOpen(false);
+      if (Platform.OS !== 'ios') {
+        setSaleDatePickerMode('date');
+      }
+      return;
+    }
+    if (!pickedValue) return;
+
+    if (Platform.OS === 'android') {
+      if (saleDatePickerMode === 'date') {
+        const previous = selectedSaleDate || new Date();
+        const nextDate = new Date(pickedValue);
+        nextDate.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
+        setSaleDatePickerValue(nextDate);
+        setSaleDatePickerMode('time');
+        setSaleDatePickerOpen(true);
+        return;
+      }
+
+      const merged = new Date(saleDatePickerValue || selectedSaleDate || new Date());
+      merged.setHours(pickedValue.getHours(), pickedValue.getMinutes(), 0, 0);
+      setSaleDateTimeTouched(true);
+      setSaleDateTime(toLocalDateTimeInputValue(merged));
+      setSaleDatePickerMode('date');
+      setSaleDatePickerOpen(false);
+      return;
+    }
+
+    setSaleDatePickerValue(pickedValue);
+    setSaleDateTimeTouched(true);
+    setSaleDateTime(toLocalDateTimeInputValue(pickedValue));
+  };
 
   const upsertSinglePaymentIfNeeded = (nextTotal) => {
     const rounded = applyRounding(nextTotal);
@@ -1392,6 +1543,8 @@ export default function PointOfSaleScreen({
         : null,
       search_customer: searchCustomer,
       sale_note: saleNote,
+      sale_datetime: saleDateTime,
+      sale_datetime_touched: saleDateTimeTouched,
       cart,
       payments,
     };
@@ -1417,6 +1570,8 @@ export default function PointOfSaleScreen({
     setSelectedCustomer(draft.customer || null);
     setSearchCustomer(draft.search_customer || draft.customer?.full_name || '');
     setSaleNote(draft.sale_note || '');
+    setSaleDateTime(draft.sale_datetime || '');
+    setSaleDateTimeTouched(draft.sale_datetime_touched === true);
     setTicketDrafts((prev) => prev.filter((item) => item.draft_id !== draftId));
     setMessage('Venta recuperada desde espera.');
   };
@@ -1438,6 +1593,10 @@ export default function PointOfSaleScreen({
     setChatOrderText('');
     setChatOrderSummary(null);
     setVoicePreviewText('');
+    setSaleDateTime('');
+    setSaleDateTimeTouched(false);
+    setSaleDatePickerOpen(false);
+    setSaleDatePickerMode('date');
     setPayments([{ method: paymentMethods[0]?.code || '', amount: 0, reference: '' }]);
   };
 
@@ -1456,6 +1615,16 @@ export default function PointOfSaleScreen({
     }
     if (!currentSession?.cash_session_id) {
       setError('Debe abrir una caja antes de vender.');
+      return;
+    }
+    if (sessionExpired) {
+      setError(
+        `La sesion de caja lleva ${sessionAgeHours}h abierta y supero el limite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
+      );
+      return;
+    }
+    if (saleDateTimeError) {
+      setError(saleDateTimeError);
       return;
     }
     if (payments.some((p) => !p.method || Number(p.amount || 0) <= 0)) {
@@ -1502,6 +1671,7 @@ export default function PointOfSaleScreen({
         customer_id: selectedCustomer?.customer_id || null,
         third_party_id: effectiveThirdPartyId,
         sold_by: userProfile.user_id,
+        sold_at: selectedSaleDate ? selectedSaleDate.toISOString() : null,
         lines,
         payments: paymentsPayload,
         note: saleNote || null,
@@ -1593,9 +1763,9 @@ export default function PointOfSaleScreen({
       <ScrollView contentContainerStyle={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={styles.headerRow}>
         <Text style={[styles.title, isLightTheme && styles.titleLight]}>Punto de Venta</Text>
-        <Text style={currentSession ? styles.sessionOk : styles.sessionWarn}>
+        <Text style={currentSession && !sessionExpired ? styles.sessionOk : styles.sessionWarn}>
           {currentSession
-            ? `Caja: ${currentSession?.cash_register?.name || 'Activa'}`
+            ? `Caja: ${currentSession?.cash_register?.name || 'Activa'}${sessionExpired ? ` (${sessionAgeHours}h)` : ''}`
             : 'Sin caja abierta'}
         </Text>
       </View>
@@ -2000,7 +2170,7 @@ export default function PointOfSaleScreen({
                 style={[styles.qtyInput, isLightTheme && styles.qtyInputLight]}
               />
               <Text style={[styles.linePrice, isLightTheme && styles.linePriceLight]}>{formatMoney(line.unit_price)}</Text>
-              {isAdmin ? (
+              {canManageDiscounts ? (
                 <View style={styles.discountBox}>
                   <View style={styles.discountTypeRow}>
                     <Pressable
@@ -2121,6 +2291,42 @@ export default function PointOfSaleScreen({
       </View>
 
       <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        {canSelectSaleDateTime ? (
+          <View style={styles.saleDateTimeBlock}>
+            <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Fecha y hora de la venta</Text>
+            {Platform.OS === 'web' ? (
+              <View style={[styles.input, styles.webDateTimeField, isLightTheme && styles.inputLight]}>
+                <input
+                  type="datetime-local"
+                  value={saleDateTimeInputValue}
+                  onChange={(event) => {
+                    setSaleDateTimeTouched(true);
+                    setSaleDateTime(event?.target?.value || '');
+                  }}
+                  style={isLightTheme ? WEB_DATE_TIME_INPUT_LIGHT_STYLE : WEB_DATE_TIME_INPUT_DARK_STYLE}
+                />
+              </View>
+            ) : NativeDateTimePicker ? (
+              <Pressable onPress={openSaleDateTimePicker} style={[styles.input, isLightTheme && styles.inputLight]}>
+                <Text style={[styles.saleDateTimeValue, isLightTheme && styles.saleDateTimeValueLight]}>
+                  {formatSaleDateTimeDisplay(saleDateTimeInputValue)}
+                </Text>
+              </Pressable>
+            ) : (
+              <TextInput
+                value={saleDateTimeInputValue}
+                onChangeText={(value) => {
+                  setSaleDateTimeTouched(true);
+                  setSaleDateTime(value);
+                }}
+                placeholder="AAAA-MM-DDTHH:mm"
+                placeholderTextColor="#64748b"
+                style={[styles.input, isLightTheme && styles.inputLight]}
+              />
+            )}
+            {saleDateTimeError ? <Text style={styles.warnText}>{saleDateTimeError}</Text> : null}
+          </View>
+        ) : null}
         <TextInput
           value={saleNote}
           onChangeText={setSaleNote}
@@ -2128,12 +2334,36 @@ export default function PointOfSaleScreen({
           placeholderTextColor="#64748b"
           style={[styles.input, isLightTheme && styles.inputLight]}
         />
+        <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
+          {canSelectSaleDateTime
+            ? `Si no cambias este campo, la venta usara la fecha y hora actual. La retrofecha maxima permitida es de ${Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0 ? posMaxBackdateHours : 24} hora(s).`
+            : 'La venta se registra con la fecha y hora actual. El POS solo permite cambiarla manualmente a administradores o gerentes cuando el tenant lo habilita.'}
+        </Text>
       </View>
+
+      {saleDatePickerOpen && NativeDateTimePicker && Platform.OS !== 'web' ? (
+        <View style={[styles.panel, styles.dateTimePickerPanel, isLightTheme && styles.panelLight]}>
+          <NativeDateTimePicker
+            value={saleDatePickerValue}
+            mode={Platform.OS === 'ios' ? 'datetime' : saleDatePickerMode}
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={handleSaleDateTimePickerChange}
+          />
+        </View>
+      ) : null}
+
+      {sessionExpired ? (
+        <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+          <Text style={styles.warnText}>
+            Sesion vencida: la caja lleva {sessionAgeHours}h abierta y el limite del tenant es {cashSessionMaxHours}h.
+          </Text>
+        </View>
+      ) : null}
 
       <Pressable
         onPress={handleProcessSale}
-        disabled={processing || cart.length === 0 || remaining > 0}
-        style={[styles.chargeBtn, (processing || cart.length === 0 || remaining > 0) && styles.btnDisabled]}
+        disabled={processing || cart.length === 0 || remaining > 0 || sessionExpired}
+        style={[styles.chargeBtn, (processing || cart.length === 0 || remaining > 0 || sessionExpired) && styles.btnDisabled]}
       >
         <View style={styles.btnContentRow}>
           <Ionicons name={offlineMode ? 'cloud-upload-outline' : 'card-outline'} size={18} color="#eff6ff" />
@@ -2533,6 +2763,22 @@ const styles = StyleSheet.create({
     borderColor: '#cbd5e1',
     backgroundColor: '#ffffff',
     color: '#0f172a',
+  },
+  webDateTimeField: {
+    paddingVertical: 6,
+  },
+  saleDateTimeBlock: {
+    marginBottom: 6,
+  },
+  saleDateTimeValue: {
+    color: '#f8fafc',
+    fontSize: 14,
+  },
+  saleDateTimeValueLight: {
+    color: '#0f172a',
+  },
+  dateTimePickerPanel: {
+    paddingVertical: 6,
   },
   metaText: {
     color: '#94a3b8',

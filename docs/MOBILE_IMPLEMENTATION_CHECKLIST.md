@@ -81,6 +81,8 @@ Proyecto: POSLite Mobile (React Native + Expo)
   - `third_party_id` enviado en `createSale` (online/offline) para FE.
   - FE usa `customer_id` (tabla terceros) como receptor fiscal, sin input duplicado.
   - Captura de referencia por pago (`reference`) en POS.
+  - Fecha/hora manual de venta en POS para administradores/gerentes segun `tenant_settings`.
+  - Retrofecha maxima controlada por `pos_max_backdate_hours`.
   - Historial de ventas con campos FE (`invoice_type`, `dian_status`, `cufe`) y accion de `Reintentar FE`.
   - Modo "venta en espera" (hold/resume ticket) con cache local por tenant/usuario.
   - Favoritos de productos en POS y agregado rapido.

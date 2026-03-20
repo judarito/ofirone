@@ -473,11 +473,12 @@ export async function findVariantByCode(tenantId, code, locationId = null, { off
 export async function createSale(tenantId, saleData) {
   try {
     const operationId = saleData.operation_id || null;
+    const soldAt = saleData.sold_at || null;
     let data;
     let error;
 
     if (operationId) {
-      const idempotentResult = await supabase.rpc('sp_create_sale_idempotent', {
+      const idempotentPayload = {
         p_operation_id: operationId,
         p_tenant: tenantId,
         p_location: saleData.location_id,
@@ -488,11 +489,15 @@ export async function createSale(tenantId, saleData) {
         p_payments: saleData.payments,
         p_note: saleData.note || null,
         p_third_party: saleData.third_party_id || null,
-      });
+      };
+      if (soldAt) {
+        idempotentPayload.p_sold_at = soldAt;
+      }
+      const idempotentResult = await supabase.rpc('sp_create_sale_idempotent', idempotentPayload);
       data = idempotentResult.data;
       error = idempotentResult.error;
     } else {
-      const regularResult = await supabase.rpc('sp_create_sale', {
+      const regularPayload = {
         p_tenant: tenantId,
         p_location: saleData.location_id,
         p_cash_session: saleData.cash_session_id || null,
@@ -502,7 +507,11 @@ export async function createSale(tenantId, saleData) {
         p_payments: saleData.payments,
         p_note: saleData.note || null,
         p_third_party: saleData.third_party_id || null,
-      });
+      };
+      if (soldAt) {
+        regularPayload.p_sold_at = soldAt;
+      }
+      const regularResult = await supabase.rpc('sp_create_sale', regularPayload);
       data = regularResult.data;
       error = regularResult.error;
     }
@@ -511,6 +520,13 @@ export async function createSale(tenantId, saleData) {
     return { success: true, data: { sale_id: data } };
   } catch (error) {
     const msg = String(error?.message || '');
+    if (saleData?.sold_at && msg.toLowerCase().includes('p_sold_at')) {
+      return {
+        success: false,
+        error:
+          'La base de datos aun no soporta fecha manual de venta. Ejecuta las migraciones ADD_POS_MANUAL_SALE_DATETIME.sql y ADD_POS_MANUAL_SALE_DATETIME_IDEMPOTENT.sql.',
+      };
+    }
     if (
       saleData?.operation_id &&
       (msg.includes('sp_create_sale_idempotent') || msg.toLowerCase().includes('does not exist'))

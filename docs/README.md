@@ -6,6 +6,9 @@ Este directorio contiene la documentación del sistema POS Lite.
 
 - Documento recomendado para contexto rápido del proyecto mobile:
   - `/docs/MOBILE_CONTEXT.md`
+- Documento consolidado y vivo para contexto real mobile:
+  - `/docs/CONTEXTO_MOBILE.md`
+  - Regla: este archivo debe actualizarse en cada modificación funcional, técnica o arquitectónica relevante del proyecto mobile.
 - Checklist de estado y prioridades:
   - `/docs/MOBILE_IMPLEMENTATION_CHECKLIST.md`
 - Estado de migracion web -> mobile (actualizado):

@@ -6,6 +6,7 @@ import {
   AppState,
   Appearance,
   ActivityIndicator,
+  Dimensions,
   Image,
   Modal,
   Platform,
@@ -195,6 +196,29 @@ function extractInitials(name, fallback = 'U') {
   return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
 }
 
+function getAndroidNavigationBottomInset() {
+  if (Platform.OS !== 'android') return 0;
+
+  const screen = Dimensions.get('screen');
+  const window = Dimensions.get('window');
+  const screenHeight = Number(screen?.height || 0);
+  const screenWidth = Number(screen?.width || 0);
+  const windowHeight = Number(window?.height || 0);
+  const statusBarInset = Number(RNStatusBar.currentHeight || 0);
+
+  if (screenHeight <= 0 || windowHeight <= 0) return 0;
+
+  // On classic Android 3-button navigation, the vertical gap usually includes
+  // both status bar and navigation bar. We remove the top inset to keep only
+  // the bottom safe breathing room we need for fixed footers.
+  const verticalInset = Math.max(0, screenHeight - windowHeight);
+  const bottomInset = screenHeight >= screenWidth
+    ? Math.max(0, verticalInset - statusBarInset)
+    : 0;
+
+  return bottomInset;
+}
+
 const HOME_BAR_COLORS = HOME_BAR_THEME_COLORS;
 const HOME_ACTION_LABELS = {
   Products: 'Productos',
@@ -206,6 +230,7 @@ const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights']);
 
 export default function App() {
   const androidTopInset = Platform.OS === 'android' ? RNStatusBar.currentHeight || 0 : 0;
+  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
 
   const [session, setSession] = useState(null);
   const [loadingBoot, setLoadingBoot] = useState(true);
@@ -243,6 +268,21 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const updateInsets = () => {
+      setAndroidBottomInset(getAndroidNavigationBottomInset());
+    };
+
+    updateInsets();
+    const subscription = Dimensions.addEventListener('change', updateInsets);
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, []);
 
   const allowedMenuRoutes = useMemo(() => collectAllowedMenuRoutes(rawMenuTree), [rawMenuTree]);
   const allowedMenuScreens = useMemo(() => collectAllowedMobileScreens(rawMenuTree), [rawMenuTree]);
@@ -439,10 +479,19 @@ export default function App() {
     if (!session || offlineMode || !tenant?.tenant_id || !userProfile?.user_id) return undefined;
 
     let active = true;
-    registerPushTokenForCurrentUser({
-      tenantId: tenant.tenant_id,
-      userId: userProfile.user_id,
-    }).catch(() => null);
+    (async () => {
+      const result = await registerPushTokenForCurrentUser({
+        tenantId: tenant.tenant_id,
+        userId: userProfile.user_id,
+      });
+
+      if (!active || result?.success) return;
+
+      console.warn('[push] registro no completado:', result?.error || 'sin detalle', result?.data || {});
+    })().catch((error) => {
+      if (!active) return;
+      console.warn('[push] error inesperado registrando token:', error?.message || error);
+    });
 
     const responseSub = subscribeToPushResponses((response) => {
       if (!active) return;
@@ -1526,7 +1575,7 @@ export default function App() {
             <Text style={[styles.menuUser, isLightTheme ? null : styles.menuUserDark]}>{userProfile?.full_name || userEmail || 'Usuario'}</Text>
             <Text style={[styles.menuTenant, isLightTheme ? null : styles.menuTenantDark]}>{tenant?.tenant_name || 'Sin tenant'}</Text>
 
-            <ScrollView contentContainerStyle={styles.menuContent}>
+            <ScrollView contentContainerStyle={[styles.menuContent, { paddingBottom: 30 + androidBottomInset }]}>
               {(menuTree || []).length === 0 ? (
                 <Text style={[styles.menuEmptyText, isLightTheme ? null : styles.menuEmptyTextDark]}>No hay menu disponible para este usuario.</Text>
               ) : null}
@@ -1655,7 +1704,13 @@ export default function App() {
                 );
               })}
             </ScrollView>
-            <View style={[styles.menuFooter, isLightTheme ? null : styles.menuFooterDark]}>
+            <View
+              style={[
+                styles.menuFooter,
+                isLightTheme ? null : styles.menuFooterDark,
+                { paddingBottom: 10 + androidBottomInset },
+              ]}
+            >
               <Pressable onPress={handleLogout} style={[styles.menuLogoutBtn, isLightTheme ? null : styles.menuLogoutBtnDark]}>
                 <Text style={styles.menuLogoutText}>Cerrar sesion</Text>
               </Pressable>
@@ -1759,6 +1814,7 @@ export default function App() {
         <LayawayScreen
           tenant={tenant}
           userProfile={userProfile}
+          tenantSettings={tenantSettings}
           formatMoney={formatMoney}
           themeMode={themeMode}
           offlineMode={offlineMode}
@@ -1955,7 +2011,14 @@ export default function App() {
         <AboutScreen tenant={tenant} userProfile={userProfile} themeMode={themeMode} offlineMode={offlineMode} />
       ) : (
         <View style={styles.homeScreenContainer}>
-          <ScrollView contentContainerStyle={[styles.homeScrollDark, styles.homeScrollWithDock, isLightTheme && styles.homeScrollLight]}>
+          <ScrollView
+            contentContainerStyle={[
+              styles.homeScrollDark,
+              styles.homeScrollWithDock,
+              isLightTheme && styles.homeScrollLight,
+              { paddingBottom: 124 + androidBottomInset },
+            ]}
+          >
             <View style={styles.homeWrap}>
             <View style={[styles.mobileMetricMainCard, isLightTheme && styles.mobileMetricMainCardLight]}>
               <View style={styles.mobileMetricMainLeft}>
@@ -2119,7 +2182,14 @@ export default function App() {
             </View>
           </ScrollView>
 
-          <View style={[styles.mobileBottomDock, styles.mobileBottomDockFixed, isLightTheme && styles.mobileBottomDockLight]}>
+          <View
+            style={[
+              styles.mobileBottomDock,
+              styles.mobileBottomDockFixed,
+              isLightTheme && styles.mobileBottomDockLight,
+              { bottom: 10 + androidBottomInset },
+            ]}
+          >
             <Pressable style={styles.mobileDockSideBtn} onPress={() => navigateToScreen('AIInsights', { routeHint: '/ai-insights' })}>
               <Ionicons name="sparkles" size={20} style={[styles.mobileDockSideIcon, isLightTheme && styles.mobileDockSideIconLight]} />
               <Text style={[styles.mobileDockSideText, isLightTheme && styles.mobileDockSideTextLight]}>IA</Text>

@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
 import { useThemeMode } from '../lib/themeMode';
 import {
   addLayawayPayment,
@@ -21,7 +22,7 @@ import {
   getLayawayContracts,
   getLayawayDetail,
 } from '../services/layaway.service';
-import { getPaymentMethodsForDropdown } from '../services/pos.service';
+import { getCurrentUserOpenSession, getPaymentMethodsForDropdown } from '../services/pos.service';
 
 const STATUS_FILTERS = ['', 'ACTIVE', 'COMPLETED', 'CANCELLED', 'EXPIRED'];
 const STATUS_FILTER_LABELS = {
@@ -38,6 +39,7 @@ const STATUS_FILTER_OPTIONS = STATUS_FILTERS.filter(Boolean).map((value) => ({
 export default function LayawayScreen({
   tenant,
   userProfile,
+  tenantSettings,
   formatMoney,
   offlineMode,
   pageSize = 20,
@@ -50,7 +52,11 @@ export default function LayawayScreen({
   const [payMethodCode, setPayMethodCode] = useState('CASH');
   const [payRef, setPayRef] = useState('');
   const [paymentMethods, setPaymentMethods] = useState([]);
+  const [currentSession, setCurrentSession] = useState(null);
   const [busyAction, setBusyAction] = useState(false);
+  const cashSessionMaxHours = resolveCashSessionMaxHours(tenantSettings, 24);
+  const sessionAgeHours = getCashSessionAgeHours(currentSession);
+  const sessionExpired = isCashSessionExpired(currentSession, cashSessionMaxHours);
 
   const {
     items: contracts,
@@ -89,8 +95,11 @@ export default function LayawayScreen({
   useEffect(() => {
     let active = true;
     const loadPaymentMethods = async () => {
-      if (!tenant?.tenant_id) return;
-      const result = await getPaymentMethodsForDropdown(tenant.tenant_id, { offlineMode });
+      if (!tenant?.tenant_id || !userProfile?.user_id) return;
+      const [result, sessionResult] = await Promise.all([
+        getPaymentMethodsForDropdown(tenant.tenant_id, { offlineMode }),
+        getCurrentUserOpenSession(tenant.tenant_id, userProfile.user_id, { offlineMode }),
+      ]);
       if (!active) return;
       if (result.success) {
         const list = Array.isArray(result.data) ? result.data : [];
@@ -100,13 +109,16 @@ export default function LayawayScreen({
           setPayMethodCode(list[0]?.code || 'CASH');
         }
       }
+      if (sessionResult.success) {
+        setCurrentSession(sessionResult.data || null);
+      }
     };
 
     loadPaymentMethods();
     return () => {
       active = false;
     };
-  }, [tenant?.tenant_id, offlineMode]);
+  }, [tenant?.tenant_id, userProfile?.user_id, offlineMode]);
 
   const refreshDetail = async () => {
     if (!detail?.layaway_id) return;
@@ -125,6 +137,16 @@ export default function LayawayScreen({
       setError('Verifica monto y usuario para registrar el abono.');
       return;
     }
+    if (!currentSession?.cash_session_id) {
+      setError('Debes abrir una caja antes de registrar abonos de plan separe.');
+      return;
+    }
+    if (sessionExpired) {
+      setError(
+        `La sesion de caja lleva ${sessionAgeHours}h abierta y supero el limite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
+      );
+      return;
+    }
 
     setBusyAction(true);
     const result = await addLayawayPayment(tenant.tenant_id, detail.layaway_id, {
@@ -132,7 +154,7 @@ export default function LayawayScreen({
       amount,
       paid_by: userProfile.user_id,
       reference: payRef || null,
-      cash_session_id: null,
+      cash_session_id: currentSession.cash_session_id,
     });
 
     if (!result.success) {
@@ -222,6 +244,21 @@ export default function LayawayScreen({
           </Pressable>
         )}
       />
+
+      <View style={[styles.sessionBox, isLightTheme && styles.sessionBoxLight]}>
+        <Text style={[styles.sessionText, isLightTheme && styles.sessionTextLight]}>
+          {currentSession?.cash_register?.name
+            ? `Caja activa: ${currentSession.cash_register.name}`
+            : 'Sin caja abierta para registrar abonos.'}
+        </Text>
+        {currentSession?.cash_session_id ? (
+          <Text style={sessionExpired ? styles.sessionWarn : styles.sessionOk}>
+            {sessionExpired
+              ? `Sesion vencida (${sessionAgeHours}h). Cierra y abre una nueva.`
+              : `Sesion vigente (${sessionAgeHours}h / max ${cashSessionMaxHours}h)`}
+          </Text>
+        ) : null}
+      </View>
 
       <Modal visible={Boolean(detail) || loadingDetail} transparent animationType="slide" onRequestClose={() => setDetail(null)}>
         <View style={styles.modalOverlay}>
@@ -353,6 +390,19 @@ const styles = StyleSheet.create({
   metaLine: { color: '#cbd5e1', fontSize: 13, marginBottom: 2 },
   metaLineLight: { color: '#475569' },
   total: { color: '#34d399', fontSize: 18, fontWeight: '700', marginTop: 4 },
+  sessionBox: {
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#0f172a',
+  },
+  sessionBoxLight: { borderColor: '#dbe4ef', backgroundColor: '#ffffff' },
+  sessionText: { color: '#cbd5e1', fontSize: 12, marginBottom: 4 },
+  sessionTextLight: { color: '#475569' },
+  sessionOk: { color: '#4ade80', fontSize: 12, fontWeight: '700' },
+  sessionWarn: { color: '#f87171', fontSize: 12, fontWeight: '700' },
   empty: { color: '#94a3b8', marginTop: 14, textAlign: 'center' },
   error: { color: '#f87171', marginBottom: 8 },
   footerPagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 },

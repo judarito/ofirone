@@ -8,10 +8,17 @@ function normalizeSettings(data) {
   const pageSize = Number(raw.default_page_size || DEFAULT_PAGE_SIZE);
   const themeRaw = String(raw.theme || '').trim().toLowerCase();
   const theme = themeRaw === 'light' || themeRaw === 'auto' ? themeRaw : 'dark';
+  const cashSessionMaxHours = Number(raw.cash_session_max_hours || 24);
+  const posMaxBackdateHours = Number(raw.pos_max_backdate_hours || 24);
   return {
     ...raw,
     theme,
     default_page_size: Number.isFinite(pageSize) && pageSize > 0 ? pageSize : DEFAULT_PAGE_SIZE,
+    cash_session_max_hours:
+      Number.isFinite(cashSessionMaxHours) && cashSessionMaxHours > 0 ? cashSessionMaxHours : 24,
+    pos_allow_manual_sale_datetime: raw.pos_allow_manual_sale_datetime === true,
+    pos_max_backdate_hours:
+      Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0 ? posMaxBackdateHours : 24,
   };
 }
 

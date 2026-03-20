@@ -78,6 +78,8 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         max_discount_without_auth: Number(settingsForm.max_discount_without_auth || 5),
         rounding_multiple: Number(settingsForm.rounding_multiple || 100),
         cash_session_max_hours: Number(settingsForm.cash_session_max_hours || 24),
+        pos_allow_manual_sale_datetime: settingsForm.pos_allow_manual_sale_datetime === true,
+        pos_max_backdate_hours: Number(settingsForm.pos_max_backdate_hours || 24),
         next_invoice_number: Number(settingsForm.next_invoice_number || 1),
         thermal_paper_width: Number(settingsForm.thermal_paper_width || 80),
       },
@@ -236,6 +238,21 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.rounding_method || ''} onChangeText={(v) => setSettingsField('rounding_method', v)} placeholder="Redondeo (normal/up/down/none)" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.rounding_multiple ?? '')} onChangeText={(v) => setSettingsField('rounding_multiple', v)} placeholder="Multiplo redondeo" keyboardType="numeric" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.cash_session_max_hours ?? '')} onChangeText={(v) => setSettingsField('cash_session_max_hours', v)} placeholder="Max horas sesion caja" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Permitir fecha manual en POS</Text>
+            {yesNoButton(Boolean(settingsForm.pos_allow_manual_sale_datetime), (v) => setSettingsField('pos_allow_manual_sale_datetime', v))}
+            {settingsForm.pos_allow_manual_sale_datetime ? (
+              <TextInput
+                style={[styles.input, isLightTheme && styles.inputLight]}
+                value={String(settingsForm.pos_max_backdate_hours ?? '')}
+                onChangeText={(v) => setSettingsField('pos_max_backdate_hours', v)}
+                placeholder="Max retrofecha POS (horas)"
+                keyboardType="numeric"
+                placeholderTextColor="#64748b"
+              />
+            ) : null}
+            <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
+              Solo administradores y gerentes podran cambiar la fecha/hora de la venta. La retrofecha no puede exceder el limite configurado ni quedar antes de la apertura de caja.
+            </Text>
           </View>
         ) : null}
 
@@ -329,6 +346,8 @@ const styles = StyleSheet.create({
   sectionTitleLight: { color: '#0f172a' },
   inlineLabel: { color: '#cbd5e1', fontSize: 12, marginTop: 8, marginBottom: 4 },
   inlineLabelLight: { color: '#475569' },
+  helperText: { color: '#94a3b8', fontSize: 12, lineHeight: 18, marginTop: 2 },
+  helperTextLight: { color: '#64748b' },
   input: {
     minHeight: 42,
     borderRadius: 8,

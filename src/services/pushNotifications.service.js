@@ -32,6 +32,26 @@ function ensureModules() {
   }
 }
 
+function getPushRuntimeContext() {
+  ensureModules();
+
+  const appOwnership = String(Constants?.appOwnership || '').trim().toLowerCase();
+  const executionEnvironment = String(Constants?.executionEnvironment || '').trim().toLowerCase();
+  const projectId =
+    Constants?.expoConfig?.extra?.eas?.projectId ||
+    Constants?.easConfig?.projectId ||
+    undefined;
+
+  return {
+    appOwnership,
+    executionEnvironment,
+    projectId,
+    isExpoGo:
+      appOwnership === 'expo' ||
+      executionEnvironment === 'storeclient',
+  };
+}
+
 export function configurePushNotifications() {
   ensureModules();
   if (!Notifications?.setNotificationHandler) return;
@@ -74,6 +94,16 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
   }
 
   try {
+    const runtime = getPushRuntimeContext();
+    if (runtime.isExpoGo) {
+      return {
+        success: false,
+        code: 'expo_go_unsupported',
+        error: 'El flujo push remoto de este proyecto no funciona desde Expo Go. Usa dev build o build nativa.',
+        data: runtime,
+      };
+    }
+
     await ensureAndroidChannel();
 
     const perms = await Notifications.getPermissionsAsync();
@@ -87,16 +117,12 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
       return { success: false, error: 'Permiso de notificaciones denegado.' };
     }
 
-    const projectId =
-      Constants?.expoConfig?.extra?.eas?.projectId ||
-      Constants?.easConfig?.projectId ||
-      undefined;
     const appVersion = String(Constants?.expoConfig?.version || '');
-    const appOwnership = String(Constants?.appOwnership || Constants?.executionEnvironment || 'unknown');
+    const appOwnership = String(runtime.appOwnership || runtime.executionEnvironment || 'unknown');
     const deviceUid = String(Device?.osBuildId || Device?.modelId || '');
 
     const tokenResult = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
+      runtime.projectId ? { projectId: runtime.projectId } : undefined,
     );
 
     const expoPushToken = String(tokenResult?.data || '').trim();
@@ -146,6 +172,7 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
       data: {
         push_device_id: data,
         expo_push_token: expoPushToken,
+        ...runtime,
       },
     };
   } catch (error) {
