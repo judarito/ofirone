@@ -88,7 +88,7 @@ export default function DatePickerField({
   };
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, open && styles.containerOpen, style]}>
       {label ? <Text style={[styles.label, isLightTheme && styles.labelLight]}>{label}</Text> : null}
       {isWeb ? (
         // Web: usa input type="date" del navegador.
@@ -149,7 +149,8 @@ export default function DatePickerField({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, position: 'relative', overflow: 'visible' },
+  containerOpen: { zIndex: 60, elevation: 12 },
   label: { color: COMPONENT_THEME_COLORS.datePickerField.dark.label, fontWeight: '700', fontSize: 12, marginBottom: 6, letterSpacing: 0.3 },
   labelLight: { color: COMPONENT_THEME_COLORS.datePickerField.light.label },
   field: {
@@ -176,6 +177,8 @@ const styles = StyleSheet.create({
     backgroundColor: COMPONENT_THEME_COLORS.datePickerField.dark.pickerBackground,
     overflow: 'hidden',
     paddingVertical: Platform.OS === 'ios' ? 0 : 4,
+    zIndex: 70,
+    elevation: 14,
   },
   pickerWrapLight: {
     borderColor: COMPONENT_THEME_COLORS.datePickerField.light.pickerBorder,

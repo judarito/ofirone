@@ -20,6 +20,12 @@ module.exports = () => {
 
   return {
     ...baseConfig,
+    extra: {
+      ...(baseConfig.extra || {}),
+      eas: {
+        ...(baseConfig.extra?.eas || {}),
+      },
+    },
     android: {
       ...(baseConfig.android || {}),
       ...(androidGoogleServicesFile ? { googleServicesFile: `./${androidGoogleServicesFile.replace(/\\/g, '/')}` } : {}),

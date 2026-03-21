@@ -20,7 +20,7 @@ import {
   getCurrentUserOpenSession,
   getPaymentMethodsForDropdown,
   getTaxInfoForVariant,
-  listCatalogForInvoiceMatching,
+  listCatalogCandidatesForMatching,
   searchCustomers,
   searchCustomersOffline,
   searchVariantsOffline,
@@ -1262,11 +1262,6 @@ export default function PointOfSaleScreen({
 
     try {
       const locationId = currentSession?.cash_register?.location_id || null;
-      const catalogResult = await listCatalogForInvoiceMatching(tenant.tenant_id, locationId, 3500);
-      if (!catalogResult.success || !catalogResult.data?.length) {
-        setError(catalogResult.error || 'No hay catálogo disponible para matching.');
-        return false;
-      }
 
       const commandResolveParams = {
         tenantId: tenant.tenant_id,
@@ -1303,6 +1298,25 @@ export default function PointOfSaleScreen({
           };
         }
 
+        setAiWorkingLabel('Buscando candidatos en catálogo...');
+        const catalogResult = await listCatalogCandidatesForMatching(
+          tenant.tenant_id,
+          locationId,
+          aiResult.data.line_items,
+          {
+            offlineMode,
+            perTermLimit: inputType === 'image' ? 24 : 18,
+            maxCandidates: inputType === 'image' ? 260 : 180,
+            fallbackLimit: inputType === 'image' ? 1600 : 1200,
+          },
+        );
+        if (!catalogResult.success || !catalogResult.data?.length) {
+          return {
+            success: false,
+            error: catalogResult.error || 'No hay catálogo candidato disponible para matching.',
+          };
+        }
+
         const { matched, unmatched } = matchInvoiceLinesToCatalog(
           aiResult.data.line_items,
           catalogResult.data,
@@ -1315,6 +1329,8 @@ export default function PointOfSaleScreen({
           matched,
           unmatched,
           engineSummary,
+          catalogSource: catalogResult.source || 'unknown',
+          catalogCandidateCount: Number(catalogResult.data?.length || 0),
         };
       };
 
@@ -1415,6 +1431,8 @@ export default function PointOfSaleScreen({
           sourceLabel: engineSummary.sourceLabel,
           fallbackChain: engineSummary.fallbackChain,
           cacheCrossInput: engineSummary.cacheCrossInput,
+          catalogSource: resolved.catalogSource,
+          catalogCandidateCount: resolved.catalogCandidateCount,
           customerSuggestion,
           customerAutoloaded,
           notes: aiResult?.data?.order?.notes || null,
@@ -1452,6 +1470,8 @@ export default function PointOfSaleScreen({
         sourceLabel: engineSummary.sourceLabel,
         fallbackChain: engineSummary.fallbackChain,
         cacheCrossInput: engineSummary.cacheCrossInput,
+        catalogSource: resolved.catalogSource,
+        catalogCandidateCount: resolved.catalogCandidateCount,
         customerSuggestion,
         customerAutoloaded,
         notes: aiResult?.data?.order?.notes || null,
@@ -1937,7 +1957,7 @@ export default function PointOfSaleScreen({
           </Pressable>
         </View>
         {showAiTools ? (
-          <View style={styles.aiToolsWrap}>
+          <View style={[styles.aiToolsWrap, isLightTheme && styles.aiToolsWrapLight]}>
             <View style={styles.aiActionsRow}>
               <Pressable
                 onPress={scanInvoiceWithAgent}
@@ -1962,8 +1982,20 @@ export default function PointOfSaleScreen({
                   showChatComposer && styles.aiIconBtnActive,
                 ]}
               >
-                <Ionicons name="chatbubble-ellipses-outline" size={20} color={isLightTheme ? '#235ea9' : '#eff6ff'} />
-                <Text style={[styles.aiIconBtnText, isLightTheme && styles.aiIconBtnTextLight]}>Chat</Text>
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={20}
+                  color={showChatComposer ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#eff6ff')}
+                />
+                <Text
+                  style={[
+                    styles.aiIconBtnText,
+                    isLightTheme && styles.aiIconBtnTextLight,
+                    showChatComposer && styles.aiIconBtnTextActive,
+                  ]}
+                >
+                  Chat
+                </Text>
               </Pressable>
 
               <Pressable
@@ -1976,8 +2008,20 @@ export default function PointOfSaleScreen({
                   processingVoiceOrder && styles.aiIconBtnActive,
                 ]}
               >
-                <Ionicons name="mic-outline" size={20} color={isLightTheme ? '#235ea9' : '#eff6ff'} />
-                <Text style={[styles.aiIconBtnText, isLightTheme && styles.aiIconBtnTextLight]}>Voz</Text>
+                <Ionicons
+                  name="mic-outline"
+                  size={20}
+                  color={processingVoiceOrder ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#eff6ff')}
+                />
+                <Text
+                  style={[
+                    styles.aiIconBtnText,
+                    isLightTheme && styles.aiIconBtnTextLight,
+                    processingVoiceOrder && styles.aiIconBtnTextActive,
+                  ]}
+                >
+                  Voz
+                </Text>
               </Pressable>
 
               <Pressable
@@ -1988,8 +2032,20 @@ export default function PointOfSaleScreen({
                   showAiLogs && styles.aiIconBtnActive,
                 ]}
               >
-                <Ionicons name={showAiLogs ? 'receipt' : 'receipt-outline'} size={20} color={isLightTheme ? '#235ea9' : '#eff6ff'} />
-                <Text style={[styles.aiIconBtnText, isLightTheme && styles.aiIconBtnTextLight]}>Logs</Text>
+                <Ionicons
+                  name={showAiLogs ? 'receipt' : 'receipt-outline'}
+                  size={20}
+                  color={showAiLogs ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#eff6ff')}
+                />
+                <Text
+                  style={[
+                    styles.aiIconBtnText,
+                    isLightTheme && styles.aiIconBtnTextLight,
+                    showAiLogs && styles.aiIconBtnTextActive,
+                  ]}
+                >
+                  Logs
+                </Text>
               </Pressable>
             </View>
 
@@ -2097,6 +2153,14 @@ export default function PointOfSaleScreen({
                     <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
                       Fuente: {chatOrderSummary.sourceLabel || 'engine'}
                     </Text>
+                    {chatOrderSummary?.catalogSource ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Catálogo: {chatOrderSummary.catalogSource}
+                        {chatOrderSummary?.catalogCandidateCount
+                          ? ` (${chatOrderSummary.catalogCandidateCount} candidatos)`
+                          : ''}
+                      </Text>
+                    ) : null}
                     {chatOrderSummary?.cacheCrossInput ? (
                       <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
                         Caché cross-input: sí
@@ -2711,6 +2775,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#0f172a',
   },
+  aiToolsWrapLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fbff',
+  },
   aiActionsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -2743,6 +2811,9 @@ const styles = StyleSheet.create({
   },
   aiIconBtnTextLight: {
     color: '#0c4a6e',
+  },
+  aiIconBtnTextActive: {
+    color: '#ecfeff',
   },
   chatComposerWrap: {
     flexDirection: 'row',
@@ -2824,9 +2895,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#155e75',
     borderRadius: 8,
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#082f49',
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 6,
@@ -2837,7 +2908,7 @@ const styles = StyleSheet.create({
   },
   aiWorkingText: {
     flex: 1,
-    color: '#eff6ff',
+    color: '#e0f2fe',
     fontSize: 12,
     fontWeight: '600',
   },

@@ -26,6 +26,16 @@ Regla de trabajo:
 - En POS, camara/chat/voz IA quedan bloqueados mientras el modelo local siga descargandose, aunque la descarga haya arrancado desde background.
 - En push Android, la app ahora declara explicitamente `POST_NOTIFICATIONS` en nativo y el dispatcher envia a Expo Push con `priority: high` + `ttl`, para mejorar entrega en la barra del sistema.
 - En POS, los atajos de efectivo ya no representan incrementos (`+5000`, `+10000`); ahora representan montos reales recibidos y resaltan el valor aplicado para que el flujo de cobro sea mas natural para caja.
+- El detector de conectividad en `App.js` ya no manda la app a offline automatico con una sola falla aislada: ahora usa timeout mas amplio y exige varias fallas consecutivas antes de cambiar el estado operativo.
+- Se definio una propuesta arquitectonica separada para monetizacion por tenant en `docs/TENANT_BILLING_MONETIZATION_DESIGN.md`, con planes, suscripciones, renovaciones, gracia, suspension y enforcement por features/limites.
+- Ya existe una migracion inicial `migrations/ADD_TENANT_BILLING_MONETIZATION.sql` que crea el dominio SQL base de billing para tenants: planes, precios, suscripciones, periodos, invoices, pagos, resumen operativo y seeds iniciales.
+- La migracion de billing ya incluye hardening de seguridad para Supabase: RLS, aislamiento por tenant, catalogo de planes en solo lectura para autenticados y acceso resumido por funcion segura.
+- Existe ademas `docs/TENANT_BILLING_IMPLEMENTATION_STATUS.md` como bitacora corta de esta implementacion puntual de billing y su estado actual.
+- El header mobile se simplifico: se retiro el avatar de iniciales, el estado online/offline ahora usa un icono compacto sin texto y el cambio de tema oscuro/claro se movio del header al menu lateral.
+- Se reforzaron las capas visuales de filtros con fecha en mobile: `DatePickerField`, `SalesHistoryScreen` y `ReportsScreen` ahora respetan mejor `zIndex`/`overflow` para evitar que filtros o pickers queden peleando con otros bloques de la vista.
+- En POS se ajusto la UX del bloque IA: el panel ahora respeta mejor el tema claro/oscuro, los estados activos tienen mejor contraste y el banner de trabajo ya no queda visualmente ambiguo en modo oscuro.
+- El matching IA de catalogo para pedidos/chat/OCR se volvio mas estricto contra falsos positivos por prefijos cortos de SKU: ahora prioriza coincidencia real por nombre y evita casos como interpretar `Pan tajado` como un `Pantalon` solo por coincidir con `PAN-...`.
+- El POS ya no depende de cargar un catalogo masivo completo antes de cada comando IA: el pipeline sigue `cache -> parser deterministico -> llm local -> llm cloud`, y luego resuelve productos con retrieval de candidatos por linea + matching, con fallback controlado a catalogo mas amplio solo si hace falta.
 
 ## 1. Proposito
 
@@ -164,6 +174,22 @@ Responsabilidades principales:
 - borradores operativos
 - cola de operaciones pendientes
 - continuidad offline de flujos criticos
+
+### 5.3 Monetizacion tenant
+
+Estado actual:
+
+- no se observo una capa real de billing o suscripciones ya implementada en mobile
+- `tenant_settings` hoy pertenece a configuracion operativa, no a facturacion comercial del tenant
+
+Direccion definida:
+
+- la monetizacion multi-tenant debe vivir como dominio separado
+- el backend debe ser la fuente de verdad del estado comercial de cada tenant
+- mobile debe consumir un resumen operativo de billing para mostrar plan, vencimiento, gracia, suspension y limites efectivos
+- la referencia de diseno actual es `docs/TENANT_BILLING_MONETIZATION_DESIGN.md`
+- la base SQL inicial ya vive en `migrations/ADD_TENANT_BILLING_MONETIZATION.sql`
+- el estado puntual de esta implementacion vive en `docs/TENANT_BILLING_IMPLEMENTATION_STATUS.md`
 
 ## 6. Estrategia offline-first
 

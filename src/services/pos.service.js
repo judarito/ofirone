@@ -1,6 +1,22 @@
 import { supabase } from '../lib/supabase';
 import { getSimpleCache, saveSimpleCache } from './offlineCache.service';
 
+const MATCH_QUERY_STOP_TOKENS = new Set([
+  'de',
+  'del',
+  'la',
+  'las',
+  'el',
+  'los',
+  'y',
+  'en',
+  'con',
+  'por',
+  'para',
+  'un',
+  'una',
+]);
+
 function catalogCacheKey(tenantId, locationId) {
   return `pos-catalog:${tenantId}:${locationId || 'na'}`;
 }
@@ -27,6 +43,83 @@ function normalizeSearchText(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function tokenizeCandidateSearch(value) {
+  return normalizeSearchText(value)
+    .split(' ')
+    .filter(Boolean)
+    .filter((token) => !MATCH_QUERY_STOP_TOKENS.has(token))
+    .filter((token) => token.length >= 2);
+}
+
+function buildCatalogCandidateTerms(line) {
+  const rawName = String(line?.raw_name || line?.name || '').trim();
+  const unitHint = String(line?.unit_hint || '').trim();
+  const sku = String(line?.sku || '').trim();
+  const combined = [rawName, unitHint].filter(Boolean).join(' ').trim();
+  const normalizedCombined = normalizeSearchText(combined);
+  const terms = [];
+
+  if (sku) {
+    terms.push(sku);
+  }
+  if (normalizedCombined.length >= 3) {
+    terms.push(normalizedCombined);
+  }
+
+  const tokens = tokenizeCandidateSearch(combined)
+    .filter((token) => token.length >= 3)
+    .sort((a, b) => b.length - a.length);
+
+  tokens.slice(0, 4).forEach((token) => {
+    terms.push(token);
+  });
+
+  return Array.from(new Set(terms.filter(Boolean))).slice(0, 5);
+}
+
+function scoreCatalogCandidate(item, terms = []) {
+  const candidateText = normalizeSearchText(`${item?.sku || ''} ${item?.variant_name || ''} ${item?.product?.name || ''}`);
+  const candidateTokens = new Set(tokenizeCandidateSearch(candidateText));
+  let bestScore = 0;
+
+  for (const term of terms) {
+    const normalizedTerm = normalizeSearchText(term);
+    if (!normalizedTerm) continue;
+
+    if (candidateText === normalizedTerm) {
+      bestScore = Math.max(bestScore, 1);
+      continue;
+    }
+
+    if (candidateText.includes(normalizedTerm)) {
+      bestScore = Math.max(bestScore, 0.92);
+      continue;
+    }
+
+    const termTokens = tokenizeCandidateSearch(normalizedTerm);
+    if (!termTokens.length) continue;
+    const overlap = termTokens.filter((token) => candidateTokens.has(token)).length;
+    if (!overlap) continue;
+
+    const score = overlap / termTokens.length;
+    bestScore = Math.max(bestScore, score);
+  }
+
+  return Number(bestScore.toFixed(3));
+}
+
+function rankCatalogCandidates(list = [], terms = [], limit = 200) {
+  return (Array.isArray(list) ? list : [])
+    .map((item) => ({
+      item,
+      score: scoreCatalogCandidate(item, terms),
+    }))
+    .filter((entry) => entry.score >= 0.34)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((entry) => entry.item);
 }
 
 export async function getPaymentMethodsForDropdown(tenantId, { offlineMode = false } = {}) {
@@ -277,6 +370,96 @@ export async function listCatalogForInvoiceMatching(tenantId, locationId = null,
       success: false,
       error: warm.error || 'No fue posible cargar catalogo para matching de factura.',
       data: [],
+    };
+  } catch (error) {
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function listCatalogCandidatesForMatching(
+  tenantId,
+  locationId = null,
+  lineItems = [],
+  { offlineMode = false, perTermLimit = 20, maxCandidates = 220, fallbackLimit = 1200 } = {},
+) {
+  try {
+    const lines = Array.isArray(lineItems) ? lineItems : [];
+    const candidateTerms = Array.from(
+      new Set(
+        lines.flatMap((line) => buildCatalogCandidateTerms(line)),
+      ),
+    ).slice(0, 18);
+
+    if (!candidateTerms.length) {
+      return {
+        success: false,
+        error: 'No hay terminos suficientes para buscar candidatos en catalogo.',
+        data: [],
+      };
+    }
+
+    const resolveFromCache = async () => {
+      const [cachedByLocation, cachedGeneric] = await Promise.all([
+        getSimpleCache(catalogCacheKey(tenantId, locationId)),
+        getSimpleCache(catalogCacheKey(tenantId, null)),
+      ]);
+      const list = (cachedByLocation?.value || []).length
+        ? cachedByLocation.value
+        : (cachedGeneric?.value || []);
+      const ranked = rankCatalogCandidates(list, candidateTerms, maxCandidates);
+      return {
+        success: ranked.length > 0,
+        data: ranked,
+        source: 'cache_targeted',
+      };
+    };
+
+    if (offlineMode) {
+      return resolveFromCache();
+    }
+
+    const searchResults = await Promise.all(
+      candidateTerms.map((term) => searchVariants(tenantId, term, perTermLimit, locationId)),
+    );
+
+    const merged = new Map();
+    searchResults.forEach((result) => {
+      if (!result?.success || !Array.isArray(result.data)) return;
+      result.data.forEach((item) => {
+        if (!merged.has(item.variant_id)) {
+          merged.set(item.variant_id, item);
+        }
+      });
+    });
+
+    let candidates = rankCatalogCandidates(Array.from(merged.values()), candidateTerms, maxCandidates);
+
+    if (!candidates.length) {
+      const cached = await resolveFromCache();
+      if (cached.success && cached.data.length) {
+        return cached;
+      }
+    }
+
+    if (!candidates.length) {
+      const fallback = await listCatalogForInvoiceMatching(tenantId, locationId, fallbackLimit);
+      if (fallback.success && Array.isArray(fallback.data) && fallback.data.length) {
+        candidates = rankCatalogCandidates(fallback.data, candidateTerms, maxCandidates);
+        if (candidates.length) {
+          return {
+            success: true,
+            data: candidates,
+            source: 'catalog_fallback',
+          };
+        }
+      }
+    }
+
+    return {
+      success: candidates.length > 0,
+      data: candidates,
+      source: 'targeted_search',
+      error: candidates.length ? null : 'No fue posible construir un subconjunto de catalogo para matching.',
     };
   } catch (error) {
     return { success: false, error: error.message, data: [] };

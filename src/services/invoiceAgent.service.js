@@ -64,6 +64,22 @@ const SIZE_TOKENS = new Set([
   '4xl',
 ]);
 
+const MATCH_STOP_TOKENS = new Set([
+  'de',
+  'del',
+  'la',
+  'las',
+  'el',
+  'los',
+  'y',
+  'en',
+  'con',
+  'por',
+  'para',
+  'un',
+  'una',
+]);
+
 function normalizeSizeToken(token) {
   const clean = String(token || '')
     .toLowerCase()
@@ -76,6 +92,7 @@ function normalizeSizeToken(token) {
 function tokenize(value) {
   return normalizeText(value)
     .split(' ')
+    .filter((t) => !MATCH_STOP_TOKENS.has(t))
     .filter((t) => t.length >= 2 || SIZE_TOKENS.has(t));
 }
 
@@ -120,19 +137,41 @@ function scoreByTokens(lineText, candidate) {
   const lineTokens = tokenize(lineText);
   if (lineTokens.length === 0) return 0;
 
-  const candidateText = `${candidate?.product?.name || ''} ${candidate?.variant_name || ''} ${candidate?.sku || ''}`;
-  const candidateTokens = tokenize(candidateText);
-  if (candidateTokens.length === 0) return 0;
+  const candidateNameText = `${candidate?.product?.name || ''} ${candidate?.variant_name || ''}`.trim();
+  const candidateSkuText = `${candidate?.sku || ''}`.trim();
+  const candidateNameTokens = tokenize(candidateNameText);
+  if (candidateNameTokens.length === 0) return 0;
 
-  const candidateSet = new Set(candidateTokens);
-  const intersection = lineTokens.filter((token) => candidateSet.has(token)).length;
+  const normalizedLine = normalizeText(lineText);
+  const normalizedCandidateName = normalizeText(candidateNameText);
+  const nameTokenSet = new Set(candidateNameTokens);
+  const skuTokenSet = new Set(tokenize(candidateSkuText));
+
+  const nameIntersectionTokens = lineTokens.filter((token) => nameTokenSet.has(token));
+  const skuIntersectionTokens = lineTokens.filter((token) => skuTokenSet.has(token));
+  const nameIntersection = nameIntersectionTokens.length;
+  const strongNameOverlap = nameIntersectionTokens.filter((token) => token.length >= 4 || SIZE_TOKENS.has(token)).length;
   const containmentBonus =
-    normalizeText(candidateText).includes(normalizeText(lineText)) ||
-    normalizeText(lineText).includes(normalizeText(candidateText))
-      ? 0.15
+    normalizedCandidateName.includes(normalizedLine) || normalizedLine.includes(normalizedCandidateName)
+      ? 0.12
       : 0;
 
-  return Math.min(1, intersection / lineTokens.length + containmentBonus);
+  // No permitas que un prefijo corto del SKU (ej: PAN-...) fuerce match si el nombre no coincide.
+  if (nameIntersection === 0 && containmentBonus === 0) {
+    return 0;
+  }
+
+  let score = nameIntersection / lineTokens.length;
+
+  if (strongNameOverlap > 0) {
+    score += 0.08;
+  }
+
+  if (skuIntersectionTokens.length > 0 && nameIntersection > 0) {
+    score += 0.04;
+  }
+
+  return Math.min(1, score + containmentBonus);
 }
 
 function findBestVariantMatch(line, catalog) {
@@ -203,7 +242,7 @@ function findBestVariantMatch(line, catalog) {
     }
   }
 
-  if (best && best.score >= 0.42) {
+  if (best && best.score >= 0.52) {
     return {
       variant: best.candidate,
       confidence: Number(Math.min(1, Math.max(0, best.score)).toFixed(3)),

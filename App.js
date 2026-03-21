@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   BackHandler,
@@ -188,16 +188,6 @@ function resolveMenuAccent(item) {
   return SCREEN_ACCENT_MAP[target] || SCREEN_ACCENT_COLORS.fallback;
 }
 
-function extractInitials(name, fallback = 'U') {
-  const parts = String(name || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!parts.length) return fallback;
-  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
-  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
-}
-
 function getAndroidNavigationBottomInset() {
   if (Platform.OS !== 'android') return 0;
 
@@ -229,6 +219,9 @@ const HOME_ACTION_LABELS = {
   Reports: 'Reportes',
 };
 const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights']);
+const CONNECTIVITY_CHECK_INTERVAL_MS = 10000;
+const CONNECTIVITY_TIMEOUT_MS = 6000;
+const CONNECTIVITY_FAILURES_BEFORE_OFFLINE = 3;
 
 const ActiveModuleScreen = memo(function ActiveModuleScreen({
   currentScreen,
@@ -468,6 +461,7 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const connectivityFailuresRef = useRef(0);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
@@ -721,16 +715,31 @@ export default function App() {
     let active = true;
     let timer = null;
 
+    const commitReachability = (nextReachable) => {
+      if (!active) return;
+
+      if (nextReachable) {
+        connectivityFailuresRef.current = 0;
+        setNetworkReachable(true);
+        return;
+      }
+
+      connectivityFailuresRef.current += 1;
+      if (connectivityFailuresRef.current >= CONNECTIVITY_FAILURES_BEFORE_OFFLINE) {
+        setNetworkReachable(false);
+      }
+    };
+
     const checkConnectivity = async () => {
       const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
       const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
       if (!baseUrl) {
-        if (active) setNetworkReachable(true);
+        commitReachability(true);
         return;
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3500);
+      const timeout = setTimeout(() => controller.abort(), CONNECTIVITY_TIMEOUT_MS);
       try {
         const response = await fetch(`${baseUrl}/rest/v1/`, {
           method: 'GET',
@@ -742,18 +751,16 @@ export default function App() {
             : undefined,
           signal: controller.signal,
         });
-        if (active) {
-          setNetworkReachable(response.status < 500);
-        }
+        commitReachability(response.status < 500);
       } catch (_e) {
-        if (active) setNetworkReachable(false);
+        commitReachability(false);
       } finally {
         clearTimeout(timeout);
       }
     };
 
     checkConnectivity();
-    timer = setInterval(checkConnectivity, 10000);
+    timer = setInterval(checkConnectivity, CONNECTIVITY_CHECK_INTERVAL_MS);
 
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
@@ -940,10 +947,6 @@ export default function App() {
   }, [homeLast7Series]);
   const monthVsPrev = Number(kpis?.month?.vs_prev || 0);
   const todayVsPrev = Number(kpis?.today?.vs_prev || 0);
-  const profileInitials = useMemo(
-    () => extractInitials(userProfile?.full_name || userEmail || 'U'),
-    [userProfile?.full_name, userEmail],
-  );
   const formatMoney = useCallback((value) => {
     const currency = tenant?.currency_code || 'COP';
     const amount = Number(value || 0);
@@ -1741,23 +1744,17 @@ export default function App() {
               </View>
             ) : null}
           </Pressable>
-          <Pressable
-            onPress={() => handleLocalThemeChange(isLightTheme ? 'dark' : 'light')}
-            style={[styles.themeToggleBtn, isLightTheme ? styles.themeToggleBtnLight : null]}
-          >
-            <Ionicons
-              name={isLightTheme ? 'moon-outline' : 'sunny-outline'}
-              size={16}
-              style={[styles.themeToggleIcon, isLightTheme ? styles.themeToggleIconLight : null]}
-            />
-          </Pressable>
           <View style={[styles.connectionChip, offlineMode ? styles.connectionChipOffline : styles.connectionChipOnline]}>
-            <Text style={[styles.connectionDot, offlineMode ? styles.connectionDotOffline : styles.connectionDotOnline]}>
-              ●
-            </Text>
-            <Text style={[styles.connectionChipText, offlineMode ? styles.connectionChipTextOffline : styles.connectionChipTextOnline]}>
-              {offlineMode ? `Offline · ${pendingOpsCount}` : 'Online'}
-            </Text>
+            <Ionicons
+              name={offlineMode ? 'cloud-offline-outline' : 'cloud-done-outline'}
+              size={16}
+              style={[styles.connectionIcon, offlineMode ? styles.connectionIconOffline : styles.connectionIconOnline]}
+            />
+            {offlineMode && pendingOpsCount > 0 ? (
+              <View style={styles.connectionBadge}>
+                <Text style={styles.connectionBadgeText}>{pendingOpsCount > 99 ? '99+' : pendingOpsCount}</Text>
+              </View>
+            ) : null}
           </View>
           {currentScreen !== 'Home' ? (
             <Pressable
@@ -1772,11 +1769,6 @@ export default function App() {
               />
             </Pressable>
           ) : null}
-          <View style={[styles.appBarAvatar, isLightTheme ? styles.appBarAvatarLight : null]}>
-            <Text style={[styles.appBarAvatarText, isLightTheme ? styles.appBarAvatarTextLight : null]}>
-              {profileInitials}
-            </Text>
-          </View>
         </View>
       </View>
 
@@ -1798,6 +1790,27 @@ export default function App() {
             </View>
             <Text style={[styles.menuUser, isLightTheme ? null : styles.menuUserDark]}>{userProfile?.full_name || userEmail || APP_TEXT.userFallback}</Text>
             <Text style={[styles.menuTenant, isLightTheme ? null : styles.menuTenantDark]}>{tenant?.tenant_name || APP_TEXT.tenantFallback}</Text>
+            <Pressable
+              onPress={() => handleLocalThemeChange(isLightTheme ? 'dark' : 'light')}
+              style={[styles.themeSwitchCard, isLightTheme && styles.themeSwitchCardLight]}
+            >
+              <View style={styles.themeSwitchTextWrap}>
+                <Text style={[styles.themeSwitchTitle, isLightTheme && styles.themeSwitchTitleLight]}>Tema</Text>
+                <Text style={[styles.themeSwitchSubtitle, isLightTheme && styles.themeSwitchSubtitleLight]}>
+                  {isLightTheme ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+                </Text>
+              </View>
+              <View style={styles.themeSwitchControlWrap}>
+                <Ionicons
+                  name={isLightTheme ? 'sunny-outline' : 'moon-outline'}
+                  size={18}
+                  color={isLightTheme ? '#0f172a' : '#e2e8f0'}
+                />
+                <Text style={[styles.themeSwitchMode, isLightTheme && styles.themeSwitchModeLight]}>
+                  {isLightTheme ? 'Claro' : 'Oscuro'}
+                </Text>
+              </View>
+            </Pressable>
 
             <ScrollView contentContainerStyle={[styles.menuContent, { paddingBottom: 30 + androidBottomInset }]}>
               {(menuTree || []).length === 0 ? (
@@ -2370,26 +2383,6 @@ const styles = StyleSheet.create({
   notificationsBtnTextLight: {
     color: APP_THEME_COLORS.light.iconButtonIcon,
   },
-  themeToggleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: APP_THEME_COLORS.dark.iconButtonBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: APP_THEME_COLORS.dark.iconButtonBackground,
-  },
-  themeToggleBtnLight: {
-    backgroundColor: APP_THEME_COLORS.light.iconButtonBackground,
-    borderColor: APP_THEME_COLORS.light.iconButtonBorder,
-  },
-  themeToggleIcon: {
-    color: APP_THEME_COLORS.dark.themeToggleIcon,
-  },
-  themeToggleIconLight: {
-    color: APP_THEME_COLORS.light.themeToggleIcon,
-  },
   notificationsBadge: {
     position: 'absolute',
     top: -6,
@@ -2428,36 +2421,14 @@ const styles = StyleSheet.create({
   appBarBackIconLight: {
     color: APP_THEME_COLORS.light.backButtonIcon,
   },
-  appBarAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: APP_THEME_COLORS.dark.avatarBackground,
+  connectionChip: {
+    width: 36,
+    height: 36,
     borderWidth: 1,
-    borderColor: APP_THEME_COLORS.dark.avatarBorder,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  appBarAvatarLight: {
-    borderColor: APP_THEME_COLORS.light.avatarBorder,
-    backgroundColor: APP_THEME_COLORS.light.avatarBackground,
-  },
-  appBarAvatarText: {
-    color: APP_THEME_COLORS.dark.avatarText,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  appBarAvatarTextLight: {
-    color: APP_THEME_COLORS.light.avatarText,
-  },
-  connectionChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    position: 'relative',
   },
   connectionChipOnline: {
     borderColor: APP_THEME_COLORS.shared.connectionOnlineBorder,
@@ -2467,19 +2438,28 @@ const styles = StyleSheet.create({
     borderColor: APP_THEME_COLORS.shared.connectionOfflineBorder,
     backgroundColor: APP_THEME_COLORS.shared.connectionOfflineBackground,
   },
-  connectionChipText: {
-    fontSize: 10,
-    fontWeight: '700',
+  connectionIcon: {
+    lineHeight: 16,
   },
-  connectionChipTextOnline: { color: APP_THEME_COLORS.shared.connectionOnlineText },
-  connectionChipTextOffline: { color: APP_THEME_COLORS.shared.connectionOfflineText },
-  connectionDot: {
-    fontSize: 10,
-    fontWeight: '700',
-    lineHeight: 12,
+  connectionIconOnline: { color: APP_THEME_COLORS.shared.connectionOnlineText },
+  connectionIconOffline: { color: APP_THEME_COLORS.shared.connectionOfflineText },
+  connectionBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  connectionDotOnline: { color: APP_THEME_COLORS.shared.connectionOnlineDot },
-  connectionDotOffline: { color: APP_THEME_COLORS.shared.connectionOfflineDot },
+  connectionBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
   menuTrigger: {
     width: 36,
     height: 36,
