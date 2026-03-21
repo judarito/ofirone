@@ -399,7 +399,7 @@ export async function resolveReportQueryFromText({
     });
     return {
       success: false,
-      error: `Sin conexion: no fue posible interpretar la consulta en cache/parser/LLM local.${localHint}`,
+      error: `Sin conexión: no fue posible interpretar la consulta en caché/parser/LLM local.${localHint}`,
     };
   }
 

@@ -426,12 +426,12 @@ export async function findVariantByCode(tenantId, code, locationId = null, { off
   if (offlineMode) {
     const cachedResult = await searchVariantsOffline(tenantId, query, 25, locationId);
     if (!cachedResult.success || !cachedResult.data?.length) {
-      return { success: false, error: 'No se encontro variante por codigo en cache local.', data: null };
+      return { success: false, error: 'No se encontró variante por código en caché local.', data: null };
     }
     const found = matchByFields(cachedResult.data);
     return found
       ? { success: true, data: found, source: cachedResult.source || 'cache' }
-      : { success: false, error: 'No se encontro variante por codigo en cache local.', data: null };
+      : { success: false, error: 'No se encontró variante por código en caché local.', data: null };
   }
 
   try {
@@ -462,11 +462,11 @@ export async function findVariantByCode(tenantId, code, locationId = null, { off
 
     const searchResult = await searchVariants(tenantId, query, 25, locationId);
     if (!searchResult.success || !searchResult.data?.length) {
-      return { success: false, error: 'No se encontro variante por codigo.', data: null };
+      return { success: false, error: 'No se encontró variante por código.', data: null };
     }
     const found = matchByFields(searchResult.data);
     if (!found) {
-      return { success: false, error: 'No se encontro variante por codigo.', data: null };
+      return { success: false, error: 'No se encontró variante por código.', data: null };
     }
     return { success: true, data: found, source: searchResult.source || 'server' };
   } catch (error) {

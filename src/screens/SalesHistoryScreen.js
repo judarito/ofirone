@@ -114,7 +114,7 @@ function buildSaleTicketText(sale, currencyFormatter) {
     sale?.cufe ? `CUFE: ${sale.cufe}` : null,
     '',
     'Productos:',
-    ...(lines.length ? lines : ['- Sin lineas']),
+    ...(lines.length ? lines : ['- Sin líneas']),
     '',
     `Total: ${currencyFormatter(sale?.total || 0)}`,
     '',
@@ -599,7 +599,7 @@ export default function SalesHistoryScreen({
     setProcessing(true);
     const result = await retrySaleElectronicInvoicing(tenant.tenant_id, sale.sale_id);
     if (!result.success) {
-      setError(result.error || 'No fue posible reintentar facturacion electronica');
+      setError(result.error || 'No fue posible reintentar facturación electrónica.');
       setProcessing(false);
       return;
     }
@@ -607,7 +607,7 @@ export default function SalesHistoryScreen({
     if (result.mode === 'manual_reset') {
       Alert.alert(
         'FE en cola',
-        'La venta quedo en estado PENDING para reproceso. El envio depende del backend FE.',
+        'La venta quedó en estado PENDING para reproceso. El envío depende del backend FE.',
       );
     }
 
@@ -691,7 +691,7 @@ export default function SalesHistoryScreen({
   const discardPendingSale = (sale) => {
     const operationId = sale?.operation_id;
     if (!operationId) return;
-    Alert.alert('Descartar venta offline', `Se descartara ${sale.sale_number || 'la venta'} de la cola local.`, [
+    Alert.alert('Descartar venta offline', `Se descartará ${sale.sale_number || 'la venta'} de la cola local.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Descartar',
@@ -723,7 +723,7 @@ export default function SalesHistoryScreen({
     const payload = result.data?.payload || sale.local_payload || {};
     const lines = Array.isArray(payload.lines) ? payload.lines : [];
     if (!lines.length) {
-      setError('La venta offline no tiene lineas editables.');
+      setError('La venta offline no tiene líneas editables.');
       return;
     }
     setEditSale({
@@ -762,14 +762,14 @@ export default function SalesHistoryScreen({
       .filter((line) => line.qty > 0 && line.variant_id);
 
     if (!normalizedLines.length) {
-      setError('Debe quedar al menos una linea con cantidad mayor que cero.');
+      setError('Debe quedar al menos una línea con cantidad mayor que cero.');
       return;
     }
 
     setProcessing(true);
     const totalResult = await estimatePendingSaleTotal(tenant.tenant_id, normalizedLines);
     if (!totalResult.success) {
-      setError(totalResult.error || 'No fue posible estimar total para sincronizar');
+      setError(totalResult.error || 'No fue posible estimar el total para sincronizar.');
       setProcessing(false);
       return;
     }
@@ -873,11 +873,11 @@ export default function SalesHistoryScreen({
     const toDate = parseYmdToDate(toDateInput);
 
     if (fromDateInput && !fromDate) {
-      setError('Fecha "Desde" invalida. Usa formato YYYY-MM-DD.');
+      setError('Fecha "Desde" inválida. Usa el formato YYYY-MM-DD.');
       return;
     }
     if (toDateInput && !toDate) {
-      setError('Fecha "Hasta" invalida. Usa formato YYYY-MM-DD.');
+      setError('Fecha "Hasta" inválida. Usa el formato YYYY-MM-DD.');
       return;
     }
     if (fromDate && toDate && fromDate.getTime() > toDate.getTime()) {
@@ -916,7 +916,7 @@ export default function SalesHistoryScreen({
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={[styles.quickFiltersCard, isLightTheme && styles.quickFiltersCardLight]}>
-        <Text style={[styles.quickFiltersTitle, isLightTheme && styles.quickFiltersTitleLight]}>Filtros rapidos</Text>
+        <Text style={[styles.quickFiltersTitle, isLightTheme && styles.quickFiltersTitleLight]}>Filtros rápidos</Text>
         <View style={styles.quickFiltersRow}>
           <Pressable
             style={[
@@ -955,7 +955,7 @@ export default function SalesHistoryScreen({
               ]}
               numberOfLines={1}
             >
-              Periodo: {selectedDateLabel}
+              Período: {selectedDateLabel}
             </Text>
             <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
           </Pressable>
@@ -1026,7 +1026,7 @@ export default function SalesHistoryScreen({
               {singleSelectFilter === 'status'
                 ? 'Seleccionar estado'
                 : singleSelectFilter === 'date'
-                  ? 'Seleccionar periodo'
+                  ? 'Seleccionar período'
                   : 'Seleccionar sede'}
             </Text>
             <ScrollView style={styles.pickerOptions} contentContainerStyle={styles.pickerOptionsContent}>
@@ -1080,7 +1080,7 @@ export default function SalesHistoryScreen({
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(sale) => (
@@ -1253,7 +1253,7 @@ export default function SalesHistoryScreen({
                   </Pressable>
                 ) : null}
 
-                <Text style={groupTitleStyles}>Lineas</Text>
+                <Text style={groupTitleStyles}>Líneas</Text>
                 {(detail?.sale_lines || []).map((line) => (
                   <View key={line.sale_line_id} style={detailRowStyles}>
                     <Text style={modalMetaLineStyles}>
@@ -1432,7 +1432,7 @@ export default function SalesHistoryScreen({
                     >
                       <View style={styles.actionBtnContent}>
                         <Ionicons name="add-circle-outline" size={13} style={styles.actionBtnIcon} />
-                        <Text style={styles.actionBtnText}>+ Metodo</Text>
+                        <Text style={styles.actionBtnText}>+ Método</Text>
                       </View>
                     </Pressable>
                     <Pressable
@@ -1506,7 +1506,7 @@ export default function SalesHistoryScreen({
           <View style={modalBodyStyles}>
             <ScrollView>
               <Text style={modalTitleStyles}>Editar venta offline</Text>
-              <Text style={modalMetaLineStyles}>Ajusta cantidades para reintentar sincronizacion.</Text>
+              <Text style={modalMetaLineStyles}>Ajusta cantidades para reintentar sincronización.</Text>
               {editLines.map((line, idx) => (
                 <View key={line.key} style={returnLineCardStyles}>
                   <Text style={modalMetaLineStyles}>Variante: {line.variant_id?.slice(0, 8) || '-'}</Text>

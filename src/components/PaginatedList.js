@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { COMMON_TEXT } from '../constants/uiText';
 import { useThemeMode } from '../lib/themeMode';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
@@ -7,7 +8,7 @@ export default function PaginatedList({
   loading,
   error,
   items,
-  emptyText = 'Sin datos',
+  emptyText = COMMON_TEXT.noData,
   page,
   totalPages,
   onPrev,
@@ -60,13 +61,13 @@ export default function PaginatedList({
 
         <View style={styles.pagination}>
           <Pressable style={[styles.pageBtn, isLightTheme && styles.pageBtnLight, page <= 1 && styles.disabled]} onPress={onPrev} disabled={page <= 1}>
-            <Text style={[styles.pageBtnText, isLightTheme && styles.pageBtnTextLight]}>Anterior</Text>
+            <Text style={[styles.pageBtnText, isLightTheme && styles.pageBtnTextLight]}>{COMMON_TEXT.previous}</Text>
           </Pressable>
           <Text style={[styles.pageText, isLightTheme && styles.pageTextLight]}>
             {page}/{totalPages}
           </Text>
           <Pressable style={[styles.pageBtn, isLightTheme && styles.pageBtnLight, page >= totalPages && styles.disabled]} onPress={onNext} disabled={page >= totalPages}>
-            <Text style={[styles.pageBtnText, isLightTheme && styles.pageBtnTextLight]}>Siguiente</Text>
+            <Text style={[styles.pageBtnText, isLightTheme && styles.pageBtnTextLight]}>{COMMON_TEXT.next}</Text>
           </Pressable>
         </View>
       </View>

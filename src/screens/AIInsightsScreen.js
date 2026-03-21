@@ -20,7 +20,7 @@ function getToneStyle(tone) {
 function normalizeResult(result) {
   return {
     insightId: result?.insightId || null,
-    title: result?.title || 'Analisis IA',
+    title: result?.title || 'Análisis IA',
     summary: result?.summary || 'Sin resumen disponible.',
     highlights: Array.isArray(result?.highlights) ? result.highlights : [],
     findings: Array.isArray(result?.findings) ? result.findings : [],
@@ -55,7 +55,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
         offlineMode,
       });
       if (!result.success || !result?.data) {
-        setError(result.error || 'No se pudo ejecutar el analisis IA.');
+        setError(result.error || 'No se pudo ejecutar el análisis IA.');
         return;
       }
       setResultById((prev) => ({
@@ -77,7 +77,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
         offlineMode,
       });
       if (!result.success || !Array.isArray(result?.data)) {
-        setError(result.error || 'No fue posible ejecutar todos los analisis IA.');
+        setError(result.error || 'No fue posible ejecutar todos los análisis IA.');
         return;
       }
       const next = {};
@@ -86,7 +86,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
         next[entry.insightId] = normalizeResult({ ...entry.data, insightId: entry.insightId });
       });
       if (Object.keys(next).length === 0) {
-        setError('No se pudo ejecutar ningun analisis IA. Verifica conexion o cache local.');
+        setError('No se pudo ejecutar ningún análisis IA. Verifica conexión o caché local.');
         return;
       }
       setResultById((prev) => ({ ...prev, ...next }));
@@ -114,7 +114,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
       }
     }
     if (!base) {
-      setError('Primero ejecuta el analisis base para generar narrativa IA.');
+      setError('Primero ejecuta el análisis base para generar narrativa IA.');
       return;
     }
 
@@ -158,7 +158,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
 
     if (!routed.success || !routed?.data?.insightId) {
       setQueryRouting(null);
-      setError(routed.error || 'No pude inferir el tipo de analisis. Prueba con: inventario, compras, ventas, caja, cartera.');
+      setError(routed.error || 'No pude inferir el tipo de análisis. Prueba con: inventario, compras, ventas, caja, cartera.');
       return;
     }
 
@@ -174,7 +174,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
       <View style={[styles.heroCard, isLightTheme && styles.heroCardLight]}>
         <Text style={[styles.heroTitle, isLightTheme && styles.heroTitleLight]}>Centro IA</Text>
         <Text style={[styles.heroSub, isLightTheme && styles.heroSubLight]}>
-          Analitica aplicada en 8 frentes: inventario, compras, ventas, cajas, cartera, produccion, terceros y ejecutivo.
+          Analítica aplicada en 8 frentes: inventario, compras, ventas, cajas, cartera, producción, terceros y ejecutivo.
         </Text>
         <View style={styles.heroActions}>
           <Pressable
@@ -183,7 +183,7 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
             disabled={loadingAll}
           >
             <Ionicons name="flash-outline" size={16} style={styles.primaryBtnIcon} />
-            <Text style={styles.primaryBtnText}>{loadingAll ? 'Ejecutando...' : 'Ejecutar los 8 analisis'}</Text>
+            <Text style={styles.primaryBtnText}>{loadingAll ? 'Ejecutando...' : 'Ejecutar los 8 análisis'}</Text>
           </Pressable>
         </View>
       </View>

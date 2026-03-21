@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { COMMON_TEXT } from '../constants/uiText';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
 export default function SearchableSelectField({
@@ -18,9 +19,9 @@ export default function SearchableSelectField({
   options = [],
   selectedKey = null,
   onSelect,
-  placeholder = 'Seleccionar',
-  searchPlaceholder = 'Buscar...',
-  clearLabel = 'Sin seleccion',
+  placeholder = COMMON_TEXT.select,
+  searchPlaceholder = `${COMMON_TEXT.search}...`,
+  clearLabel = COMMON_TEXT.noSelection,
   themeMode = 'dark',
   disabled = false,
   allowClear = true,
@@ -74,7 +75,7 @@ export default function SearchableSelectField({
         >
           <View style={[styles.sheet, isLightTheme && styles.sheetLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>
-              {title || 'Seleccionar'}
+              {title || COMMON_TEXT.select}
             </Text>
 
             <TextInput
@@ -110,12 +111,12 @@ export default function SearchableSelectField({
                 );
               }}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin resultados</Text>
+                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>{COMMON_TEXT.noResults}</Text>
               }
             />
 
             <Pressable onPress={close} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>Cerrar</Text>
+              <Text style={styles.closeBtnText}>{COMMON_TEXT.close}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>

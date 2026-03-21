@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
+import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -84,7 +85,7 @@ function typeHelpText(type) {
   if (type === 'supplier') {
     return 'Aparece en compras y reportes de proveedor.';
   }
-  return 'Se usa como cliente y proveedor con la misma identificacion fiscal.';
+  return 'Se usa como cliente y proveedor con la misma identificación fiscal.';
 }
 
 function normalizeForcedType(value) {
@@ -180,7 +181,7 @@ export default function ThirdPartiesScreen({
 
   const save = async () => {
     if (offlineMode) {
-      setError('Terceros no permite escritura en modo offline.');
+      setError('Terceros no permiten escritura en modo offline.');
       return;
     }
     if (!tenant?.tenant_id) return;
@@ -188,7 +189,7 @@ export default function ThirdPartiesScreen({
     const legalName = (form.legal_name || '').trim();
     const docNumber = (form.document_number || '').trim();
     if (!legalName || !docNumber) {
-      setError('Razon social/nombre y documento son obligatorios.');
+      setError('Razón social/nombre y documento son obligatorios.');
       return;
     }
 
@@ -228,7 +229,7 @@ export default function ThirdPartiesScreen({
       : await createThirdParty(payload);
 
     if (!result.success) {
-      setError(result.error || 'No fue posible guardar tercero');
+      setError(result.error || 'No fue posible guardar el tercero.');
       setSaving(false);
       return;
     }
@@ -242,7 +243,7 @@ export default function ThirdPartiesScreen({
   const remove = (item) => {
     Alert.alert(
       'Eliminar tercero',
-      `Se eliminara ${item.legal_name}. Esta accion no se puede deshacer.`,
+      `Se eliminará ${item.legal_name}. Esta acción no se puede deshacer.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -318,7 +319,7 @@ export default function ThirdPartiesScreen({
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -412,12 +413,12 @@ export default function ThirdPartiesScreen({
                 </>
               )}
 
-              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Identificacion</Text>
+              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Identificación</Text>
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.legal_name}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, legal_name: v }))}
-                placeholder="Razon social / Nombre completo *"
+                placeholder="Razón social / Nombre completo *"
                 placeholderTextColor="#64748b"
               />
               <TextInput
@@ -448,7 +449,7 @@ export default function ThirdPartiesScreen({
                   style={[styles.input, isLightTheme && styles.inputLight, styles.flexInput]}
                   value={form.document_number}
                   onChangeText={(v) => setForm((prev) => ({ ...prev, document_number: v }))}
-                  placeholder="Numero documento *"
+                  placeholder="Número documento *"
                   placeholderTextColor="#64748b"
                 />
                 <TextInput
@@ -465,14 +466,14 @@ export default function ThirdPartiesScreen({
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.phone}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, phone: v }))}
-                placeholder="Telefono"
+                placeholder="Teléfono"
                 placeholderTextColor="#64748b"
               />
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.email}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, email: v }))}
-                placeholder="Correo electronico"
+                placeholder="Correo electrónico"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
               />
@@ -480,12 +481,12 @@ export default function ThirdPartiesScreen({
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.fiscal_email}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, fiscal_email: v }))}
-                placeholder="Correo fiscal / facturacion"
+                placeholder="Correo fiscal / facturación"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
               />
 
-              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Ubicacion</Text>
+              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Ubicación</Text>
               <View style={styles.rowTwo}>
                 <TextInput
                   style={[styles.input, isLightTheme && styles.inputLight, styles.flexInput]}
@@ -506,14 +507,14 @@ export default function ThirdPartiesScreen({
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.city_code}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, city_code: v }))}
-                placeholder="Codigo DANE municipio"
+                placeholder="Código DANE municipio"
                 placeholderTextColor="#64748b"
               />
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 70 }]}
                 value={form.address_text}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, address_text: v }))}
-                placeholder="Direccion"
+                placeholder="Dirección"
                 placeholderTextColor="#64748b"
                 multiline
               />
@@ -524,7 +525,7 @@ export default function ThirdPartiesScreen({
                   style={[styles.input, isLightTheme && styles.inputLight, styles.flexInput]}
                   value={form.max_credit_amount}
                   onChangeText={(v) => setForm((prev) => ({ ...prev, max_credit_amount: v }))}
-                  placeholder="Cupo de credito"
+                  placeholder="Cupo de crédito"
                   placeholderTextColor="#64748b"
                   keyboardType="numeric"
                 />
@@ -532,7 +533,7 @@ export default function ThirdPartiesScreen({
                   style={[styles.input, isLightTheme && styles.inputLight, styles.flexInput]}
                   value={form.default_payment_terms}
                   onChangeText={(v) => setForm((prev) => ({ ...prev, default_payment_terms: v }))}
-                  placeholder="Dias de pago"
+                  placeholder="Días de pago"
                   placeholderTextColor="#64748b"
                   keyboardType="numeric"
                 />
@@ -545,7 +546,7 @@ export default function ThirdPartiesScreen({
                 placeholderTextColor="#64748b"
               />
 
-              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Informacion fiscal (FE)</Text>
+              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Información fiscal (FE)</Text>
               <View style={styles.taxRegimeList}>
                 {TAX_REGIME_OPTIONS.map((option) => {
                   const active = form.tax_regime === option.value;
@@ -565,7 +566,7 @@ export default function ThirdPartiesScreen({
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.ciiu_code}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, ciiu_code: v }))}
-                placeholder="Codigo CIIU"
+                placeholder="Código CIIU"
                 placeholderTextColor="#64748b"
               />
 
@@ -582,7 +583,7 @@ export default function ThirdPartiesScreen({
                   }
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Responsable de IVA</Text>
-                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.is_responsible_for_iva, 'Si', 'No')}</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.is_responsible_for_iva, COMMON_TEXT.yes, COMMON_TEXT.no)}</Text>
                 </Pressable>
 
                 <Pressable
@@ -597,7 +598,7 @@ export default function ThirdPartiesScreen({
                   }
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Obligado contabilidad</Text>
-                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.obligated_accounting, 'Si', 'No')}</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.obligated_accounting, COMMON_TEXT.yes, COMMON_TEXT.no)}</Text>
                 </Pressable>
 
                 <Pressable
@@ -616,7 +617,7 @@ export default function ThirdPartiesScreen({
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Acepta FE</Text>
                   <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>
-                    {boolText(form.electronic_invoicing_enabled, 'Si', 'No')}
+                    {boolText(form.electronic_invoicing_enabled, COMMON_TEXT.yes, COMMON_TEXT.no)}
                   </Text>
                 </Pressable>
 
@@ -630,7 +631,7 @@ export default function ThirdPartiesScreen({
                   onPress={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Activo</Text>
-                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.is_active, 'Si', 'No')}</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.is_active, COMMON_TEXT.yes, COMMON_TEXT.no)}</Text>
                 </Pressable>
               </View>
 

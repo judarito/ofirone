@@ -5,35 +5,35 @@ const OPTIONS = [
   {
     key: 'TenantConfig',
     title: 'Empresa',
-    subtitle: 'Parametros generales del tenant',
+    subtitle: 'Parámetros generales del tenant',
     icon: 'business-outline',
     accent: '#4db7ff',
   },
   {
     key: 'AIInsights',
     title: 'Centro IA',
-    subtitle: 'Analitica y consultas inteligentes',
+    subtitle: 'Analítica y consultas inteligentes',
     icon: 'sparkles-outline',
     accent: '#8f7cff',
   },
   {
     key: 'Locations',
     title: 'Sedes',
-    subtitle: 'Gestion de sedes y direcciones',
+    subtitle: 'Gestión de sedes y direcciones',
     icon: 'location-outline',
     accent: '#57d65a',
   },
   {
     key: 'Taxes',
     title: 'Impuestos',
-    subtitle: 'Tarifas y codigos tributarios',
+    subtitle: 'Tarifas y códigos tributarios',
     icon: 'pricetag-outline',
     accent: '#f7c843',
   },
   {
     key: 'TaxRules',
     title: 'Reglas de Impuesto',
-    subtitle: 'Asignacion de impuesto por alcance',
+    subtitle: 'Asignación de impuesto por alcance',
     icon: 'document-text-outline',
     accent: '#8f7cff',
   },
@@ -53,8 +53,8 @@ const OPTIONS = [
   },
   {
     key: 'RolesMenus',
-    title: 'Roles y Menus',
-    subtitle: 'Roles, permisos y asignacion de menus',
+    title: 'Roles y Menús',
+    subtitle: 'Roles, permisos y asignación de menús',
     icon: 'shield-checkmark-outline',
     accent: '#57d65a',
   },
@@ -64,9 +64,9 @@ export default function SetupScreen({ onOpenScreen, themeMode = 'dark' }) {
   const isLightTheme = themeMode === 'light';
   return (
     <ScrollView contentContainerStyle={[styles.container, isLightTheme && styles.containerLight]}>
-      <Text style={[styles.title, isLightTheme && styles.titleLight]}>Configuracion</Text>
+      <Text style={[styles.title, isLightTheme && styles.titleLight]}>Configuración</Text>
       <Text style={[styles.subtitle, isLightTheme && styles.subtitleLight]}>
-        Selecciona el modulo que deseas administrar
+        Selecciona el módulo que deseas administrar
       </Text>
 
       <View style={styles.gridWrap}>
@@ -92,7 +92,7 @@ export default function SetupScreen({ onOpenScreen, themeMode = 'dark' }) {
               {option.subtitle}
             </Text>
             <View style={styles.cardFooter}>
-              <Text style={[styles.cardAction, isLightTheme && styles.cardActionLight]}>Abrir modulo</Text>
+              <Text style={[styles.cardAction, isLightTheme && styles.cardActionLight]}>Abrir módulo</Text>
               <Ionicons
                 name="chevron-forward"
                 size={16}

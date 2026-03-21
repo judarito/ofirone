@@ -140,7 +140,7 @@ export default function CashSessionsScreen({
 
   const saveOpenSession = async () => {
     if (offlineMode) {
-      setError('Sesiones de caja no permite escritura en modo offline.');
+      setError('Sesiones de caja no permiten escritura en modo offline.');
       return;
     }
     if (!openData.cash_register_id) {
@@ -157,7 +157,7 @@ export default function CashSessionsScreen({
     });
 
     if (!result.success) {
-      setError(result.error || 'No fue posible abrir sesion');
+      setError(result.error || 'No fue posible abrir sesión.');
       setSaving(false);
       return;
     }
@@ -206,7 +206,7 @@ export default function CashSessionsScreen({
     });
 
     if (!result.success) {
-      setError(result.error || 'No fue posible cerrar sesion');
+      setError(result.error || 'No fue posible cerrar sesión.');
       setClosing(false);
       return;
     }
@@ -310,7 +310,7 @@ export default function CashSessionsScreen({
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         contentContainerStyle={{ paddingBottom: 84 + androidBottomInset }}
@@ -365,7 +365,7 @@ export default function CashSessionsScreen({
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
             <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
-              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Abrir sesion de caja</Text>
+              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Abrir sesión de caja</Text>
               <SearchableSelectField
                 title="Caja registradora"
                 themeMode={themeMode}
@@ -409,7 +409,7 @@ export default function CashSessionsScreen({
       <Modal visible={closeDialog} transparent animationType="slide" onRequestClose={() => setCloseDialog(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Cerrar sesion</Text>
+            <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Cerrar sesión</Text>
             {closeSummary ? (
               <ScrollView>
                 <View style={[styles.infoCard, isLightTheme && styles.infoCardLight]}>
@@ -527,7 +527,7 @@ export default function CashSessionsScreen({
               style={[styles.input, isLightTheme && styles.inputLight]}
               value={movementData.category}
               onChangeText={(v) => setMovementData((prev) => ({ ...prev, category: v }))}
-              placeholder="Categoria"
+              placeholder="Categoría"
               placeholderTextColor="#64748b"
             />
             <TextInput
@@ -557,7 +557,7 @@ export default function CashSessionsScreen({
       <Modal visible={detailDialog} transparent animationType="slide" onRequestClose={() => setDetailDialog(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimientos de sesion</Text>
+            <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimientos de sesión</Text>
             <ScrollView>
               {movementRows.length === 0 ? <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Sin movimientos</Text> : null}
               {movementRows.map((m) => (

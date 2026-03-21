@@ -89,6 +89,7 @@ import CategoriesScreen from './src/screens/CategoriesScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import LayawayScreen from './src/screens/LayawayScreen';
 import AboutScreen from './src/screens/AboutScreen';
+import { APP_TEXT, COMMON_TEXT, buildMobileUnavailableText, buildNoAccessLabelText, buildNoAccessModuleText } from './src/constants/uiText';
 import PaymentMethodsScreen from './src/screens/PaymentMethodsScreen';
 import PointOfSaleScreen from './src/screens/PointOfSaleScreen';
 import ProductionOrdersScreen from './src/screens/ProductionOrdersScreen';
@@ -514,8 +515,7 @@ export default function App() {
 
     if (!reset && !canAccessScreenByMenu(target, routeHint)) {
       setError(
-        denyMessage ||
-          `No tienes acceso al modulo "${getMobileAppBarTitle(target)}" con tu rol actual.`,
+        denyMessage || buildNoAccessModuleText(getMobileAppBarTitle(target)),
       );
       return false;
     }
@@ -552,7 +552,7 @@ export default function App() {
     });
   }, []);
 
-  const forceSessionToLogin = useCallback((reason = 'Tu sesion expiro. Inicia sesion nuevamente.') => {
+  const forceSessionToLogin = useCallback((reason = APP_TEXT.sessionExpired) => {
     setError(reason);
     setOfflineMode(false);
     setSession(null);
@@ -644,11 +644,11 @@ export default function App() {
           return;
         }
 
-        // No forzar modo offline automaticamente cuando no hay sesion activa.
-        // El usuario puede elegir "Continuar sin conexion" desde Login si desea.
+        // No forzar modo offline automáticamente cuando no hay sesión activa.
+        // El usuario puede elegir "Continuar sin conexión" desde Login si desea.
       } catch (e) {
         if (!mounted) return;
-        setError(e?.message ?? 'Error inicializando modo offline.');
+        setError(e?.message ?? APP_TEXT.offlineInitError);
       } finally {
         if (mounted) setLoadingBoot(false);
       }
@@ -660,8 +660,8 @@ export default function App() {
       setSession(nextSession);
       if (!nextSession) {
         const reason = event === 'TOKEN_REFRESH_FAILED'
-          ? 'Tu sesion expiro. Inicia sesion nuevamente.'
-          : 'Sesion finalizada. Inicia sesion nuevamente.';
+          ? APP_TEXT.sessionExpired
+          : APP_TEXT.sessionEnded;
         forceSessionToLogin(reason);
         await applyThemeFromLocalCache();
       }
@@ -788,13 +788,13 @@ export default function App() {
         if (!active) return;
 
         if (sessionError && isJwtSessionError(sessionError)) {
-          forceSessionToLogin('Tu sesion expiro. Inicia sesion nuevamente.');
+          forceSessionToLogin(APP_TEXT.sessionExpired);
           return;
         }
 
         const activeSession = sessionData?.session || null;
         if (!activeSession) {
-          forceSessionToLogin('Tu sesion expiro. Inicia sesion nuevamente.');
+          forceSessionToLogin(APP_TEXT.sessionExpired);
           return;
         }
 
@@ -802,7 +802,7 @@ export default function App() {
         if (Number.isFinite(expiresAtSec) && expiresAtSec > 0) {
           const expiresAtMs = expiresAtSec * 1000;
           if (expiresAtMs <= Date.now()) {
-            forceSessionToLogin('Tu sesion expiro. Inicia sesion nuevamente.');
+            forceSessionToLogin(APP_TEXT.sessionExpired);
             return;
           }
         }
@@ -810,10 +810,10 @@ export default function App() {
         const { error: userError } = await supabase.auth.getUser();
         if (!active) return;
         if (userError && isJwtSessionError(userError)) {
-          forceSessionToLogin('Tu sesion expiro. Inicia sesion nuevamente.');
+          forceSessionToLogin(APP_TEXT.sessionExpired);
         }
       } catch (_e) {
-        // Validacion best-effort para expiracion JWT.
+        // Validación best-effort para expiración JWT.
       }
     };
 
@@ -869,7 +869,7 @@ export default function App() {
   useEffect(() => {
     if (ALWAYS_ALLOWED_SCREENS.has(currentScreen)) return;
     if (canAccessScreenByMenu(currentScreen)) return;
-    setError(`Tu rol actual no tiene acceso a "${getMobileAppBarTitle(currentScreen)}".`);
+    setError(buildNoAccessLabelText(getMobileAppBarTitle(currentScreen)));
     resetToHome();
     setMenuOpen(false);
   }, [currentScreen, canAccessScreenByMenu, resetToHome]);
@@ -1225,7 +1225,7 @@ export default function App() {
     }
 
     if (item.action === 'openManual') {
-      setError('El manual de usuario esta disponible solo en la app web.');
+      setError(APP_TEXT.userManualWebOnly);
       return;
     }
 
@@ -1235,7 +1235,7 @@ export default function App() {
       }
       const didNavigate = navigateToScreen(item.targetScreen, {
         routeHint: item.route,
-        denyMessage: `No tienes acceso a "${item.label || item.title}" con tu rol actual.`,
+        denyMessage: buildNoAccessLabelText(item.label || item.title),
       });
       if (!didNavigate) return;
       setLastMenuAction('');
@@ -1243,7 +1243,7 @@ export default function App() {
       return;
     }
 
-    setError(`"${item.label || item.title}" no esta disponible en mobile todavia.`);
+    setError(buildMobileUnavailableText(item.label || item.title));
   };
 
   const hydrateProfile = async (authUserId) => {
@@ -1273,7 +1273,7 @@ export default function App() {
 
       const profile = profiles?.[0] ?? null;
       if (!profile) {
-        throw new Error('No se encontro perfil del usuario en OfirOne.');
+        throw new Error('No se encontró perfil del usuario en OfirOne.');
       }
       if (!profile.is_active) {
         throw new Error('Tu usuario esta inactivo.');
@@ -1350,7 +1350,7 @@ export default function App() {
         setMenuCachedAt('');
         setError(
           menuError?.message ||
-            'Sesion iniciada, pero no fue posible cargar el menu dinamico.',
+            APP_TEXT.loginMenuLoadFailed,
         );
       }
       await loadTenantConfig(tenantData?.tenant_id, {
@@ -1392,7 +1392,7 @@ export default function App() {
         await hydrateProfile(data.user.id);
       }
     } catch (e) {
-      setError(e?.message ?? 'No fue posible iniciar sesion.');
+      setError(e?.message ?? APP_TEXT.loginFailed);
     } finally {
       setLoadingAuth(false);
     }
@@ -1574,7 +1574,7 @@ export default function App() {
     const cached = await getAuthCache();
     const cachedMenu = await getMenuCache();
     if (!cached) {
-      setError('No hay cache local para modo offline.');
+      setError(APP_TEXT.noOfflineCache);
       return;
     }
     setUserProfile(cached.userProfile);
@@ -1639,7 +1639,7 @@ export default function App() {
       <ThemeModeProvider mode={themeMode}>
         <SafeAreaView style={styles.centered}>
           <ActivityIndicator size="large" color={SCREEN_ACCENT_COLORS.Sales} />
-          <Text style={styles.loadingText}>Inicializando app offline-first...</Text>
+            <Text style={styles.loadingText}>Inicializando app offline-first...</Text>
           <StatusBar style="auto" />
         </SafeAreaView>
       </ThemeModeProvider>
@@ -1772,15 +1772,15 @@ export default function App() {
                 </Text>
               </View>
               <Pressable onPress={() => setMenuOpen(false)} style={[styles.menuCloseBtn, isLightTheme ? null : styles.menuCloseBtnDark]}>
-                <Text style={[styles.menuCloseText, isLightTheme ? null : styles.menuCloseTextDark]}>Cerrar</Text>
+                <Text style={[styles.menuCloseText, isLightTheme ? null : styles.menuCloseTextDark]}>{COMMON_TEXT.close}</Text>
               </Pressable>
             </View>
-            <Text style={[styles.menuUser, isLightTheme ? null : styles.menuUserDark]}>{userProfile?.full_name || userEmail || 'Usuario'}</Text>
-            <Text style={[styles.menuTenant, isLightTheme ? null : styles.menuTenantDark]}>{tenant?.tenant_name || 'Sin tenant'}</Text>
+            <Text style={[styles.menuUser, isLightTheme ? null : styles.menuUserDark]}>{userProfile?.full_name || userEmail || APP_TEXT.userFallback}</Text>
+            <Text style={[styles.menuTenant, isLightTheme ? null : styles.menuTenantDark]}>{tenant?.tenant_name || APP_TEXT.tenantFallback}</Text>
 
             <ScrollView contentContainerStyle={[styles.menuContent, { paddingBottom: 30 + androidBottomInset }]}>
               {(menuTree || []).length === 0 ? (
-                <Text style={[styles.menuEmptyText, isLightTheme ? null : styles.menuEmptyTextDark]}>No hay menu disponible para este usuario.</Text>
+                <Text style={[styles.menuEmptyText, isLightTheme ? null : styles.menuEmptyTextDark]}>{APP_TEXT.noMenuAvailable}</Text>
               ) : null}
               {(menuTree || []).map((section) => {
                 const code = section.code || section.title;
@@ -1915,7 +1915,7 @@ export default function App() {
               ]}
             >
               <Pressable onPress={handleLogout} style={[styles.menuLogoutBtn, isLightTheme ? null : styles.menuLogoutBtnDark]}>
-                <Text style={styles.menuLogoutText}>Cerrar sesion</Text>
+                <Text style={styles.menuLogoutText}>{APP_TEXT.closeSession}</Text>
               </Pressable>
             </View>
           </View>
@@ -1933,18 +1933,18 @@ export default function App() {
           <View style={[styles.notificationsModal, isLightTheme ? styles.notificationsModalLight : null]}>
             <View style={styles.notificationsHeader}>
               <Text style={[styles.notificationsTitle, isLightTheme ? styles.notificationsTitleLight : null]}>
-                Notificaciones
+                {APP_TEXT.notifications}
               </Text>
               <View style={styles.notificationsHeaderActions}>
                 <Pressable onPress={handleMarkAllNotificationsRead} style={styles.notificationsMarkAllBtn}>
-                  <Text style={styles.notificationsMarkAllText}>Marcar todas</Text>
+                  <Text style={styles.notificationsMarkAllText}>{APP_TEXT.markAll}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => setNotificationsOpen(false)}
                   style={[styles.notificationsCloseBtn, isLightTheme ? styles.notificationsCloseBtnLight : null]}
                 >
                   <Text style={[styles.notificationsCloseText, isLightTheme ? styles.notificationsCloseTextLight : null]}>
-                    Cerrar
+                    {COMMON_TEXT.close}
                   </Text>
                 </Pressable>
               </View>
@@ -1953,11 +1953,11 @@ export default function App() {
             <ScrollView contentContainerStyle={styles.notificationsList}>
               {loadingNotifications ? (
                 <Text style={[styles.notificationsEmpty, isLightTheme ? styles.notificationsEmptyLight : null]}>
-                  Cargando...
+                  {COMMON_TEXT.loading}
                 </Text>
               ) : notifications.length === 0 ? (
                 <Text style={[styles.notificationsEmpty, isLightTheme ? styles.notificationsEmptyLight : null]}>
-                  No tienes notificaciones.
+                  {APP_TEXT.noNotifications}
                 </Text>
               ) : (
                 notifications.map((item) => (
@@ -2007,7 +2007,7 @@ export default function App() {
               <View style={styles.mobileMetricMainLeft}>
                 <Image source={require('./assets/ofirone-mark-web.png')} style={styles.mobileMetricMainLogo} resizeMode="contain" />
                 <View style={styles.mobileMetricMainTextWrap}>
-                  <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>Ventas Hoy</Text>
+                  <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>{APP_TEXT.todaySales}</Text>
                   <Text style={[styles.mobileMetricMainAmount, isLightTheme && styles.mobileMetricMainAmountLight]}>
                     {loadingKpis ? '...' : formatMoney(kpis?.today?.total || 0)}
                   </Text>
@@ -2024,7 +2024,7 @@ export default function App() {
                   <Ionicons name="briefcase-outline" size={18} style={styles.mobileMetricIconGold} />
                 </View>
                 <View style={styles.mobileMetricTextWrap}>
-                  <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>Este Mes</Text>
+                  <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>{APP_TEXT.thisMonth}</Text>
                   <Text style={[styles.mobileMetricAmount, isLightTheme && styles.mobileMetricAmountLight]}>
                     {loadingKpis ? '...' : formatMoney(kpis?.month?.total || 0)}
                   </Text>
@@ -2040,7 +2040,7 @@ export default function App() {
                 <View style={[styles.mobileMetricIconWrap, isLightTheme && styles.mobileMetricIconWrapLight]}>
                   <Ionicons name="bar-chart-outline" size={18} style={styles.mobileMetricIconBlue} />
                 </View>
-                <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>Este Año</Text>
+                <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>{APP_TEXT.thisYear}</Text>
                 <Text style={[styles.mobileMetricAmount, isLightTheme && styles.mobileMetricAmountLight]}>
                   {loadingKpis ? '...' : formatMoney(kpis?.year?.total || 0)}
                 </Text>
@@ -2061,10 +2061,10 @@ export default function App() {
                 </View>
                 <View style={styles.quickSaleTextWrap}>
                   <Text style={[styles.quickSaleBtnText, isLightTheme && styles.quickSaleBtnTextLight]}>
-                    Nueva Venta
+                    {APP_TEXT.newSale}
                   </Text>
                   <Text style={[styles.quickSaleHint, isLightTheme && styles.quickSaleHintLight]}>
-                    Registrar pedido, pago y factura
+                    {APP_TEXT.newSaleHint}
                   </Text>
                 </View>
                 <Ionicons
@@ -2080,9 +2080,9 @@ export default function App() {
                 Ventas últimos 7 días
               </Text>
               {loadingKpis ? (
-                <Text style={[styles.homeMiniChartEmpty, isLightTheme && styles.homeMiniChartEmptyLight]}>Cargando...</Text>
+                <Text style={[styles.homeMiniChartEmpty, isLightTheme && styles.homeMiniChartEmptyLight]}>{COMMON_TEXT.loading}</Text>
               ) : homeLast7Series.length === 0 ? (
-                <Text style={[styles.homeMiniChartEmpty, isLightTheme && styles.homeMiniChartEmptyLight]}>Sin datos</Text>
+                <Text style={[styles.homeMiniChartEmpty, isLightTheme && styles.homeMiniChartEmptyLight]}>{COMMON_TEXT.noData}</Text>
               ) : (
                 <View style={styles.homeMiniBarsWrap}>
                   {homeLast7Series.map((entry, idx) => {
@@ -2147,10 +2147,10 @@ export default function App() {
               </View>
               <View style={styles.aiInsightsShortcutTextWrap}>
                 <Text style={[styles.aiInsightsShortcutTitle, isLightTheme && styles.aiInsightsShortcutTitleLight]}>
-                  Centro IA
+                  {APP_TEXT.aiCenter}
                 </Text>
                 <Text style={[styles.aiInsightsShortcutSub, isLightTheme && styles.aiInsightsShortcutSubLight]}>
-                  8 analisis: inventario, compras, ventas, cajas, cartera, produccion, terceros y dashboard
+                  {APP_TEXT.aiCenterSummary}
                 </Text>
               </View>
               <Ionicons

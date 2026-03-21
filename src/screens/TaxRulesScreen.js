@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
+import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -17,7 +18,7 @@ import {
 
 const SCOPE_OPTIONS = [
   { key: 'TENANT', label: 'Tenant (global)' },
-  { key: 'CATEGORY', label: 'Categoria' },
+  { key: 'CATEGORY', label: 'Categoría' },
   { key: 'PRODUCT', label: 'Producto' },
   { key: 'VARIANT', label: 'Variante' },
 ];
@@ -45,7 +46,7 @@ function formatScopeLabel(scope) {
 }
 
 function formatRuleTarget(rule) {
-  if (rule.scope === 'CATEGORY') return `Categoria: ${rule.category?.name || 'Sin categoria'}`;
+  if (rule.scope === 'CATEGORY') return `Categoría: ${rule.category?.name || 'Sin categoría'}`;
   if (rule.scope === 'PRODUCT') return `Producto: ${rule.product?.name || 'Sin producto'}`;
   if (rule.scope === 'VARIANT') {
     const sku = rule.variant?.sku || 'SIN-SKU';
@@ -340,7 +341,7 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -382,7 +383,7 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
                 selectedKey={form.tax_id}
                 onSelect={(value) => setForm((prev) => ({ ...prev, tax_id: value }))}
                 placeholder="Selecciona impuesto"
-                clearLabel="Sin seleccion"
+                clearLabel={COMMON_TEXT.noSelection}
                 themeMode={themeMode}
               />
 
@@ -406,12 +407,12 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
 
               {form.scope === 'CATEGORY' ? (
                 <SearchableSelectField
-                  title="Categoria"
+                  title="Categoría"
                   options={categoryOptions}
                   selectedKey={form.category_id}
                   onSelect={(value) => setForm((prev) => ({ ...prev, category_id: value }))}
-                  placeholder="Selecciona categoria"
-                  clearLabel="Sin seleccion"
+                  placeholder="Selecciona categoría"
+                  clearLabel={COMMON_TEXT.noSelection}
                   themeMode={themeMode}
                 />
               ) : null}
@@ -423,7 +424,7 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
                   selectedKey={form.product_id}
                   onSelect={(value) => setForm((prev) => ({ ...prev, product_id: value }))}
                   placeholder="Selecciona producto"
-                  clearLabel="Sin seleccion"
+                  clearLabel={COMMON_TEXT.noSelection}
                   themeMode={themeMode}
                 />
               ) : null}
@@ -435,7 +436,7 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
                   selectedKey={form.variant_id}
                   onSelect={(value) => setForm((prev) => ({ ...prev, variant_id: value }))}
                   placeholder="Selecciona variante"
-                  clearLabel="Sin seleccion"
+                  clearLabel={COMMON_TEXT.noSelection}
                   themeMode={themeMode}
                 />
               ) : null}

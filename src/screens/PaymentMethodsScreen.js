@@ -75,14 +75,14 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
 
   const save = async () => {
     if (offlineMode) {
-      setError('Metodos de pago no permite escritura en modo offline.');
+      setError('Métodos de pago no permiten escritura en modo offline.');
       return;
     }
 
     const code = String(form.code || '').trim().toUpperCase();
     const name = String(form.name || '').trim();
     if (!code || !name) {
-      setError('Codigo y nombre son obligatorios.');
+      setError('Código y nombre son obligatorios.');
       return;
     }
 
@@ -102,7 +102,7 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
       : await createPaymentMethod(payload);
 
     if (!result.success) {
-      setError(result.error || 'No fue posible guardar metodo de pago');
+      setError(result.error || 'No fue posible guardar el método de pago.');
       setSaving(false);
       return;
     }
@@ -114,19 +114,19 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
   };
 
   const remove = (item) => {
-    Alert.alert('Eliminar metodo', `Se eliminara ${item.name}.`, [
+    Alert.alert('Eliminar método', `Se eliminará ${item.name}.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
           if (offlineMode) {
-            setError('No puedes eliminar metodos en modo offline.');
+            setError('No puedes eliminar métodos en modo offline.');
             return;
           }
           const result = await removePaymentMethod(item.payment_method_id, tenant?.tenant_id);
           if (!result.success) {
-            setError(result.error || 'No fue posible eliminar metodo');
+            setError(result.error || 'No fue posible eliminar el método.');
             return;
           }
           await loadPage(page, filters);
@@ -143,7 +143,7 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
           value={search}
           onChangeText={setSearch}
           onSubmitEditing={() => updateFilters({ search })}
-          placeholder="Buscar por codigo o nombre"
+          placeholder="Buscar por código o nombre"
           placeholderTextColor="#64748b"
         />
         <Pressable style={[styles.searchBtn, isLightTheme && styles.searchBtnLight]} onPress={() => updateFilters({ search })}>
@@ -153,26 +153,26 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
 
       <PaginatedList
         themeMode={themeMode}
-        title="Metodos de Pago"
+        title="Métodos de Pago"
         loading={loading}
         refreshing={refreshing}
         onRefresh={reload}
         error={error}
         items={items}
-        emptyText="No hay metodos de pago."
+        emptyText="No hay métodos de pago."
         page={page}
         totalPages={totalPages}
         onPrev={() => changePage(page - 1)}
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
           <View key={item.payment_method_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
-            <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Codigo: {item.code}</Text>
+            <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Código: {item.code}</Text>
             <View style={styles.badgesRow}>
               <View style={[styles.badge, isLightTheme && styles.badgeLight, { borderColor: item.is_active ? '#16a34a' : '#ef4444' }]}>
                 <Text style={[styles.badgeText, isLightTheme && styles.badgeTextLight]}>{item.is_active ? 'Activo' : 'Inactivo'}</Text>
@@ -201,12 +201,12 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
             <ScrollView>
-              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.payment_method_id ? 'Editar metodo' : 'Nuevo metodo'}</Text>
+              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.payment_method_id ? 'Editar método' : 'Nuevo método'}</Text>
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.code}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, code: v.toUpperCase() }))}
-                placeholder="Codigo *"
+                placeholder="Código *"
                 placeholderTextColor="#64748b"
               />
               <TextInput

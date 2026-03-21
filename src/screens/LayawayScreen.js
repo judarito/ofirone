@@ -145,7 +145,7 @@ export default function LayawayScreen({
     }
     if (sessionExpired) {
       setError(
-        `La sesion de caja lleva ${sessionAgeHours}h abierta y supero el limite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
+        `La sesión de caja lleva ${sessionAgeHours}h abierta y superó el límite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
       );
       return;
     }
@@ -233,7 +233,7 @@ export default function LayawayScreen({
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -258,8 +258,8 @@ export default function LayawayScreen({
         {currentSession?.cash_session_id ? (
           <Text style={sessionExpired ? styles.sessionWarn : styles.sessionOk}>
             {sessionExpired
-              ? `Sesion vencida (${sessionAgeHours}h). Cierra y abre una nueva.`
-              : `Sesion vigente (${sessionAgeHours}h / max ${cashSessionMaxHours}h)`}
+              ? `Sesión vencida (${sessionAgeHours}h). Cierra y abre una nueva.`
+              : `Sesión vigente (${sessionAgeHours}h / máx. ${cashSessionMaxHours}h)`}
           </Text>
         ) : null}
       </View>

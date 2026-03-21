@@ -31,14 +31,14 @@ function getEngineSourceLabel(source, originalSource = null) {
   const upstream = String(originalSource || '').trim().toLowerCase();
 
   const sourceMap = {
-    local_cache: 'cache local',
+    local_cache: 'caché local',
     deterministic_parser: 'parser local',
     local_llm: 'llm local',
     cloud_llm: 'llm cloud',
   };
 
   if (normalized === 'local_cache' && upstream && sourceMap[upstream]) {
-    return `cache local (${sourceMap[upstream]})`;
+    return `caché local (${sourceMap[upstream]})`;
   }
 
   return sourceMap[normalized] || normalized || 'desconocido';
@@ -108,7 +108,7 @@ export default function ReportsScreen({
 
       setSnapshot(null);
       setCacheInfo({ source: 'cache-miss', cachedAt: null });
-      setError('No hay cache local de este reporte para el filtro seleccionado.');
+      setError('No hay caché local de este reporte para el filtro seleccionado.');
       setLoading(false);
       return;
     }
@@ -125,7 +125,7 @@ export default function ReportsScreen({
       if (fallback?.value) {
         setSnapshot(fallback.value);
         setCacheInfo({ source: 'cache', cachedAt: fallback.cachedAt || null });
-        setError(result.error || 'Sin conexion. Mostrando cache local.');
+        setError(result.error || 'Sin conexión. Mostrando caché local.');
       } else {
         setSnapshot(null);
         setCacheInfo({ source: 'none', cachedAt: null });
@@ -373,7 +373,7 @@ export default function ReportsScreen({
       <View style={styles.metaWrap}>
         <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Vista: {TABS.find((t) => t.key === tab)?.label || 'Reportes'}</Text>
         {cacheInfo?.source === 'cache' && cacheInfo?.cachedAt ? (
-          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Offline cache: {new Date(cacheInfo.cachedAt).toLocaleString()}</Text>
+          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Caché offline: {new Date(cacheInfo.cachedAt).toLocaleString()}</Text>
         ) : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </View>

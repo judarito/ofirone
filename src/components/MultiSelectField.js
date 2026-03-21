@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { COMMON_TEXT } from '../constants/uiText';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
 function normalizeKeys(values = []) {
@@ -21,9 +22,9 @@ export default function MultiSelectField({
   options = [],
   selectedKeys = [],
   onChange,
-  placeholder = 'Seleccionar',
-  searchPlaceholder = 'Buscar...',
-  clearLabel = 'Limpiar seleccion',
+  placeholder = COMMON_TEXT.select,
+  searchPlaceholder = `${COMMON_TEXT.search}...`,
+  clearLabel = COMMON_TEXT.clearSelection,
   themeMode = 'dark',
   disabled = false,
   maxPreview = 2,
@@ -92,7 +93,7 @@ export default function MultiSelectField({
           keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
         >
           <View style={[styles.sheet, isLightTheme && styles.sheetLight]}>
-            <Text style={[styles.title, isLightTheme && styles.titleLight]}>{title || 'Seleccionar'}</Text>
+            <Text style={[styles.title, isLightTheme && styles.titleLight]}>{title || COMMON_TEXT.select}</Text>
 
             <TextInput
               style={[styles.searchInput, isLightTheme && styles.searchInputLight]}
@@ -125,7 +126,7 @@ export default function MultiSelectField({
                 );
               }}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin resultados</Text>
+                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>{COMMON_TEXT.noResults}</Text>
               }
             />
 
@@ -134,7 +135,7 @@ export default function MultiSelectField({
                 <Text style={[styles.clearBtnText, isLightTheme && styles.clearBtnTextLight]}>{clearLabel}</Text>
               </Pressable>
               <Pressable style={styles.closeBtn} onPress={close}>
-                <Text style={styles.closeBtnText}>Cerrar</Text>
+                <Text style={styles.closeBtnText}>{COMMON_TEXT.close}</Text>
               </Pressable>
             </View>
           </View>

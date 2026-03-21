@@ -79,7 +79,7 @@ export default function DatePickerField({
     if (!NativeDateTimePicker) {
       Alert.alert(
         'DatePicker no disponible',
-        'Instala @react-native-community/datetimepicker para habilitar la seleccion de fecha.',
+        'Instala @react-native-community/datetimepicker para habilitar la selección de fecha.',
       );
       return;
     }

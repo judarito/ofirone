@@ -15,6 +15,13 @@ Regla de trabajo:
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
 
+## Actualizacion reciente
+
+- Se inicio una pasada transversal de ortografia y consistencia visual de textos en la app mobile.
+- Se centralizaron textos reutilizables en `src/constants/uiText.js` para componentes compartidos, autenticacion y etiquetas comunes.
+- `PaginatedList`, `SearchableSelectField`, `MultiSelectField` y parte del shell principal (`App.js`) ya consumen esa base comun.
+- Tambien se alineo el copy visible de multiples modulos para usar mejor espanol en labels, placeholders, validaciones y estados de cache offline.
+
 ## 1. Proposito
 
 POSLite Mobile es la app mobile de punto de venta multi-tenant construida con React Native + Expo. Su objetivo es permitir operacion comercial, administrativa y de consulta con soporte offline-first, sincronizacion diferida y consumo de backend Supabase.
@@ -60,6 +67,12 @@ El entrypoint real de la aplicacion es `App.js`. Actualmente concentra gran part
 
 Esto hace que `App.js` sea el archivo con mayor deuda tecnica del proyecto y el principal candidato a dividir por responsabilidades.
 
+Nota de estado actual:
+
+- aunque `App.js` sigue siendo monolitico, el render de modulos ya no cuelga completamente del mismo arbol inline
+- existe un `ActiveModuleScreen` memoizado para aislar mejor la pantalla activa frente a cambios de estado global como alertas/notificaciones
+- esto reduce el efecto visual de "recarga completa" cuando se actualiza el inbox de notificaciones
+
 ### 3.2 Navegacion
 
 La app no usa actualmente `react-navigation` ni `expo-router` como mecanismo principal de navegacion. La navegacion se resuelve con estado local (`currentScreen`) y render condicional de pantallas desde `App.js`.
@@ -75,6 +88,21 @@ Aspectos clave:
 - se mezclan menus remotos con secciones core obligatorias
 - el acceso a pantallas depende del arbol de menus permitido por usuario
 - algunas pantallas siempre estan permitidas, como `Home`, `About` y `AIInsights`
+
+### 3.3 Refresh de modulos y listas
+
+Los listados paginados mobile ya soportan gesto de pull-to-refresh.
+
+Implementacion observada:
+
+- `src/hooks/usePaginatedList.js` maneja `loading` y `refreshing` por separado
+- `src/components/PaginatedList.js` integra `RefreshControl`
+- al jalar hacia abajo se recarga el modulo actual sin reemplazar toda la vista por un loading global
+
+Implicacion practica:
+
+- para modulos basados en `PaginatedList`, la recarga esperada del usuario en mobile ya es gesto nativo de arrastre hacia abajo
+- si un listado no responde a este patron, primero conviene validar si realmente usa `usePaginatedList` + `PaginatedList`
 
 ## 4. Flujo de arranque
 
@@ -296,6 +324,11 @@ Consideracion de layout mobile:
 
 - en Android con barra de navegacion clasica de 3 botones, la app debe respetar inset inferior para que docks, footers y acciones fijas no queden tapados por botones del sistema
 - este ajuste afecta especialmente contenedores fijos inferiores como el dock principal y footers de modales o drawers
+
+Consideracion de experiencia:
+
+- las alertas/notificaciones in-app no deberian transmitir sensacion de reinicio completo del modulo visible
+- el estado actual ya desacopla mejor el drawer/inbox de notificaciones respecto al render del modulo activo
 
 ## 12. Estado de calidad del repo
 

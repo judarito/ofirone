@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useThemeMode } from '../lib/themeMode';
+import { APP_TEXT, COMMON_TEXT } from '../constants/uiText';
 
 export default function LoginScreen({
   email,
@@ -30,7 +31,7 @@ export default function LoginScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
-  const cachedLabel = cachedAt ? new Date(cachedAt).toLocaleString() : 'Sin cache';
+  const cachedLabel = cachedAt ? new Date(cachedAt).toLocaleString() : COMMON_TEXT.noCache;
 
   return (
     <SafeAreaView style={isLightTheme ? styles.loginRootLight : styles.loginRootDark}>
@@ -69,7 +70,7 @@ export default function LoginScreen({
             />
 
             <Text style={[styles.loginSectionLabel, isLightTheme && styles.loginSectionLabelLight]}>
-              Contrasena
+              {COMMON_TEXT.password}
             </Text>
             <TextInput
               value={password}
@@ -103,13 +104,13 @@ export default function LoginScreen({
             {offlineAvailable ? (
               <View style={[styles.loginOfflineCard, isLightTheme && styles.loginOfflineCardLight]}>
                 <Pressable onPress={onUseOfflineMode} style={styles.loginSecondaryButton}>
-                  <Text style={styles.loginSecondaryButtonText}>Continuar sin conexion</Text>
+                  <Text style={styles.loginSecondaryButtonText}>{APP_TEXT.continueOffline}</Text>
                 </Pressable>
                 <Text style={[styles.loginOfflineMeta, isLightTheme && styles.loginOfflineMetaLight]}>
-                  Ultimo cache: {cachedLabel}
+                  {APP_TEXT.lastCachePrefix}: {cachedLabel}
                 </Text>
                 <Pressable onPress={onClearOfflineCache} style={styles.linkButton}>
-                  <Text style={styles.linkButtonText}>Limpiar cache offline</Text>
+                  <Text style={styles.linkButtonText}>{APP_TEXT.clearOfflineCache}</Text>
                 </Pressable>
               </View>
             ) : null}

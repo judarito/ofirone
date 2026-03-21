@@ -124,7 +124,7 @@ function isLikelyScannerInput(value) {
 
 function getBaseEngineSourceLabel(source) {
   const normalized = String(source || '').trim();
-  if (normalized === 'local_cache') return 'cache local';
+  if (normalized === 'local_cache') return 'caché local';
   if (normalized === 'deterministic_parser') return 'parser local';
   if (normalized === 'local_llm') return 'llm local';
   if (normalized === 'cloud_llm') return 'llm cloud';
@@ -228,7 +228,7 @@ async function buildOptimizedImageForOcr(asset) {
 
   return {
     success: false,
-    error: 'No se pudo reducir la foto por debajo de 1MB para OCR. Acerca mas la camara y evita fondo extra.',
+    error: 'No se pudo reducir la foto por debajo de 1MB para OCR. Acerca más la cámara y evita fondo extra.',
   };
 }
 
@@ -960,7 +960,7 @@ export default function PointOfSaleScreen({
     const code = String(search || '').trim();
     if (!isLikelyScannerInput(code)) return;
     if (!tenant?.tenant_id) {
-      setError('Tenant invalido para busqueda por codigo.');
+      setError('Tenant inválido para búsqueda por código.');
       return;
     }
     setError('');
@@ -968,11 +968,11 @@ export default function PointOfSaleScreen({
     const locationId = currentSession?.cash_register?.location_id || null;
     const result = await findVariantByCode(tenant?.tenant_id, code, locationId, { offlineMode });
     if (!result.success || !result.data) {
-      setError(result.error || `No se encontro producto para el codigo ${code}.`);
+      setError(result.error || `No se encontró producto para el código ${code}.`);
       return;
     }
     await upsertVariantInCart({ variant: result.data, quantity: 1 });
-    setMessage(`Producto agregado por codigo: ${result.data.product?.name || result.data.sku || code}.`);
+    setMessage(`Producto agregado por código: ${result.data.product?.name || result.data.sku || code}.`);
     setSearch('');
     setResults([]);
   };
@@ -984,7 +984,7 @@ export default function PointOfSaleScreen({
     setChatOrderSummary(null);
 
     if (!tenant?.tenant_id) {
-      setError('Tenant invalido para escaneo.');
+      setError('Tenant inválido para escaneo.');
       return;
     }
     const ocrStatus = await getNativeOcrStatus();
@@ -1008,7 +1008,7 @@ export default function PointOfSaleScreen({
 
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission?.granted && Platform.OS !== 'web') {
-      setError('Permiso de camara denegado.');
+      setError('Permiso de cámara denegado.');
       return;
     }
 
@@ -1189,7 +1189,7 @@ export default function PointOfSaleScreen({
   const runCommandToCart = async ({ commandText, inputType = 'text' }) => {
     const text = String(commandText || '').trim();
     if (!tenant?.tenant_id) {
-      setError('Tenant invalido para conversion de comando.');
+      setError('Tenant inválido para conversión de comando.');
       return false;
     }
     if (!text) {
@@ -1198,13 +1198,13 @@ export default function PointOfSaleScreen({
     }
 
     setAiWorking(true);
-    setAiWorkingLabel(`Procesando comando de ${getInputTypeLabel(inputType)} (parser/cache local)...`);
+    setAiWorkingLabel(`Procesando comando de ${getInputTypeLabel(inputType)} (parser/caché local)...`);
 
     try {
       const locationId = currentSession?.cash_register?.location_id || null;
       const catalogResult = await listCatalogForInvoiceMatching(tenant.tenant_id, locationId, 3500);
       if (!catalogResult.success || !catalogResult.data?.length) {
-        setError(catalogResult.error || 'No hay catalogo disponible para matching.');
+        setError(catalogResult.error || 'No hay catálogo disponible para matching.');
         return false;
       }
 
@@ -1281,8 +1281,8 @@ export default function PointOfSaleScreen({
             retryOptions.skipDeterministic = true;
             setAiWorkingLabel(
               resolved.matched.length
-                ? 'Match incierto del parser/cache. Probando LLM local...'
-                : 'Sin match en parser/cache. Probando LLM local...',
+                ? 'Match incierto del parser/caché. Probando LLM local...'
+                : 'Sin match en parser/caché. Probando LLM local...',
             );
           }
           if (primarySource === 'local_llm') {
@@ -1339,9 +1339,9 @@ export default function PointOfSaleScreen({
           ? ` Fallback adicional no disponible: ${retryFailureDetail}`
           : '';
         const qualityHint = inputType === 'image' && matched.length && !finalQualityAcceptable
-          ? ' El OCR devolvio texto con baja confianza; evita cargar productos automaticamente.'
+          ? ' El OCR devolvió texto con baja confianza; evita cargar productos automáticamente.'
           : '';
-        const noMatchMessage = `El motor interpreto el comando pero no encontro coincidencias en catalogo.${qualityHint}${retryHint}`;
+        const noMatchMessage = `El motor interpretó el comando, pero no encontró coincidencias en catálogo.${qualityHint}${retryHint}`;
         setError(noMatchMessage);
         showFloatingNotice(noMatchMessage, 'error', 5200);
         setChatOrderSummary({
@@ -1444,7 +1444,7 @@ export default function PointOfSaleScreen({
     const voskStatus = getVoskSttStatus();
     setVoiceAvailable(Boolean(voskStatus?.available));
     if (!voskStatus?.available) {
-      setError('Vosk no esta disponible en este build. Requiere dev-client con modulo nativo.');
+      setError('Vosk no está disponible en este build. Requiere dev-client con módulo nativo.');
       return;
     }
 
@@ -1472,7 +1472,7 @@ export default function PointOfSaleScreen({
 
       const transcript = String(voiceResult?.data?.text || '').trim();
       if (!transcript) {
-        setError('No se detecto comando de voz.');
+        setError('No se detectó comando de voz.');
         return;
       }
 
@@ -1706,7 +1706,7 @@ export default function PointOfSaleScreen({
       return;
     }
     if (payments.some((p) => !p.method || Number(p.amount || 0) <= 0)) {
-      showValidationError('Verifica metodos y montos de pago.');
+      showValidationError('Verifica métodos y montos de pago.');
       return;
     }
 
@@ -1996,7 +1996,7 @@ export default function PointOfSaleScreen({
                     : 'No descargado'}
                 </Text>
                 <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
-                  Descarga automatica: al usar camara/chat/voz IA.
+                  Descarga automática: al usar cámara/chat/voz IA.
                 </Text>
                 {preparingEmbeddedLlm ? (
                   <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
@@ -2013,7 +2013,7 @@ export default function PointOfSaleScreen({
                       Motor: {invoiceScanSummary.ocrEngine || 'nativo'}
                     </Text>
                     <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
-                      Texto detectado: {Number(invoiceScanSummary.ocrChars || 0)} caracteres ({Number(invoiceScanSummary.ocrLines || 0)} lineas)
+                      Texto detectado: {Number(invoiceScanSummary.ocrChars || 0)} caracteres ({Number(invoiceScanSummary.ocrLines || 0)} líneas)
                     </Text>
                     {invoiceScanSummary?.ocrPreview ? (
                       <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
@@ -2039,7 +2039,7 @@ export default function PointOfSaleScreen({
                     </Text>
                     {chatOrderSummary?.cacheCrossInput ? (
                       <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
-                        Cache cross-input: si
+                        Caché cross-input: sí
                       </Text>
                     ) : null}
                     {chatOrderSummary?.showConfidence ? (
@@ -2059,12 +2059,12 @@ export default function PointOfSaleScreen({
                     ) : null}
                     {commandEngineMetrics?.totals?.requests > 0 ? (
                       <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
-                        Engine hit-rate cache: {Math.round(Number(commandEngineMetrics?.totals?.hit_rate || 0) * 100)}%
+                        Engine hit-rate caché: {Math.round(Number(commandEngineMetrics?.totals?.hit_rate || 0) * 100)}%
                       </Text>
                     ) : null}
                     {commandEngineMetrics?.resolution?.total > 0 ? (
                       <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
-                        Uso cache: {getResolutionSourceUsage(commandEngineMetrics, 'local_cache').count} ({getResolutionSourceUsage(commandEngineMetrics, 'local_cache').sharePct}%)
+                        Uso caché: {getResolutionSourceUsage(commandEngineMetrics, 'local_cache').count} ({getResolutionSourceUsage(commandEngineMetrics, 'local_cache').sharePct}%)
                       </Text>
                     ) : null}
                     {commandEngineMetrics?.resolution?.total > 0 ? (
@@ -2084,7 +2084,7 @@ export default function PointOfSaleScreen({
                     ) : null}
                     {Number(commandEngineMetrics?.resolution?.cache_cross_input_hits || 0) > 0 ? (
                       <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
-                        Cache cross-input total: {Number(commandEngineMetrics?.resolution?.cache_cross_input_hits || 0)}
+                        Caché cross-input total: {Number(commandEngineMetrics?.resolution?.cache_cross_input_hits || 0)}
                       </Text>
                     ) : null}
                   </View>
@@ -2096,7 +2096,7 @@ export default function PointOfSaleScreen({
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar por codigo, SKU o nombre"
+          placeholder="Buscar por código, SKU o nombre"
           placeholderTextColor="#64748b"
           style={[styles.input, isLightTheme && styles.inputLight]}
           onSubmitEditing={handleSearchInputSubmit}
@@ -2305,7 +2305,7 @@ export default function PointOfSaleScreen({
                 </View>
               ) : null}
             </View>
-            <Text style={[styles.lineTotal, isLightTheme && styles.lineTotalLight]}>Total linea: {formatMoney(line.line_total)}</Text>
+            <Text style={[styles.lineTotal, isLightTheme && styles.lineTotalLight]}>Total línea: {formatMoney(line.line_total)}</Text>
           </View>
         ))}
       </View>

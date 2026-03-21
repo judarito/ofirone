@@ -95,7 +95,7 @@ export default function PurchasesScreen({ tenant, offlineMode, pageSize = 20, fo
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -120,7 +120,7 @@ export default function PurchasesScreen({ tenant, offlineMode, pageSize = 20, fo
       />
 
       {offlineMode ? (
-        <Pressable style={[styles.infoBtn, isLightTheme && styles.infoBtnLight]} onPress={() => setError('Modo offline: solo consulta con cache local.') }>
+        <Pressable style={[styles.infoBtn, isLightTheme && styles.infoBtnLight]} onPress={() => setError('Modo offline: solo consulta con caché local.') }>
           <Text style={[styles.infoBtnText, isLightTheme && styles.infoBtnTextLight]}>Info offline</Text>
         </Pressable>
       ) : null}

@@ -9,7 +9,7 @@ const TABS = [
   { key: 'ai', label: 'IA' },
   { key: 'inventory', label: 'Inventario' },
   { key: 'sales', label: 'Ventas' },
-  { key: 'invoicing', label: 'Facturacion' },
+  { key: 'invoicing', label: 'Facturación' },
   { key: 'notifications', label: 'Notificaciones' },
 ];
 
@@ -29,7 +29,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     setError('');
     const result = await getTenantConfig(tenant.tenant_id, { offlineMode });
     if (!result.success) {
-      setError(result.error || 'No fue posible cargar configuracion');
+      setError(result.error || 'No fue posible cargar configuración.');
       setLoading(false);
       return;
     }
@@ -53,7 +53,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
 
   const onSave = async () => {
     if (offlineMode) {
-      setError('No puedes guardar configuracion en modo offline.');
+      setError('No puedes guardar configuración en modo offline.');
       return;
     }
     if (!String(tenantForm.name || '').trim()) {
@@ -86,7 +86,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     });
 
     if (!result.success) {
-      setError(result.error || 'No fue posible guardar configuracion.');
+      setError(result.error || 'No fue posible guardar la configuración.');
       setSaving(false);
       return;
     }
@@ -112,7 +112,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
             value === true && styles.segmentTextActive,
           ]}
         >
-          Si
+          Sí
         </Text>
       </Pressable>
       <Pressable
@@ -140,11 +140,11 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={styles.filtersBlock}>
         <SearchableSelectField
-          title="Seccion"
+          title="Sección"
           themeMode={themeMode}
           valueLabel="General"
-          placeholder="Seleccionar seccion"
-          searchPlaceholder="Buscar seccion..."
+          placeholder="Seleccionar sección"
+          searchPlaceholder="Buscar sección..."
           options={TABS.map((entry) => ({ key: entry.key, label: entry.label, searchText: entry.label }))}
           selectedKey={tab}
           onSelect={(nextValue) => setTab(nextValue || 'general')}
@@ -155,14 +155,14 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
       <ScrollView>
         {tab === 'general' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
-            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Informacion General</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.name || ''} onChangeText={(v) => setTenantField('name', v)} placeholder="Nombre empresa" placeholderTextColor="#64748b" />
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Información General</Text>
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.name || ''} onChangeText={(v) => setTenantField('name', v)} placeholder="Nombre de la empresa" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.tax_id || ''} onChangeText={(v) => setTenantField('tax_id', v)} placeholder="NIT / Tax ID" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.currency_code || ''} onChangeText={(v) => setTenantField('currency_code', v)} placeholder="Moneda (COP, USD...)" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_name || ''} onChangeText={(v) => setSettingsField('business_name', v)} placeholder="Nombre comercial" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_phone || ''} onChangeText={(v) => setSettingsField('business_phone', v)} placeholder="Telefono" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_address || ''} onChangeText={(v) => setSettingsField('business_address', v)} placeholder="Direccion" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.logo_url || ''} onChangeText={(v) => setSettingsField('logo_url', v)} placeholder="URL Logo" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_phone || ''} onChangeText={(v) => setSettingsField('business_phone', v)} placeholder="Teléfono" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_address || ''} onChangeText={(v) => setSettingsField('business_address', v)} placeholder="Dirección" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.logo_url || ''} onChangeText={(v) => setSettingsField('logo_url', v)} placeholder="URL del logo" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, styles.inputMulti, isLightTheme && styles.inputLight]} value={settingsForm.receipt_footer || ''} onChangeText={(v) => setSettingsField('receipt_footer', v)} placeholder="Pie de recibo" placeholderTextColor="#64748b" multiline />
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Impuesto incluido por defecto</Text>
             {yesNoButton(Boolean(settingsForm.default_tax_included), (v) => setSettingsField('default_tax_included', v))}
@@ -172,7 +172,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'ui' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Interfaz</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.default_page_size ?? '')} onChangeText={(v) => setSettingsField('default_page_size', v)} placeholder="Registros por pagina" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.default_page_size ?? '')} onChangeText={(v) => setSettingsField('default_page_size', v)} placeholder="Registros por página" keyboardType="numeric" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.theme || ''} onChangeText={(v) => setSettingsField('theme', v)} placeholder="Tema (light/dark/auto)" placeholderTextColor="#64748b" />
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Tema activo cache/local</Text>
             <View style={styles.segmentRow}>
@@ -206,18 +206,18 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
             </View>
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.date_format || ''} onChangeText={(v) => setSettingsField('date_format', v)} placeholder="Formato fecha" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.locale || ''} onChangeText={(v) => setSettingsField('locale', v)} placeholder="Locale (es-CO)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.session_timeout_minutes ?? '')} onChangeText={(v) => setSettingsField('session_timeout_minutes', v)} placeholder="Timeout sesion minutos" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.session_timeout_minutes ?? '')} onChangeText={(v) => setSettingsField('session_timeout_minutes', v)} placeholder="Timeout de sesión (minutos)" keyboardType="numeric" placeholderTextColor="#64748b" />
           </View>
         ) : null}
 
         {tab === 'ai' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Inteligencia IA</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.ai_forecast_days_back ?? '')} onChangeText={(v) => setSettingsField('ai_forecast_days_back', v)} placeholder="Dias historial pronostico" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.ai_purchase_suggestion_days ?? '')} onChangeText={(v) => setSettingsField('ai_purchase_suggestion_days', v)} placeholder="Dias sugerencia compras" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Asesor compras IA</Text>
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.ai_forecast_days_back ?? '')} onChangeText={(v) => setSettingsField('ai_forecast_days_back', v)} placeholder="Días de historial para pronóstico" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.ai_purchase_suggestion_days ?? '')} onChangeText={(v) => setSettingsField('ai_purchase_suggestion_days', v)} placeholder="Días para sugerencia de compras" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Asesor de compras con IA</Text>
             {yesNoButton(Boolean(settingsForm.ai_purchase_advisor_enabled), (v) => setSettingsField('ai_purchase_advisor_enabled', v))}
-            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Pronostico ventas IA</Text>
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Pronóstico de ventas con IA</Text>
             {yesNoButton(Boolean(settingsForm.ai_sales_forecast_enabled), (v) => setSettingsField('ai_sales_forecast_enabled', v))}
           </View>
         ) : null}
@@ -225,7 +225,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'inventory' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Inventario</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.expiry_alert_days ?? '')} onChangeText={(v) => setSettingsField('expiry_alert_days', v)} placeholder="Dias alerta vencimiento" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.expiry_alert_days ?? '')} onChangeText={(v) => setSettingsField('expiry_alert_days', v)} placeholder="Días de alerta por vencimiento" keyboardType="numeric" placeholderTextColor="#64748b" />
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Reservar stock en plan separe</Text>
             {yesNoButton(Boolean(settingsForm.reserve_stock_on_layaway), (v) => setSettingsField('reserve_stock_on_layaway', v))}
           </View>
@@ -234,10 +234,10 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'sales' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas y Precios</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.max_discount_without_auth ?? '')} onChangeText={(v) => setSettingsField('max_discount_without_auth', v)} placeholder="Descuento maximo cajero %" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.max_discount_without_auth ?? '')} onChangeText={(v) => setSettingsField('max_discount_without_auth', v)} placeholder="Descuento máximo cajero %" keyboardType="numeric" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.rounding_method || ''} onChangeText={(v) => setSettingsField('rounding_method', v)} placeholder="Redondeo (normal/up/down/none)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.rounding_multiple ?? '')} onChangeText={(v) => setSettingsField('rounding_multiple', v)} placeholder="Multiplo redondeo" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.cash_session_max_hours ?? '')} onChangeText={(v) => setSettingsField('cash_session_max_hours', v)} placeholder="Max horas sesion caja" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.rounding_multiple ?? '')} onChangeText={(v) => setSettingsField('rounding_multiple', v)} placeholder="Múltiplo de redondeo" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.cash_session_max_hours ?? '')} onChangeText={(v) => setSettingsField('cash_session_max_hours', v)} placeholder="Máx. horas de sesión de caja" keyboardType="numeric" placeholderTextColor="#64748b" />
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Permitir fecha manual en POS</Text>
             {yesNoButton(Boolean(settingsForm.pos_allow_manual_sale_datetime), (v) => setSettingsField('pos_allow_manual_sale_datetime', v))}
             {settingsForm.pos_allow_manual_sale_datetime ? (
@@ -245,44 +245,44 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={String(settingsForm.pos_max_backdate_hours ?? '')}
                 onChangeText={(v) => setSettingsField('pos_max_backdate_hours', v)}
-                placeholder="Max retrofecha POS (horas)"
+                placeholder="Máx. retrofecha POS (horas)"
                 keyboardType="numeric"
                 placeholderTextColor="#64748b"
               />
             ) : null}
             <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
-              Solo administradores y gerentes podran cambiar la fecha/hora de la venta. La retrofecha no puede exceder el limite configurado ni quedar antes de la apertura de caja.
+              Solo administradores y gerentes podrán cambiar la fecha/hora de la venta. La retrofecha no puede exceder el límite configurado ni quedar antes de la apertura de caja.
             </Text>
           </View>
         ) : null}
 
         {tab === 'invoicing' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
-            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Facturacion</Text>
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Facturación</Text>
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.invoice_prefix || ''} onChangeText={(v) => setSettingsField('invoice_prefix', v)} placeholder="Prefijo factura" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.next_invoice_number ?? '')} onChangeText={(v) => setSettingsField('next_invoice_number', v)} placeholder="Siguiente consecutivo" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.print_format || ''} onChangeText={(v) => setSettingsField('print_format', v)} placeholder="Formato impresion (thermal/letter)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.thermal_paper_width ?? '')} onChangeText={(v) => setSettingsField('thermal_paper_width', v)} placeholder="Ancho papel termico" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Facturacion electronica habilitada</Text>
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.print_format || ''} onChangeText={(v) => setSettingsField('print_format', v)} placeholder="Formato impresión (thermal/letter)" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.thermal_paper_width ?? '')} onChangeText={(v) => setSettingsField('thermal_paper_width', v)} placeholder="Ancho papel térmico" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Facturación electrónica habilitada</Text>
             {yesNoButton(Boolean(settingsForm.electronic_invoicing_enabled), (v) => setSettingsField('electronic_invoicing_enabled', v))}
 
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Datos Fiscales Emisor</Text>
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.dv || ''} onChangeText={(v) => setTenantField('dv', v)} placeholder="DV" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.trade_name || ''} onChangeText={(v) => setTenantField('trade_name', v)} placeholder="Nombre comercial" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.tax_regime || ''} onChangeText={(v) => setTenantField('tax_regime', v)} placeholder="Regimen DIAN (48,49,O-13,ZZ)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.ciiu_code || ''} onChangeText={(v) => setTenantField('ciiu_code', v)} placeholder="Codigo CIIU" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.tax_regime || ''} onChangeText={(v) => setTenantField('tax_regime', v)} placeholder="Régimen DIAN (48,49,O-13,ZZ)" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.ciiu_code || ''} onChangeText={(v) => setTenantField('ciiu_code', v)} placeholder="Código CIIU" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.fiscal_email || ''} onChangeText={(v) => setTenantField('fiscal_email', v)} placeholder="Email fiscal" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.fiscal_phone || ''} onChangeText={(v) => setTenantField('fiscal_phone', v)} placeholder="Telefono fiscal" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.fiscal_phone || ''} onChangeText={(v) => setTenantField('fiscal_phone', v)} placeholder="Teléfono fiscal" placeholderTextColor="#64748b" />
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Responsable IVA</Text>
             {yesNoButton(Boolean(tenantForm.is_responsible_for_iva), (v) => setTenantField('is_responsible_for_iva', v))}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Obligado a contabilidad</Text>
             {yesNoButton(Boolean(tenantForm.obligated_accounting), (v) => setTenantField('obligated_accounting', v))}
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.address || ''} onChangeText={(v) => setTenantField('address', v)} placeholder="Direccion fiscal" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.address || ''} onChangeText={(v) => setTenantField('address', v)} placeholder="Dirección fiscal" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.city || ''} onChangeText={(v) => setTenantField('city', v)} placeholder="Ciudad" placeholderTextColor="#64748b" />
             <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.department || ''} onChangeText={(v) => setTenantField('department', v)} placeholder="Departamento" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.country_code || ''} onChangeText={(v) => setTenantField('country_code', v)} placeholder="Pais (CO)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.postal_code || ''} onChangeText={(v) => setTenantField('postal_code', v)} placeholder="Codigo postal" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.city_code || ''} onChangeText={(v) => setTenantField('city_code', v)} placeholder="Codigo DANE ciudad" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.country_code || ''} onChangeText={(v) => setTenantField('country_code', v)} placeholder="País (CO)" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.postal_code || ''} onChangeText={(v) => setTenantField('postal_code', v)} placeholder="Código postal" placeholderTextColor="#64748b" />
+            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.city_code || ''} onChangeText={(v) => setTenantField('city_code', v)} placeholder="Código DANE ciudad" placeholderTextColor="#64748b" />
           </View>
         ) : null}
 
@@ -305,7 +305,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={onSave} disabled={saving || loading}>
-        <Text style={styles.primaryBtnText}>{saving ? 'Guardando...' : 'Guardar configuracion'}</Text>
+        <Text style={styles.primaryBtnText}>{saving ? 'Guardando...' : 'Guardar configuración'}</Text>
       </Pressable>
     </View>
   );

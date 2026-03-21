@@ -270,7 +270,7 @@ export async function resolveSaleCommandFromText({
     });
     return {
       success: false,
-      error: `Sin conexion: parser local no pudo interpretar el comando.${localHint}`,
+      error: `Sin conexión: parser local no pudo interpretar el comando.${localHint}`,
     };
   }
 

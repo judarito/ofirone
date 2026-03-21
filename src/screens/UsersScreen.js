@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import MultiSelectField from '../components/MultiSelectField';
 import PaginatedList from '../components/PaginatedList';
+import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -144,7 +145,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
       return false;
     }
     if (!form.user_id && String(form.password || '').length < 6) {
-      setError('La contrasena debe tener al menos 6 caracteres.');
+      setError('La contraseña debe tener al menos 6 caracteres.');
       return false;
     }
     if (!Array.isArray(form.roleIds) || form.roleIds.length === 0) {
@@ -156,7 +157,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
 
   const save = async () => {
     if (offlineMode) {
-      setError('Usuarios no permite escritura en modo offline.');
+      setError('Usuarios no permiten escritura en modo offline.');
       return;
     }
 
@@ -219,22 +220,22 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
 
   const savePassword = async () => {
     if (offlineMode) {
-      setError('No puedes cambiar contrasena en modo offline.');
+      setError('No puedes cambiar contraseña en modo offline.');
       return;
     }
 
     if (!form.auth_user_id) {
-      setError('Usuario invalido para cambio de contrasena.');
+      setError('Usuario inválido para cambio de contraseña.');
       return;
     }
 
     if (String(passwordForm.newPassword || '').length < 6) {
-      setError('La nueva contrasena debe tener al menos 6 caracteres.');
+      setError('La nueva contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setError('La confirmacion de contrasena no coincide.');
+      setError('La confirmación de contraseña no coincide.');
       return;
     }
 
@@ -243,7 +244,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
 
     if (!result.success) {
       setPasswordSaving(false);
-      setError(result.error || 'No fue posible cambiar la contrasena.');
+      setError(result.error || 'No fue posible cambiar la contraseña.');
       return;
     }
 
@@ -284,7 +285,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -346,7 +347,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
                   style={[styles.input, isLightTheme && styles.inputLight]}
                   value={form.password}
                   onChangeText={(value) => setForm((prev) => ({ ...prev, password: value }))}
-                  placeholder="Contrasena *"
+                  placeholder={`${COMMON_TEXT.password} *`}
                   placeholderTextColor="#64748b"
                   secureTextEntry
                 />
@@ -413,14 +414,14 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
             <ScrollView>
-              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Cambiar contrasena</Text>
+              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Cambiar contraseña</Text>
               <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Usuario: {form.email || '-'}</Text>
 
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={passwordForm.newPassword}
                 onChangeText={(value) => setPasswordForm((prev) => ({ ...prev, newPassword: value }))}
-                placeholder="Nueva contrasena"
+                placeholder="Nueva contraseña"
                 placeholderTextColor="#64748b"
                 secureTextEntry
               />
@@ -429,7 +430,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={passwordForm.confirmPassword}
                 onChangeText={(value) => setPasswordForm((prev) => ({ ...prev, confirmPassword: value }))}
-                placeholder="Confirmar contrasena"
+                placeholder="Confirmar contraseña"
                 placeholderTextColor="#64748b"
                 secureTextEntry
               />
@@ -440,7 +441,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
                 disabled={passwordSaving}
               >
                 <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>
-                  {passwordSaving ? 'Guardando...' : 'Actualizar contrasena'}
+                  {passwordSaving ? 'Guardando...' : 'Actualizar contraseña'}
                 </Text>
               </Pressable>
             </ScrollView>

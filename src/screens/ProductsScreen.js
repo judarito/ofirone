@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import { Ionicons } from '@expo/vector-icons';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
+import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import { listActiveUnits } from '../services/units.service';
@@ -250,7 +251,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -393,7 +394,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
               </View>
 
               <SearchableSelectField
-                title="Categoria"
+                title="Categoría"
                 themeMode={themeMode}
                 valueLabel="Sin categoria"
                 clearLabel="Sin categoria"
@@ -428,7 +429,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
                   onPress={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Producto activo</Text>
-                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.is_active, 'Si', 'No')}</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.is_active, COMMON_TEXT.yes, COMMON_TEXT.no)}</Text>
                 </Pressable>
 
                 <Pressable
@@ -441,7 +442,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
                   onPress={() => setForm((prev) => ({ ...prev, track_inventory: !prev.track_inventory }))}
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Controla inventario</Text>
-                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.track_inventory, 'Si', 'No')}</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.track_inventory, COMMON_TEXT.yes, COMMON_TEXT.no)}</Text>
                 </Pressable>
 
                 <Pressable
@@ -456,7 +457,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
                   }
                 >
                   <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Maneja vencimiento</Text>
-                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.requires_expiration, 'Si', 'No')}</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>{boolText(form.requires_expiration, COMMON_TEXT.yes, COMMON_TEXT.no)}</Text>
                 </Pressable>
               </View>
 

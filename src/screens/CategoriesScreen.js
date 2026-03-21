@@ -81,13 +81,13 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
 
   const save = async () => {
     if (offlineMode) {
-      setError('Categorias no permite escritura en modo offline.');
+      setError('Categorías no permiten escritura en modo offline.');
       return;
     }
 
     const name = String(form.name || '').trim();
     if (!name) {
-      setError('Nombre de categoria es obligatorio.');
+      setError('Nombre de categoría es obligatorio.');
       return;
     }
 
@@ -105,7 +105,7 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
       : await createCategory(payload);
 
     if (!result.success) {
-      setError(result.error || 'No se pudo guardar categoria');
+      setError(result.error || 'No se pudo guardar categoría');
       setSaving(false);
       return;
     }
@@ -117,19 +117,19 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
   };
 
   const remove = (item) => {
-    Alert.alert('Eliminar categoria', `Se eliminara ${item.name}.`, [
+    Alert.alert('Eliminar categoría', `Se eliminará ${item.name}.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
           if (offlineMode) {
-            setError('No puedes eliminar categorias en modo offline.');
+            setError('No puedes eliminar categorías en modo offline.');
             return;
           }
           const result = await removeCategory(item.category_id, tenant?.tenant_id);
           if (!result.success) {
-            setError(result.error || 'No se pudo eliminar categoria');
+            setError(result.error || 'No se pudo eliminar categoría');
             return;
           }
           await loadPage(page, filters);
@@ -138,7 +138,7 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
     ]);
   };
 
-  const parentName = (item) => item.parent?.name || 'Categoria principal';
+  const parentName = (item) => item.parent?.name || 'Categoría principal';
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
@@ -147,7 +147,7 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
           style={[styles.searchInput, isLightTheme && styles.searchInputLight]}
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar categoria"
+          placeholder="Buscar categoría"
           placeholderTextColor="#64748b"
           onSubmitEditing={() => updateFilters({ search })}
         />
@@ -158,20 +158,20 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
 
       <PaginatedList
         themeMode={themeMode}
-        title="Categorias"
+        title="Categorías"
         loading={loading}
         refreshing={refreshing}
         onRefresh={reload}
         error={error}
         items={rows}
-        emptyText="No hay categorias registradas."
+        emptyText="No hay categorías registradas."
         page={page}
         totalPages={totalPages}
         onPrev={() => changePage(page - 1)}
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
@@ -198,7 +198,7 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
             <ScrollView>
-              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.category_id ? 'Editar categoria' : 'Nueva categoria'}</Text>
+              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.category_id ? 'Editar categoría' : 'Nueva categoría'}</Text>
 
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
@@ -208,7 +208,7 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
                 placeholderTextColor="#64748b"
               />
 
-              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Categoria padre</Text>
+              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Categoría padre</Text>
               <Pressable
                 style={[
                   styles.parentOption,
@@ -224,7 +224,7 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
                     form.parent_category_id === null && styles.parentOptionTextActive,
                   ]}
                 >
-                  Categoria principal
+                  Categoría principal
                 </Text>
               </Pressable>
 

@@ -948,7 +948,7 @@ async function analyzeProductionPlanner({ tenantId }) {
   ]);
 
   if (!ordersResult.success) {
-    throw new Error(ordersResult.error || 'No se pudo cargar ordenes de produccion.');
+    throw new Error(ordersResult.error || 'No se pudo cargar órdenes de producción.');
   }
   if (!componentsStockResult.success) {
     throw new Error(componentsStockResult.error || 'No se pudo cargar insumos.');
@@ -1004,7 +1004,7 @@ async function analyzeProductionPlanner({ tenantId }) {
     recommendations: [
       delayed.length > 0
         ? 'Reprogramar ordenes atrasadas segun disponibilidad de insumos.'
-        : 'No hay atrasos de produccion relevantes.',
+        : 'No hay atrasos de producción relevantes.',
       criticalComponents.length > 0
         ? 'Priorizar compra/traslado de insumos criticos para evitar paradas.'
         : 'Disponibilidad de insumos en rango operativo.',
@@ -1245,7 +1245,7 @@ export async function resolveAiInsightByTextWithFallback({
 
   const text = String(queryText || '').trim();
   if (!text) {
-    return { success: false, error: 'Escribe una consulta para enrutar analisis IA.' };
+    return { success: false, error: 'Escribe una consulta para enrutar análisis IA.' };
   }
 
   const normalizedText = normalizeCommandText(text);
@@ -1281,7 +1281,7 @@ export async function resolveAiInsightByTextWithFallback({
       const routed = {
         insightId: deterministic.insightId,
         confidence: clampConfidence(deterministic.confidence),
-        summary: 'Ruteo por parser deterministico.',
+        summary: 'Ruteo por parser determinístico.',
         engine: {
           source: 'deterministic_parser',
           fallback_chain: fallbackChain,
@@ -1316,7 +1316,7 @@ export async function resolveAiInsightByTextWithFallback({
   if (offlineMode) {
     return {
       success: false,
-      error: 'Sin conexion: parser local no logro inferir consulta y no se puede escalar a cloud.',
+      error: 'Sin conexión: parser local no logró inferir la consulta y no se puede escalar a cloud.',
     };
   }
 
@@ -1341,7 +1341,7 @@ export async function resolveAiInsightByTextWithFallback({
 
   return {
     success: false,
-    error: cloud.error || 'No se pudo enrutar la consulta IA en cache/parser/local/cloud.',
+    error: cloud.error || 'No se pudo enrutar la consulta IA en caché/parser/local/cloud.',
   };
 }
 
@@ -1368,7 +1368,7 @@ export async function runAiInsight({ tenantId, insightId, offlineMode = false })
         },
       };
     }
-    return { success: false, error: 'Modo offline: no hay cache local para este analisis IA.' };
+    return { success: false, error: 'Modo offline: no hay caché local para este análisis IA.' };
   }
 
   try {
@@ -1395,7 +1395,7 @@ export async function runAiInsight({ tenantId, insightId, offlineMode = false })
         },
       };
     }
-    return { success: false, error: String(error?.message || 'No se pudo ejecutar analisis IA.') };
+    return { success: false, error: String(error?.message || 'No se pudo ejecutar análisis IA.') };
   }
 }
 

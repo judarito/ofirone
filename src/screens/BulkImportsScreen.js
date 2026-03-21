@@ -73,7 +73,7 @@ async function buildOptimizedImageForOcr(asset) {
 
   return {
     success: false,
-    error: 'No se pudo reducir la foto por debajo de 1MB para OCR. Acerca mas la camara y evita fondo extra.',
+    error: 'No se pudo reducir la foto por debajo de 1MB para OCR. Acerca más la cámara y evita fondo extra.',
   };
 }
 
@@ -138,7 +138,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
       } else {
         setRows([]);
         setCacheAt('');
-        setError('No hay cache local del historial de carga masiva para este filtro.');
+        setError('No hay caché local del historial de carga masiva para este filtro.');
       }
       setLoading(false);
       return;
@@ -155,7 +155,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
       if (cached?.value) {
         setRows(cached.value.rows || []);
         setCacheAt(cached.value.cachedAt || '');
-        setError(result.error || 'Sin conexion. Mostrando cache local.');
+        setError(result.error || 'Sin conexión. Mostrando caché local.');
       } else {
         setRows([]);
         setCacheAt('');
@@ -202,11 +202,11 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
     setParserMeta({ model: '', tokens: null });
 
     if (offlineMode) {
-      setError('La carga por foto requiere conexion online.');
+      setError('La carga por foto requiere conexión online.');
       return;
     }
     if (!tenant?.tenant_id) {
-      setError('Tenant invalido.');
+      setError('Tenant inválido.');
       return;
     }
 
@@ -221,13 +221,13 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission?.granted && Platform.OS !== 'web') {
-        setError('Permiso de camara denegado.');
+        setError('Permiso de cámara denegado.');
         return;
       }
     } else {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission?.granted && Platform.OS !== 'web') {
-        setError('Permiso de galeria denegado.');
+        setError('Permiso de galería denegado.');
         return;
       }
     }
@@ -443,14 +443,14 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
               style={[styles.input, isLightTheme && styles.inputLight]}
               value={defaultLocationCode}
               onChangeText={setDefaultLocationCode}
-              placeholder="Ubicacion para stock inicial (opcional)"
+              placeholder="Ubicación para stock inicial (opcional)"
               placeholderTextColor="#64748b"
             />
             <TextInput
               style={[styles.input, isLightTheme && styles.inputLight]}
               value={defaultCategoryName}
               onChangeText={setDefaultCategoryName}
-              placeholder="Categoria default (opcional)"
+              placeholder="Categoría por defecto (opcional)"
               placeholderTextColor="#64748b"
             />
           </View>
@@ -599,7 +599,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
                     style={[styles.input, isLightTheme && styles.inputLight]}
                     value={row.category_name}
                     onChangeText={(v) => updateDraftField(row.local_id, 'category_name', v)}
-                    placeholder="Categoria"
+                    placeholder="Categoría"
                     placeholderTextColor="#64748b"
                   />
                   <View style={styles.row2}>

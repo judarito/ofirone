@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import PaginatedList from '../components/PaginatedList';
+import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import { createUnit, listUnits, removeUnit, updateUnit } from '../services/units.service';
@@ -89,7 +90,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
     const name = String(form.name || '').trim();
 
     if (!code || !name) {
-      setError('Codigo y nombre son obligatorios.');
+      setError('Código y nombre son obligatorios.');
       return;
     }
 
@@ -110,7 +111,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
       : await createUnit(payload);
 
     if (!result.success) {
-      setError(result.error || 'No se pudo guardar unidad');
+      setError(result.error || 'No se pudo guardar la unidad.');
       setSaving(false);
       return;
     }
@@ -127,7 +128,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
       return;
     }
 
-    Alert.alert('Eliminar unidad', `Se eliminara ${item.name} (${item.code}).`, [
+    Alert.alert('Eliminar unidad', `Se eliminará ${item.name} (${item.code}).`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
@@ -139,7 +140,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
           }
           const result = await removeUnit(item.unit_id, tenant?.tenant_id);
           if (!result.success) {
-            setError(result.error || 'No se pudo eliminar unidad');
+            setError(result.error || 'No se pudo eliminar la unidad.');
             return;
           }
           await loadPage(page, filters);
@@ -155,7 +156,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
           style={[styles.searchInput, isLightTheme && styles.searchInputLight]}
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar por codigo, nombre o DIAN"
+          placeholder="Buscar por código, nombre o DIAN"
           placeholderTextColor="#64748b"
           onSubmitEditing={() => updateFilters({ search })}
         />
@@ -179,13 +180,13 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
         onNext={() => changePage(page + 1)}
         footerMeta={
           cacheInfo?.source === 'cache' && cacheInfo?.cachedAt
-            ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
+            ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
         renderItem={(item) => (
           <View key={item.unit_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
-            <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Codigo: {item.code || '-'}</Text>
+            <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Código: {item.code || '-'}</Text>
             <Text style={[styles.meta, isLightTheme && styles.metaLight]}>DIAN: {item.dian_code || 'No definido'}</Text>
             <View style={styles.badgesRow}>
               <View style={[styles.badge, item.is_system ? styles.badgeBlue : styles.badgeGreen]}>
@@ -231,14 +232,14 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.code}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, code: v.toUpperCase() }))}
-                placeholder="Codigo *"
+                placeholder="Código *"
                 placeholderTextColor="#64748b"
               />
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={form.dian_code}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, dian_code: v.toUpperCase() }))}
-                placeholder="Codigo DIAN"
+                placeholder="Código DIAN"
                 placeholderTextColor="#64748b"
               />
               <TextInput
@@ -252,7 +253,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
                 style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 70 }]}
                 value={form.description}
                 onChangeText={(v) => setForm((prev) => ({ ...prev, description: v }))}
-                placeholder="Descripcion"
+                placeholder="Descripción"
                 placeholderTextColor="#64748b"
                 multiline
               />
@@ -268,7 +269,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
               >
                 <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Unidad activa</Text>
                 <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>
-                  {boolText(form.is_active, 'Si', 'No')}
+                  {boolText(form.is_active, COMMON_TEXT.yes, COMMON_TEXT.no)}
                 </Text>
               </Pressable>
 
