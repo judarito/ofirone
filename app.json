@@ -26,6 +26,7 @@
       },
       "package": "com.juan.d.ricardo.t.app",
       "permissions": [
+        "POST_NOTIFICATIONS",
         "RECORD_AUDIO"
       ]
     },

@@ -58,6 +58,7 @@ import { savePageCache } from './src/services/offlineCache.service';
 import { listProducts } from './src/services/productsCatalog.service';
 import { getSales } from './src/services/sales.service';
 import { listCashSessions, listActiveCashRegisters } from './src/services/cashMenu.service';
+import { warmEmbeddedModelInBackground } from './src/services/commandEngine';
 import {
   getUnreadNotificationsCount,
   listMyNotifications,
@@ -957,6 +958,10 @@ export default function App() {
     }
   }, [tenant?.currency_code]);
   const defaultPageSize = Number(tenantSettings?.default_page_size || 20);
+  const localLlmMode = useMemo(
+    () => String(process.env.EXPO_PUBLIC_LOCAL_LLM_MODE || 'auto').trim().toLowerCase(),
+    [],
+  );
   const formatDateTime = (value) => {
     if (!value) return '-';
     try {
@@ -1432,6 +1437,22 @@ export default function App() {
     if (!session || !networkReachable || !tenant?.tenant_id || !userProfile?.user_id) return;
     warmCriticalOfflineCaches(tenant.tenant_id, userProfile.user_id);
   }, [session, networkReachable, tenant?.tenant_id, userProfile?.user_id, defaultPageSize]);
+
+  useEffect(() => {
+    if (localLlmMode === 'endpoint') return;
+    if (!session || offlineMode || !networkReachable || !tenant?.tenant_id || !userProfile?.user_id) return;
+
+    warmEmbeddedModelInBackground().catch(() => {
+      // best-effort: la descarga anticipada no debe afectar el login ni la navegacion
+    });
+  }, [
+    localLlmMode,
+    session,
+    offlineMode,
+    networkReachable,
+    tenant?.tenant_id,
+    userProfile?.user_id,
+  ]);
 
   const refreshNotifications = async () => {
     if (!session || offlineMode) return;

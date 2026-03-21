@@ -10,6 +10,14 @@ const DEFAULT_MODEL_FILE_NAME =
 const MODEL_DIR = 'llm-models';
 const MIN_VALID_MODEL_BYTES = 10 * 1024 * 1024;
 
+let activeDownloadPromise = null;
+let activeDownloadProgress = {
+  written: 0,
+  expected: 0,
+  progress: 0,
+};
+const progressListeners = new Set();
+
 function resolveModelFileName() {
   const text = String(DEFAULT_MODEL_FILE_NAME || '').trim();
   return text || 'qwen2.5-1.5b-instruct-q4_k_m.gguf';
@@ -30,6 +38,22 @@ function safeRoundMb(bytes) {
   return Number((n / (1024 * 1024)).toFixed(2));
 }
 
+function emitProgress(snapshot = {}) {
+  activeDownloadProgress = {
+    written: Number(snapshot.written || 0),
+    expected: Number(snapshot.expected || 0),
+    progress: Number(snapshot.progress || 0),
+  };
+
+  progressListeners.forEach((listener) => {
+    try {
+      listener(activeDownloadProgress);
+    } catch (_error) {
+      // no-op
+    }
+  });
+}
+
 export function getEmbeddedModelPath() {
   const base = resolveBaseDirectory();
   if (!base) return null;
@@ -42,7 +66,10 @@ export async function getEmbeddedModelStatus() {
     return {
       success: false,
       available: false,
-      downloading: false,
+      downloading: Boolean(activeDownloadPromise),
+      download_progress: activeDownloadProgress.progress,
+      download_bytes_written: activeDownloadProgress.written,
+      download_bytes_expected: activeDownloadProgress.expected,
       error: 'No hay directorio local disponible para modelo embebido.',
     };
   }
@@ -56,7 +83,10 @@ export async function getEmbeddedModelStatus() {
     return {
       success: true,
       available: ready,
-      downloading: false,
+      downloading: Boolean(activeDownloadPromise),
+      download_progress: activeDownloadProgress.progress,
+      download_bytes_written: activeDownloadProgress.written,
+      download_bytes_expected: activeDownloadProgress.expected,
       path: modelPath,
       bytes,
       mb: safeRoundMb(bytes),
@@ -67,7 +97,10 @@ export async function getEmbeddedModelStatus() {
     return {
       success: false,
       available: false,
-      downloading: false,
+      downloading: Boolean(activeDownloadPromise),
+      download_progress: activeDownloadProgress.progress,
+      download_bytes_written: activeDownloadProgress.written,
+      download_bytes_expected: activeDownloadProgress.expected,
       path: modelPath,
       error: String(error?.message || 'No se pudo leer estado del modelo embebido.'),
     };
@@ -88,95 +121,128 @@ async function ensureModelDirectory() {
 }
 
 export async function ensureEmbeddedModelReady({ onProgress = null } = {}) {
-  const status = await getEmbeddedModelStatus();
-  if (status.success && status.available && status.path) {
-    return {
-      success: true,
-      downloaded: false,
-      path: status.path,
-      bytes: status.bytes,
-    };
-  }
-
-  if (!DEFAULT_MODEL_URL) {
-    return {
-      success: false,
-      error: 'EXPO_PUBLIC_EMBEDDED_LLM_MODEL_URL no configurada.',
-    };
+  const progressCallback = typeof onProgress === 'function' ? onProgress : null;
+  if (progressCallback) {
+    progressListeners.add(progressCallback);
+    if (activeDownloadPromise || activeDownloadProgress.progress > 0) {
+      progressCallback(activeDownloadProgress);
+    }
   }
 
   try {
-    await ensureModelDirectory();
-    const destination = getEmbeddedModelPath();
-    if (!destination) {
+    const status = await getEmbeddedModelStatus();
+    if (status.success && status.available && status.path) {
       return {
-        success: false,
-        error: 'No se pudo resolver destino del modelo embebido.',
+        success: true,
+        downloaded: false,
+        path: status.path,
+        bytes: status.bytes,
       };
     }
 
-    const tmpPath = `${destination}.download`;
-    const tmpInfo = await FileSystem.getInfoAsync(tmpPath);
-    if (tmpInfo?.exists) {
-      await FileSystem.deleteAsync(tmpPath, { idempotent: true });
-    }
-
-    const download = FileSystem.createDownloadResumable(
-      DEFAULT_MODEL_URL,
-      tmpPath,
-      {},
-      (progressEvent) => {
-        if (typeof onProgress !== 'function') return;
-        const written = Number(progressEvent?.totalBytesWritten || 0);
-        const expected = Number(progressEvent?.totalBytesExpectedToWrite || 0);
-        const ratio = expected > 0 ? written / expected : 0;
-        onProgress({
-          written,
-          expected,
-          progress: Number(Math.max(0, Math.min(1, ratio)).toFixed(4)),
-        });
-      },
-    );
-
-    const result = await download.downloadAsync();
-    if (!result?.uri) {
+    if (!DEFAULT_MODEL_URL) {
       return {
         success: false,
-        error: 'Descarga de modelo embebido sin URI de salida.',
+        error: 'EXPO_PUBLIC_EMBEDDED_LLM_MODEL_URL no configurada.',
       };
     }
 
-    const finalInfo = await FileSystem.getInfoAsync(result.uri, { size: true });
-    const finalBytes = Number(finalInfo?.size || 0);
-    if (finalBytes < MIN_VALID_MODEL_BYTES) {
-      await FileSystem.deleteAsync(result.uri, { idempotent: true });
-      return {
-        success: false,
-        error: 'Modelo descargado invalido (tamano insuficiente).',
-      };
+    if (!activeDownloadPromise) {
+      emitProgress({ written: 0, expected: 0, progress: 0 });
+      activeDownloadPromise = (async () => {
+        try {
+          await ensureModelDirectory();
+          const destination = getEmbeddedModelPath();
+          if (!destination) {
+            return {
+              success: false,
+              error: 'No se pudo resolver destino del modelo embebido.',
+            };
+          }
+
+          const tmpPath = `${destination}.download`;
+          const tmpInfo = await FileSystem.getInfoAsync(tmpPath);
+          if (tmpInfo?.exists) {
+            await FileSystem.deleteAsync(tmpPath, { idempotent: true });
+          }
+
+          const download = FileSystem.createDownloadResumable(
+            DEFAULT_MODEL_URL,
+            tmpPath,
+            {},
+            (progressEvent) => {
+              const written = Number(progressEvent?.totalBytesWritten || 0);
+              const expected = Number(progressEvent?.totalBytesExpectedToWrite || 0);
+              const ratio = expected > 0 ? written / expected : 0;
+              emitProgress({
+                written,
+                expected,
+                progress: Number(Math.max(0, Math.min(1, ratio)).toFixed(4)),
+              });
+            },
+          );
+
+          const result = await download.downloadAsync();
+          if (!result?.uri) {
+            return {
+              success: false,
+              error: 'Descarga de modelo embebido sin URI de salida.',
+            };
+          }
+
+          const finalInfo = await FileSystem.getInfoAsync(result.uri, { size: true });
+          const finalBytes = Number(finalInfo?.size || 0);
+          if (finalBytes < MIN_VALID_MODEL_BYTES) {
+            await FileSystem.deleteAsync(result.uri, { idempotent: true });
+            return {
+              success: false,
+              error: 'Modelo descargado inválido (tamaño insuficiente).',
+            };
+          }
+
+          const currentInfo = await FileSystem.getInfoAsync(destination);
+          if (currentInfo?.exists) {
+            await FileSystem.deleteAsync(destination, { idempotent: true });
+          }
+
+          await FileSystem.moveAsync({
+            from: result.uri,
+            to: destination,
+          });
+
+          emitProgress({
+            written: finalBytes,
+            expected: finalBytes,
+            progress: 1,
+          });
+
+          return {
+            success: true,
+            downloaded: true,
+            path: destination,
+            bytes: finalBytes,
+            mb: safeRoundMb(finalBytes),
+          };
+        } catch (error) {
+          emitProgress({ written: 0, expected: 0, progress: 0 });
+          return {
+            success: false,
+            error: String(error?.message || 'No se pudo descargar modelo embebido.'),
+          };
+        } finally {
+          activeDownloadPromise = null;
+        }
+      })();
     }
 
-    const currentInfo = await FileSystem.getInfoAsync(destination);
-    if (currentInfo?.exists) {
-      await FileSystem.deleteAsync(destination, { idempotent: true });
+    return await activeDownloadPromise;
+  } finally {
+    if (progressCallback) {
+      progressListeners.delete(progressCallback);
     }
-
-    await FileSystem.moveAsync({
-      from: result.uri,
-      to: destination,
-    });
-
-    return {
-      success: true,
-      downloaded: true,
-      path: destination,
-      bytes: finalBytes,
-      mb: safeRoundMb(finalBytes),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: String(error?.message || 'No se pudo descargar modelo embebido.'),
-    };
   }
+}
+
+export function warmEmbeddedModelInBackground() {
+  return ensureEmbeddedModelReady();
 }

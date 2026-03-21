@@ -47,7 +47,7 @@ import { getOrCreateDeviceId } from '../services/device.service';
 import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.service';
 
 const OCR_MAX_BYTES = 980 * 1024;
-const QUICK_CASH_AMOUNTS = [5000, 10000, 20000, 50000];
+const QUICK_CASH_DENOMINATIONS = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
 
 let NativeDateTimePicker = null;
 try {
@@ -120,6 +120,37 @@ function isLikelyScannerInput(value) {
   if (text.length < 4) return false;
   if (text.includes(' ')) return false;
   return /^[a-z0-9._-]+$/i.test(text);
+}
+
+function roundUpAmount(value, step = 1000) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  const safeStep = Math.max(1, Number(step || 1000));
+  return Math.ceil(numeric / safeStep) * safeStep;
+}
+
+function buildQuickCashOptions(total) {
+  const amount = Number(total || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return QUICK_CASH_DENOMINATIONS.slice(0, 4);
+  }
+
+  const matchingDenominations = QUICK_CASH_DENOMINATIONS.filter((value) => value >= amount);
+  if (matchingDenominations.length >= 4) {
+    return matchingDenominations.slice(0, 4);
+  }
+
+  const generated = [
+    roundUpAmount(amount, 1000),
+    roundUpAmount(amount * 1.25, 1000),
+    roundUpAmount(amount * 1.5, 5000),
+    roundUpAmount(amount * 2, 10000),
+  ];
+
+  return Array.from(new Set([...matchingDenominations, ...generated]))
+    .filter((value) => value > amount)
+    .sort((a, b) => a - b)
+    .slice(0, 4);
 }
 
 function getBaseEngineSourceLabel(source) {
@@ -540,6 +571,11 @@ export default function PointOfSaleScreen({
   );
   const remaining = useMemo(() => Math.max(0, totals.total - paidTotal), [totals.total, paidTotal]);
   const change = useMemo(() => Math.max(0, paidTotal - totals.total), [totals.total, paidTotal]);
+  const quickCashOptions = useMemo(() => buildQuickCashOptions(totals.total), [totals.total]);
+  const quickCashSelectedAmount = useMemo(() => {
+    const cashPayment = payments.find((payment) => isCashMethodCode(payment.method)) || payments[0];
+    return Number(cashPayment?.amount || 0);
+  }, [payments]);
 
   const canManageDiscounts = useMemo(
     () => (userProfile?.roles || []).some((role) => (
@@ -593,6 +629,13 @@ export default function PointOfSaleScreen({
   const localLlmMode = useMemo(
     () => String(process.env.EXPO_PUBLIC_LOCAL_LLM_MODE || 'auto').trim().toLowerCase(),
     [],
+  );
+  const embeddedModelStatus = embeddedLlmStatus?.model || null;
+  const embeddedModelDownloadProgress = preparingEmbeddedLlm
+    ? embeddedDownloadProgress
+    : Number(embeddedModelStatus?.download_progress || 0);
+  const isEmbeddedModelPreparing = Boolean(
+    preparingEmbeddedLlm || embeddedModelStatus?.downloading,
   );
 
   const showFloatingNotice = (text, type = 'info', ttlMs = 3800) => {
@@ -789,6 +832,16 @@ export default function PointOfSaleScreen({
   useEffect(() => {
     refreshEmbeddedLlmStatus();
   }, []);
+
+  useEffect(() => {
+    if (!embeddedModelStatus?.downloading) return undefined;
+
+    const timer = setInterval(() => {
+      refreshEmbeddedLlmStatus();
+    }, 900);
+
+    return () => clearInterval(timer);
+  }, [embeddedModelStatus?.downloading]);
 
   useEffect(() => {
     setVoiceAvailable(isVoskSttAvailable());
@@ -1148,13 +1201,20 @@ export default function PointOfSaleScreen({
 
   const ensureAiModelReady = async (triggerLabel = 'IA') => {
     if (localLlmMode === 'endpoint') return true;
-    if (preparingEmbeddedLlm) {
-      setError('El modelo local se esta preparando. Espera a que termine la descarga.');
+    if (isEmbeddedModelPreparing) {
+      await refreshEmbeddedLlmStatus();
+      setError('El modelo local se está descargando en segundo plano. Espera a que termine para usar esta IA.');
       return false;
     }
 
     const status = await getEmbeddedModelStatus();
     if (status?.success && status.available) return true;
+    if (status?.downloading) {
+      setEmbeddedDownloadProgress(Number(status.download_progress || 0));
+      await refreshEmbeddedLlmStatus();
+      setError('El modelo local se está descargando en segundo plano. Espera a que termine para usar esta IA.');
+      return false;
+    }
 
     setPreparingEmbeddedLlm(true);
     setEmbeddedDownloadProgress(0);
@@ -1573,7 +1633,7 @@ export default function PointOfSaleScreen({
       const next = [...prev];
       next[index] = {
         ...next[index],
-        amount: Number(next[index].amount || 0) + value,
+        amount: value,
       };
       return next;
     });
@@ -1881,10 +1941,10 @@ export default function PointOfSaleScreen({
             <View style={styles.aiActionsRow}>
               <Pressable
                 onPress={scanInvoiceWithAgent}
-                disabled={processingInvoice || preparingEmbeddedLlm}
+                disabled={processingInvoice || isEmbeddedModelPreparing}
                 style={[
                   styles.aiIconBtn,
-                  (processingInvoice || preparingEmbeddedLlm) && styles.btnDisabled,
+                  (processingInvoice || isEmbeddedModelPreparing) && styles.btnDisabled,
                   isLightTheme && styles.aiIconBtnLight,
                 ]}
               >
@@ -1894,10 +1954,10 @@ export default function PointOfSaleScreen({
 
               <Pressable
                 onPress={() => setShowChatComposer((prev) => !prev)}
-                disabled={processingChatOrder || processingVoiceOrder || preparingEmbeddedLlm}
+                disabled={processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing}
                 style={[
                   styles.aiIconBtn,
-                  (processingChatOrder || processingVoiceOrder || preparingEmbeddedLlm) && styles.btnDisabled,
+                  (processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing) && styles.btnDisabled,
                   isLightTheme && styles.aiIconBtnLight,
                   showChatComposer && styles.aiIconBtnActive,
                 ]}
@@ -1908,10 +1968,10 @@ export default function PointOfSaleScreen({
 
               <Pressable
                 onPress={parseVoiceOrderWithVosk}
-                disabled={processingChatOrder || preparingEmbeddedLlm}
+                disabled={processingChatOrder || isEmbeddedModelPreparing}
                 style={[
                   styles.aiIconBtn,
-                  (processingChatOrder || preparingEmbeddedLlm) && styles.btnDisabled,
+                  (processingChatOrder || isEmbeddedModelPreparing) && styles.btnDisabled,
                   isLightTheme && styles.aiIconBtnLight,
                   processingVoiceOrder && styles.aiIconBtnActive,
                 ]}
@@ -1946,10 +2006,10 @@ export default function PointOfSaleScreen({
                 />
                 <Pressable
                   onPress={parseChatOrderWithAgent}
-                  disabled={processingChatOrder || processingVoiceOrder || preparingEmbeddedLlm}
+                  disabled={processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing}
                   style={[
                     styles.chatSendBtn,
-                    (processingChatOrder || processingVoiceOrder || preparingEmbeddedLlm) && styles.btnDisabled,
+                    (processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing) && styles.btnDisabled,
                   ]}
                 >
                   <Ionicons name="send-outline" size={18} color="#ecfeff" />
@@ -1966,9 +2026,9 @@ export default function PointOfSaleScreen({
               </View>
             ) : null}
 
-            {preparingEmbeddedLlm ? (
+            {isEmbeddedModelPreparing ? (
               <Text style={[styles.voicePreviewText, isLightTheme && styles.voicePreviewTextLight]}>
-                Preparando modelo local... {Math.round(embeddedDownloadProgress * 100)}%
+                Preparando modelo local... {Math.round(embeddedModelDownloadProgress * 100)}%
               </Text>
             ) : null}
 
@@ -1996,11 +2056,11 @@ export default function PointOfSaleScreen({
                     : 'No descargado'}
                 </Text>
                 <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
-                  Descarga automática: al usar cámara/chat/voz IA.
+                  Descarga automática: al iniciar sesión; si aún no existe, también se intenta al usar cámara/chat/voz IA.
                 </Text>
-                {preparingEmbeddedLlm ? (
+                {isEmbeddedModelPreparing ? (
                   <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
-                    Descargando modelo... {Math.round(embeddedDownloadProgress * 100)}%
+                    Descargando modelo... {Math.round(embeddedModelDownloadProgress * 100)}%
                   </Text>
                 ) : null}
 
@@ -2378,13 +2438,47 @@ export default function PointOfSaleScreen({
             <Text style={[styles.addPaymentText, isLightTheme && styles.addPaymentTextLight]}>Agregar pago</Text>
           </View>
         </Pressable>
+        <Text style={[styles.quickCashLabel, isLightTheme && styles.quickCashLabelLight]}>Monto recibido rápido</Text>
         <View style={styles.quickCashWrap}>
-          <Pressable onPress={setCashExact} style={[styles.quickCashBtn, styles.quickCashExactBtn]}>
-            <Text style={styles.quickCashText}>Exacto</Text>
+          <Pressable
+            onPress={setCashExact}
+            style={[
+              styles.quickCashBtn,
+              quickCashSelectedAmount === totals.total && styles.quickCashBtnActive,
+              isLightTheme && styles.quickCashBtnLight,
+              quickCashSelectedAmount === totals.total && isLightTheme && styles.quickCashBtnActiveLight,
+            ]}
+          >
+            <Text
+              style={[
+                styles.quickCashText,
+                isLightTheme && styles.quickCashTextLight,
+                quickCashSelectedAmount === totals.total && styles.quickCashTextActive,
+              ]}
+            >
+              Exacto
+            </Text>
           </Pressable>
-          {QUICK_CASH_AMOUNTS.map((value) => (
-            <Pressable key={`cash-${value}`} onPress={() => applyQuickCash(value)} style={styles.quickCashBtn}>
-              <Text style={styles.quickCashText}>+{formatMoney(value)}</Text>
+          {quickCashOptions.map((value) => (
+            <Pressable
+              key={`cash-${value}`}
+              onPress={() => applyQuickCash(value)}
+              style={[
+                styles.quickCashBtn,
+                quickCashSelectedAmount === value && styles.quickCashBtnActive,
+                isLightTheme && styles.quickCashBtnLight,
+                quickCashSelectedAmount === value && isLightTheme && styles.quickCashBtnActiveLight,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.quickCashText,
+                  isLightTheme && styles.quickCashTextLight,
+                  quickCashSelectedAmount === value && styles.quickCashTextActive,
+                ]}
+              >
+                {formatMoney(value)}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -3293,6 +3387,16 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 8,
   },
+  quickCashLabel: {
+    color: '#94a3b8',
+    marginTop: 8,
+    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quickCashLabelLight: {
+    color: '#475569',
+  },
   quickCashBtn: {
     borderWidth: 1,
     borderColor: '#334155',
@@ -3301,14 +3405,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#0f172a',
   },
-  quickCashExactBtn: {
+  quickCashBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  quickCashBtnActive: {
     borderColor: '#235ea9',
     backgroundColor: '#0c4a6e',
+  },
+  quickCashBtnActiveLight: {
+    borderColor: '#235ea9',
+    backgroundColor: '#dbeafe',
   },
   quickCashText: {
     color: '#dbeafe',
     fontSize: 12,
     fontWeight: '700',
+  },
+  quickCashTextLight: {
+    color: '#334155',
+  },
+  quickCashTextActive: {
+    color: '#eff6ff',
   },
   okText: {
     color: '#4ade80',

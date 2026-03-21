@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-03-20
+Fecha: 2026-03-21
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -21,6 +21,11 @@ Regla de trabajo:
 - Se centralizaron textos reutilizables en `src/constants/uiText.js` para componentes compartidos, autenticacion y etiquetas comunes.
 - `PaginatedList`, `SearchableSelectField`, `MultiSelectField` y parte del shell principal (`App.js`) ya consumen esa base comun.
 - Tambien se alineo el copy visible de multiples modulos para usar mejor espanol en labels, placeholders, validaciones y estados de cache offline.
+- El modelo local de IA ahora empieza a descargarse en segundo plano despues del inicio de sesion cuando el runtime local esta habilitado.
+- La descarga del modelo embebido ya es compartida a nivel app para evitar carreras o descargas duplicadas entre `App.js` y POS.
+- En POS, camara/chat/voz IA quedan bloqueados mientras el modelo local siga descargandose, aunque la descarga haya arrancado desde background.
+- En push Android, la app ahora declara explicitamente `POST_NOTIFICATIONS` en nativo y el dispatcher envia a Expo Push con `priority: high` + `ttl`, para mejorar entrega en la barra del sistema.
+- En POS, los atajos de efectivo ya no representan incrementos (`+5000`, `+10000`); ahora representan montos reales recibidos y resaltan el valor aplicado para que el flujo de cobro sea mas natural para caja.
 
 ## 1. Proposito
 

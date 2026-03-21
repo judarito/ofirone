@@ -97,6 +97,11 @@ Pasos:
 
 Sin ese archivo, Android no queda configurado para recibir push remoto del sistema aunque el inbox interno siga funcionando.
 
+Nota adicional para Android 13+:
+- la app debe declarar `POST_NOTIFICATIONS` en el manifest nativo
+- este repo ya lo deja explicito en `app.json` y `android/app/src/main/AndroidManifest.xml`
+- si el problema persistia por permiso faltante, necesitas recompilar y reinstalar la app; no basta un hot reload
+
 ## 9) Credencial FCM V1 requerida en Expo/EAS
 Este proyecto no envia push directo a FCM; el dispatcher envia a Expo Push API. Por eso, en Android no basta con `google-services.json`.
 
@@ -150,3 +155,4 @@ Interpretacion sugerida:
 - `FAILED` o `RETRY`: revisar `last_error`
 - sin filas en `notification_push_queue`: el trigger no esta encolando push
 - `SENT` pero sin notificacion visible: revisar permiso del SO, Expo receipts o credenciales FCM/APNs
+- En Android 13+, si nunca aparecio el prompt o la app no figura con permiso de notificaciones, recompilar/reinstalar por cambio de manifest.

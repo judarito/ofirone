@@ -150,6 +150,8 @@ Deno.serve(async (req) => {
       data: row.payload || {},
       sound: 'default',
       channelId: 'default',
+      priority: 'high',
+      ttl: 3600,
     };
 
     let responseText = '';

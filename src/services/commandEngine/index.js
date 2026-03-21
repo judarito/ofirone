@@ -10,6 +10,7 @@ export { getEmbeddedLlmStatus } from './embeddedLlm.service';
 export {
   ensureEmbeddedModelReady,
   getEmbeddedModelStatus,
+  warmEmbeddedModelInBackground,
 } from './embeddedModel.service';
 export { getCommandEngineMetrics } from './metrics.service';
 export {
