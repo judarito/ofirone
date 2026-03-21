@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  StatusBar as RNStatusBar,
   Text,
   TextInput,
   View,
@@ -73,6 +75,24 @@ const WEB_DATE_TIME_INPUT_LIGHT_STYLE = {
   fontSize: 14,
   minHeight: 24,
 };
+
+function getAndroidNavigationBottomInset() {
+  if (Platform.OS !== 'android') return 0;
+
+  const screen = Dimensions.get('screen');
+  const window = Dimensions.get('window');
+  const screenHeight = Number(screen?.height || 0);
+  const screenWidth = Number(screen?.width || 0);
+  const windowHeight = Number(window?.height || 0);
+  const statusBarInset = Number(RNStatusBar.currentHeight || 0);
+
+  if (screenHeight <= 0 || windowHeight <= 0) return 0;
+
+  const verticalInset = Math.max(0, screenHeight - windowHeight);
+  return screenHeight >= screenWidth
+    ? Math.max(0, verticalInset - statusBarInset)
+    : 0;
+}
 
 function favoritesCacheKey(tenantId, userId) {
   return `pos-favorites:${tenantId}:${userId}`;
@@ -299,6 +319,29 @@ function calculateDiscount(subtotal, discountValue, discountType) {
   return Math.round(Math.min(value, subtotal) * 100) / 100;
 }
 
+function clampLineDiscountValue(lineSubtotal, discountType, rawValue) {
+  const numeric = Math.max(0, Number(rawValue || 0));
+  if (!Number.isFinite(numeric)) return 0;
+  if (discountType === 'PERCENT') {
+    return Math.min(numeric, 100);
+  }
+  return Math.min(numeric, Math.max(0, Number(lineSubtotal || 0)));
+}
+
+function normalizeCartLineDiscount(line) {
+  const lineSubtotal = Math.max(0, Number(line?.quantity || 0) * Number(line?.unit_price || 0));
+  const discountType = String(line?.discount_line_type || 'AMOUNT').trim() === 'PERCENT'
+    ? 'PERCENT'
+    : 'AMOUNT';
+  const discountLine = clampLineDiscountValue(lineSubtotal, discountType, line?.discount_line);
+
+  return {
+    ...line,
+    discount_line_type: discountType,
+    discount_line: discountLine,
+  };
+}
+
 function applyLineTaxes(line, taxResult, priceAfterDiscount) {
   if (taxResult.success && taxResult.rate) {
     line.tax_rate = taxResult.rate;
@@ -308,18 +351,17 @@ function applyLineTaxes(line, taxResult, priceAfterDiscount) {
     if (line.price_includes_tax) {
       const total = priceAfterDiscount;
       const base = total / (1 + line.tax_rate);
-      const tax = total - base;
-      line.base_amount = Math.round(base);
-      line.tax_amount = Math.round(tax);
       line.line_total = Math.round(total);
+      line.base_amount = Math.round(base);
+      line.tax_amount = line.line_total - line.base_amount;
       return;
     }
 
     const base = priceAfterDiscount;
     const tax = base * line.tax_rate;
     line.base_amount = Math.round(base);
-    line.tax_amount = Math.round(tax);
     line.line_total = Math.round(base + tax);
+    line.tax_amount = line.line_total - line.base_amount;
     return;
   }
 
@@ -394,6 +436,7 @@ export default function PointOfSaleScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
   const [loadingInit, setLoadingInit] = useState(true);
   const [search, setSearch] = useState('');
   const [searchingProducts, setSearchingProducts] = useState(false);
@@ -522,7 +565,7 @@ export default function PointOfSaleScreen({
   const posMaxBackdateHours = Number(tenantSettings?.pos_max_backdate_hours || 24);
   const saleDateTimeError = useMemo(() => {
     if (!canSelectSaleDateTime) return '';
-    if (!selectedSaleDate) return 'Selecciona una fecha/hora valida.';
+    if (!selectedSaleDate) return 'Selecciona una fecha/hora válida.';
 
     const now = new Date();
     if (selectedSaleDate.getTime() > now.getTime()) {
@@ -533,7 +576,7 @@ export default function PointOfSaleScreen({
       ? posMaxBackdateHours
       : 24;
     if ((now.getTime() - selectedSaleDate.getTime()) > safeMaxBackdateHours * 3600000) {
-      return `La retrofecha maxima permitida es de ${safeMaxBackdateHours} hora(s).`;
+      return `La retrofecha máxima permitida es de ${safeMaxBackdateHours} hora(s).`;
     }
 
     if (currentSession?.opened_at) {
@@ -572,6 +615,28 @@ export default function PointOfSaleScreen({
       floatingNoticeTimerRef.current = null;
     }, Math.max(1200, Number(ttlMs || 0)));
   };
+
+  const showValidationError = (text, ttlMs = 4600) => {
+    const content = String(text || '').trim();
+    if (!content) return;
+    setMessage('');
+    showFloatingNotice(content, 'error', ttlMs);
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const updateInsets = () => {
+      setAndroidBottomInset(getAndroidNavigationBottomInset());
+    };
+
+    updateInsets();
+    const subscription = Dimensions.addEventListener('change', updateInsets);
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -818,9 +883,10 @@ export default function PointOfSaleScreen({
       const existingIndex = next.findIndex((line) => line.variant_id === variant.variant_id);
 
       if (existingIndex >= 0) {
-        const line = { ...next[existingIndex] };
+        let line = { ...next[existingIndex] };
         line.quantity += qtyToAdd;
         if (explicitUnitPrice > 0) line.unit_price = explicitUnitPrice;
+        line = normalizeCartLineDiscount(line);
         const lineSubtotal = line.quantity * line.unit_price;
         const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
         line.discount = discountAmount;
@@ -1426,8 +1492,9 @@ export default function PointOfSaleScreen({
     const qty = Math.max(1, Number(raw || 1));
     setCart((prev) => {
       const next = [...prev];
-      const line = { ...next[index] };
+      let line = { ...next[index] };
       line.quantity = qty;
+      line = normalizeCartLineDiscount(line);
       const lineSubtotal = line.quantity * line.unit_price;
       const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
       line.discount = discountAmount;
@@ -1439,12 +1506,12 @@ export default function PointOfSaleScreen({
   };
 
   const updateLineDiscount = (index, raw) => {
-    const value = Math.max(0, Number(raw || 0));
     setCart((prev) => {
       const next = [...prev];
       const line = { ...next[index] };
-      line.discount_line = value;
       const lineSubtotal = line.quantity * line.unit_price;
+      const value = clampLineDiscountValue(lineSubtotal, line.discount_line_type, raw);
+      line.discount_line = value;
       const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
       line.discount = discountAmount;
       applyLineTaxes(line, { success: true, rate: line.tax_rate, code: line.tax_code, name: line.tax_name }, lineSubtotal - discountAmount);
@@ -1460,6 +1527,7 @@ export default function PointOfSaleScreen({
       const line = { ...next[index] };
       line.discount_line_type = type;
       const lineSubtotal = line.quantity * line.unit_price;
+      line.discount_line = clampLineDiscountValue(lineSubtotal, type, line.discount_line);
       const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
       line.discount = discountAmount;
       applyLineTaxes(line, { success: true, rate: line.tax_rate, code: line.tax_code, name: line.tax_name }, lineSubtotal - discountAmount);
@@ -1527,7 +1595,7 @@ export default function PointOfSaleScreen({
 
   const holdCurrentTicket = () => {
     if (!cart.length) {
-      setError('No hay items para guardar en espera.');
+      showValidationError('No hay items para guardar en espera.');
       return;
     }
     const draftId = createOperationId();
@@ -1557,7 +1625,17 @@ export default function PointOfSaleScreen({
     const draft = ticketDrafts.find((item) => item.draft_id === draftId);
     if (!draft) return;
 
-    setCart(Array.isArray(draft.cart) ? draft.cart : []);
+    setCart(
+      Array.isArray(draft.cart)
+        ? draft.cart.map((line) => {
+            let nextLine = normalizeCartLineDiscount(line);
+            const lineSubtotal = Number(nextLine.quantity || 0) * Number(nextLine.unit_price || 0);
+            const discountAmount = calculateDiscount(lineSubtotal, nextLine.discount_line, nextLine.discount_line_type);
+            nextLine.discount = discountAmount;
+            return nextLine;
+          })
+        : [],
+    );
     setPayments(
       Array.isArray(draft.payments) && draft.payments.length > 0
         ? draft.payments.map((p) => ({
@@ -1606,29 +1684,29 @@ export default function PointOfSaleScreen({
 
     if (!tenant?.tenant_id || !userProfile?.user_id) return;
     if (cart.length === 0) {
-      setError('Agrega productos para continuar.');
+      showValidationError('Agrega productos para continuar.');
       return;
     }
     if (remaining > 0) {
-      setError(`Falta pago por ${formatMoney(remaining)}.`);
+      showValidationError(`Falta pago por ${formatMoney(remaining)}.`);
       return;
     }
     if (!currentSession?.cash_session_id) {
-      setError('Debe abrir una caja antes de vender.');
+      showValidationError('Debe abrir una caja antes de vender.');
       return;
     }
     if (sessionExpired) {
-      setError(
-        `La sesion de caja lleva ${sessionAgeHours}h abierta y supero el limite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
+      showValidationError(
+        `La sesión de caja lleva ${sessionAgeHours}h abierta y superó el límite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
       );
       return;
     }
     if (saleDateTimeError) {
-      setError(saleDateTimeError);
+      showValidationError(saleDateTimeError);
       return;
     }
     if (payments.some((p) => !p.method || Number(p.amount || 0) <= 0)) {
-      setError('Verifica metodos y montos de pago.');
+      showValidationError('Verifica metodos y montos de pago.');
       return;
     }
 
@@ -1760,7 +1838,13 @@ export default function PointOfSaleScreen({
 
   return (
     <View style={[styles.screenRoot, isLightTheme && styles.screenRootLight]}>
-      <ScrollView contentContainerStyle={[styles.container, isLightTheme && styles.containerLight]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          isLightTheme && styles.containerLight,
+          { paddingBottom: 24 + androidBottomInset + 28 },
+        ]}
+      >
       <View style={styles.headerRow}>
         <Text style={[styles.title, isLightTheme && styles.titleLight]}>Punto de Venta</Text>
         <Text style={currentSession && !sessionExpired ? styles.sessionOk : styles.sessionWarn}>
@@ -2012,11 +2096,14 @@ export default function PointOfSaleScreen({
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar producto (codigo, SKU o nombre). Lector: escanear + Enter"
+          placeholder="Buscar por codigo, SKU o nombre"
           placeholderTextColor="#64748b"
           style={[styles.input, isLightTheme && styles.inputLight]}
           onSubmitEditing={handleSearchInputSubmit}
         />
+        <Text style={[styles.metaText, styles.searchHintText, isLightTheme && styles.metaTextLight]}>
+          Lector: escanea y presiona Enter.
+        </Text>
         {favoriteVariants.length > 0 ? (
           <View style={styles.favoritesWrap}>
             <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Favoritos</Text>
@@ -2078,15 +2165,17 @@ export default function PointOfSaleScreen({
         {customers.slice(0, 6).map((c) => (
           <Pressable
             key={c.customer_id}
-            style={[styles.resultRow, isLightTheme && styles.resultRowLight]}
+            style={[styles.resultRow, styles.customerResultRow, isLightTheme && styles.resultRowLight]}
             onPress={() => {
               setSelectedCustomer(c);
               setSearchCustomer(c.full_name || '');
               setCustomers([]);
             }}
           >
-            <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>{c.full_name}</Text>
-            <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>{c.document || c.phone || '-'}</Text>
+            <View style={styles.customerResultInfo}>
+              <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>{c.full_name}</Text>
+              <Text style={[styles.resultMeta, styles.customerResultMeta, isLightTheme && styles.resultMetaLight]}>{c.document || c.phone || '-'}</Text>
+            </View>
           </Pressable>
         ))}
         <View style={styles.feSummaryRow}>
@@ -2172,34 +2261,47 @@ export default function PointOfSaleScreen({
               <Text style={[styles.linePrice, isLightTheme && styles.linePriceLight]}>{formatMoney(line.unit_price)}</Text>
               {canManageDiscounts ? (
                 <View style={styles.discountBox}>
-                  <View style={styles.discountTypeRow}>
-                    <Pressable
-                      onPress={() => toggleLineDiscountType(index, 'AMOUNT')}
-                      style={[
-                        styles.discountTypeBtn,
-                        isLightTheme && styles.discountTypeBtnLight,
-                        line.discount_line_type === 'AMOUNT' && styles.discountTypeBtnActive,
-                      ]}
-                    >
-                      <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>$</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => toggleLineDiscountType(index, 'PERCENT')}
-                      style={[
-                        styles.discountTypeBtn,
-                        isLightTheme && styles.discountTypeBtnLight,
-                        line.discount_line_type === 'PERCENT' && styles.discountTypeBtnActive,
-                      ]}
-                    >
-                      <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>%</Text>
-                    </Pressable>
+                  <View style={styles.discountField}>
+                    <Text style={[styles.discountLabel, isLightTheme && styles.discountLabelLight]}>
+                      Dcto. {line.discount_line_type === 'PERCENT' ? '(max. 100%)' : `(max. ${formatMoney(line.quantity * line.unit_price)})`}
+                    </Text>
+                    <View style={styles.discountEditorRow}>
+                      <View style={styles.discountTypeRow}>
+                        <Pressable
+                          onPress={() => toggleLineDiscountType(index, 'AMOUNT')}
+                          style={[
+                            styles.discountTypeBtn,
+                            isLightTheme && styles.discountTypeBtnLight,
+                            line.discount_line_type === 'AMOUNT' && styles.discountTypeBtnActive,
+                          ]}
+                        >
+                          <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>$</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => toggleLineDiscountType(index, 'PERCENT')}
+                          style={[
+                            styles.discountTypeBtn,
+                            isLightTheme && styles.discountTypeBtnLight,
+                            line.discount_line_type === 'PERCENT' && styles.discountTypeBtnActive,
+                          ]}
+                        >
+                          <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>%</Text>
+                        </Pressable>
+                      </View>
+                      <TextInput
+                        value={String(line.discount_line || 0)}
+                        onChangeText={(v) => updateLineDiscount(index, v)}
+                        keyboardType="numeric"
+                        style={[
+                          styles.discountInput,
+                          line.discount_line_type === 'PERCENT'
+                            ? styles.discountInputPercent
+                            : styles.discountInputAmount,
+                          isLightTheme && styles.discountInputLight,
+                        ]}
+                      />
+                    </View>
                   </View>
-                  <TextInput
-                    value={String(line.discount_line || 0)}
-                    onChangeText={(v) => updateLineDiscount(index, v)}
-                    keyboardType="numeric"
-                    style={[styles.discountInput, isLightTheme && styles.discountInputLight]}
-                  />
                 </View>
               ) : null}
             </View>
@@ -2286,7 +2388,7 @@ export default function PointOfSaleScreen({
             </Pressable>
           ))}
         </View>
-        {change > 0 ? <Text style={styles.okText}>Cambio: {formatMoney(change)}</Text> : null}
+        {change > 0 ? <Text style={styles.okText}>Vuelto: {formatMoney(change)}</Text> : null}
         {remaining > 0 ? <Text style={styles.warnText}>Falta: {formatMoney(remaining)}</Text> : null}
       </View>
 
@@ -2325,6 +2427,9 @@ export default function PointOfSaleScreen({
               />
             )}
             {saleDateTimeError ? <Text style={styles.warnText}>{saleDateTimeError}</Text> : null}
+            <Text style={[styles.metaText, styles.saleDateTimeHelpText, isLightTheme && styles.metaTextLight]}>
+              {`Si no cambias este campo, la venta usará la fecha y hora actual. La retrofecha máxima permitida es de ${Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0 ? posMaxBackdateHours : 24} hora(s).`}
+            </Text>
           </View>
         ) : null}
         <TextInput
@@ -2334,11 +2439,11 @@ export default function PointOfSaleScreen({
           placeholderTextColor="#64748b"
           style={[styles.input, isLightTheme && styles.inputLight]}
         />
-        <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
-          {canSelectSaleDateTime
-            ? `Si no cambias este campo, la venta usara la fecha y hora actual. La retrofecha maxima permitida es de ${Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0 ? posMaxBackdateHours : 24} hora(s).`
-            : 'La venta se registra con la fecha y hora actual. El POS solo permite cambiarla manualmente a administradores o gerentes cuando el tenant lo habilita.'}
-        </Text>
+        {!canSelectSaleDateTime ? (
+          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
+            La venta se registra con la fecha y hora actual. El POS solo permite cambiarla manualmente a administradores o gerentes cuando el tenant lo habilita.
+          </Text>
+        ) : null}
       </View>
 
       {saleDatePickerOpen && NativeDateTimePicker && Platform.OS !== 'web' ? (
@@ -2355,7 +2460,7 @@ export default function PointOfSaleScreen({
       {sessionExpired ? (
         <View style={[styles.panel, isLightTheme && styles.panelLight]}>
           <Text style={styles.warnText}>
-            Sesion vencida: la caja lleva {sessionAgeHours}h abierta y el limite del tenant es {cashSessionMaxHours}h.
+            Sesión vencida: la caja lleva {sessionAgeHours}h abierta y el límite del tenant es {cashSessionMaxHours}h.
           </Text>
         </View>
       ) : null}
@@ -2770,6 +2875,9 @@ const styles = StyleSheet.create({
   saleDateTimeBlock: {
     marginBottom: 6,
   },
+  saleDateTimeHelpText: {
+    marginTop: 2,
+  },
   saleDateTimeValue: {
     color: '#f8fafc',
     fontSize: 14,
@@ -2828,8 +2936,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  searchHintText: {
+    marginTop: -2,
+    marginBottom: 8,
+  },
   resultMetaLight: {
     color: '#64748b',
+  },
+  customerResultRow: {
+    alignItems: 'flex-start',
+  },
+  customerResultInfo: {
+    flex: 1,
+  },
+  customerResultMeta: {
+    marginTop: 6,
   },
   feSummaryRow: {
     marginTop: 8,
@@ -2955,10 +3076,25 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   discountBox: {
+    alignItems: 'stretch',
+    flex: 1,
+  },
+  discountField: {
+    flex: 1,
+  },
+  discountLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  discountLabelLight: {
+    color: '#64748b',
+  },
+  discountEditorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    flex: 1,
   },
   discountTypeRow: {
     flexDirection: 'row',
@@ -2994,7 +3130,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: '#0f172a',
-    minWidth: 62,
+  },
+  discountInputPercent: {
+    width: 64,
+  },
+  discountInputAmount: {
+    width: 92,
   },
   discountInputLight: {
     borderColor: '#cbd5e1',

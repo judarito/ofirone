@@ -15,6 +15,7 @@ export function usePaginatedList({
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [cacheInfo, setCacheInfo] = useState(null);
 
@@ -24,10 +25,15 @@ export function usePaginatedList({
   );
 
   const loadPage = useCallback(
-    async (nextPage = page, nextFilters = filters) => {
+    async (nextPage = page, nextFilters = filters, options = {}) => {
       if (!tenantId || !fetchPage) return;
 
-      setLoading(true);
+      const isRefresh = options?.refresh === true;
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError('');
 
       if (offlineMode) {
@@ -57,7 +63,8 @@ export function usePaginatedList({
               items: nextItems,
               total: nextTotal,
             });
-            setLoading(false);
+            if (isRefresh) setRefreshing(false);
+            else setLoading(false);
             return;
           }
         }
@@ -84,7 +91,8 @@ export function usePaginatedList({
             source: exactCached ? 'cache' : 'cache-latest',
             cachedAt: cached.cachedAt || null,
           });
-          setLoading(false);
+          if (isRefresh) setRefreshing(false);
+          else setLoading(false);
           return;
         }
 
@@ -92,7 +100,8 @@ export function usePaginatedList({
         setTotal(0);
         setError('No hay cache local para este listado/filtro en modo offline.');
         setCacheInfo({ source: 'cache-miss', cachedAt: null });
-        setLoading(false);
+        if (isRefresh) setRefreshing(false);
+        else setLoading(false);
         return;
       }
 
@@ -134,7 +143,8 @@ export function usePaginatedList({
           setCacheInfo({ source: 'none', cachedAt: null });
         }
 
-        setLoading(false);
+        if (isRefresh) setRefreshing(false);
+        else setLoading(false);
         return;
       }
 
@@ -154,7 +164,8 @@ export function usePaginatedList({
         total: nextTotal,
       });
 
-      setLoading(false);
+      if (isRefresh) setRefreshing(false);
+      else setLoading(false);
     },
     [cacheNamespace, fetchOfflinePage, fetchPage, filters, offlineMode, page, pageSize, tenantId],
   );
@@ -179,7 +190,7 @@ export function usePaginatedList({
   );
 
   const reload = useCallback(async () => {
-    await loadPage(page, filters);
+    await loadPage(page, filters, { refresh: true });
   }, [filters, loadPage, page]);
 
   useEffect(() => {
@@ -194,6 +205,7 @@ export function usePaginatedList({
     totalPages,
     filters,
     loading,
+    refreshing,
     error,
     cacheInfo,
     setError,

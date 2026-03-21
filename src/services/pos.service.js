@@ -22,7 +22,11 @@ function taxInfoCacheKey(tenantId, variantId) {
 }
 
 function normalizeSearchText(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 export async function getPaymentMethodsForDropdown(tenantId, { offlineMode = false } = {}) {
@@ -107,6 +111,7 @@ export async function getCurrentUserOpenSession(tenantId, userId, { offlineMode 
 }
 
 export async function searchVariants(tenantId, search, limit = 20, locationId = null) {
+  const normalizedSearch = normalizeSearchText(search);
   try {
     const { data: byVariant, error: e1 } = await supabase
       .from('product_variants')
@@ -150,6 +155,17 @@ export async function searchVariants(tenantId, search, limit = 20, locationId = 
     });
 
     let results = Array.from(map.values()).slice(0, limit);
+
+    const cachedFallback = await searchVariantsOffline(tenantId, normalizedSearch, limit, locationId);
+    if (cachedFallback.success && cachedFallback.data.length > 0) {
+      const merged = new Map(results.map((item) => [item.variant_id, item]));
+      cachedFallback.data.forEach((item) => {
+        if (!merged.has(item.variant_id)) {
+          merged.set(item.variant_id, item);
+        }
+      });
+      results = Array.from(merged.values()).slice(0, limit);
+    }
 
     if (locationId && results.length > 0) {
       const variantIds = results.map((v) => v.variant_id);
@@ -276,14 +292,14 @@ export async function searchVariantsOffline(tenantId, search, limit = 20, locati
     const list = (cachedByLocation?.value || []).length
       ? cachedByLocation.value
       : (cachedGeneric?.value || []);
-    const q = String(search || '').trim().toLowerCase();
+    const q = normalizeSearchText(search);
     if (!q) return { success: true, data: [] };
 
     const filtered = list
       .filter((item) => {
-        const sku = String(item.sku || '').toLowerCase();
-        const variantName = String(item.variant_name || '').toLowerCase();
-        const productName = String(item.product?.name || '').toLowerCase();
+        const sku = normalizeSearchText(item.sku);
+        const variantName = normalizeSearchText(item.variant_name);
+        const productName = normalizeSearchText(item.product?.name);
         return sku.includes(q) || variantName.includes(q) || productName.includes(q);
       })
       .slice(0, limit);
@@ -343,14 +359,14 @@ export async function searchCustomersOffline(tenantId, search, limit = 20) {
   try {
     const cached = await getSimpleCache(customersCacheKey(tenantId));
     const list = cached?.value || [];
-    const q = String(search || '').trim().toLowerCase();
+    const q = normalizeSearchText(search);
     if (!q) return { success: true, data: [] };
 
     const filtered = list
       .filter((item) => {
-        const fullName = String(item.full_name || '').toLowerCase();
-        const document = String(item.document || '').toLowerCase();
-        const phone = String(item.phone || '').toLowerCase();
+        const fullName = normalizeSearchText(item.full_name);
+        const document = normalizeSearchText(item.document);
+        const phone = normalizeSearchText(item.phone);
         return fullName.includes(q) || document.includes(q) || phone.includes(q);
       })
       .slice(0, limit);

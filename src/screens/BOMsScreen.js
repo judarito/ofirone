@@ -24,6 +24,8 @@ export default function BOMsScreen({ tenant, offlineMode, pageSize = 20 }) {
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     changePage,
     updateFilters,
@@ -79,6 +81,8 @@ export default function BOMsScreen({ tenant, offlineMode, pageSize = 20 }) {
         themeMode={themeMode}
         title="Listas de Materiales (BOMs)"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay BOMs para este filtro."

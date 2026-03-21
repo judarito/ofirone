@@ -65,6 +65,8 @@ export default function LayawayScreen({
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     setError,
     filters,
     updateFilters,
@@ -220,6 +222,8 @@ export default function LayawayScreen({
         themeMode={themeMode}
         title="Plan Separe"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={contracts}
         emptyText="No hay contratos para este filtro."

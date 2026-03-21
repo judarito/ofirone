@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, StatusBar as RNStatusBar } from 'react-native';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -21,6 +21,24 @@ const STATUS_FILTER_LABELS = {
   FORCE_CLOSED: 'Cierre forzado',
 };
 
+function getAndroidNavigationBottomInset() {
+  if (Platform.OS !== 'android') return 0;
+
+  const screen = Dimensions.get('screen');
+  const window = Dimensions.get('window');
+  const screenHeight = Number(screen?.height || 0);
+  const screenWidth = Number(screen?.width || 0);
+  const windowHeight = Number(window?.height || 0);
+  const statusBarInset = Number(RNStatusBar.currentHeight || 0);
+
+  if (screenHeight <= 0 || windowHeight <= 0) return 0;
+
+  const verticalInset = Math.max(0, screenHeight - windowHeight);
+  return screenHeight >= screenWidth
+    ? Math.max(0, verticalInset - statusBarInset)
+    : 0;
+}
+
 export default function CashSessionsScreen({
   tenant,
   userProfile,
@@ -30,6 +48,7 @@ export default function CashSessionsScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
   const [registers, setRegisters] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
@@ -62,6 +81,8 @@ export default function CashSessionsScreen({
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -83,6 +104,21 @@ export default function CashSessionsScreen({
       });
     },
   });
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const updateInsets = () => {
+      setAndroidBottomInset(getAndroidNavigationBottomInset());
+    };
+
+    updateInsets();
+    const subscription = Dimensions.addEventListener('change', updateInsets);
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -263,6 +299,8 @@ export default function CashSessionsScreen({
         themeMode={themeMode}
         title="Sesiones de Caja"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay sesiones de caja."
@@ -275,6 +313,7 @@ export default function CashSessionsScreen({
             ? `Offline cache: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        contentContainerStyle={{ paddingBottom: 84 + androidBottomInset }}
         renderItem={(item) => (
           <View key={item.cash_session_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.cash_register?.name || 'Caja'} · {item.cash_register?.location?.name || ''}</Text>
@@ -311,14 +350,21 @@ export default function CashSessionsScreen({
         )}
       />
 
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openSessionModal}>
+      <Pressable
+        style={[
+          styles.fab,
+          isLightTheme && styles.fabLight,
+          { bottom: 16 + androidBottomInset },
+        ]}
+        onPress={openSessionModal}
+      >
         <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Abrir Caja</Text>
       </Pressable>
 
       <Modal visible={openDialog} transparent animationType="slide" onRequestClose={() => setOpenDialog(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Abrir sesion de caja</Text>
               <SearchableSelectField
                 title="Caja registradora"
@@ -332,11 +378,12 @@ export default function CashSessionsScreen({
                 onSelect={(nextValue) => setOpenData((prev) => ({ ...prev, cash_register_id: nextValue }))}
               />
 
+              <Text style={[styles.groupTitle, isLightTheme && styles.groupTitleLight]}>Monto de apertura</Text>
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
                 value={openData.opening_amount}
                 onChangeText={(v) => setOpenData((prev) => ({ ...prev, opening_amount: v }))}
-                placeholder="Monto de apertura"
+                placeholder="Ej. 50000"
                 placeholderTextColor="#64748b"
                 keyboardType="numeric"
               />
@@ -345,7 +392,16 @@ export default function CashSessionsScreen({
                 <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Abrir Caja'}</Text>
               </Pressable>
             </ScrollView>
-            <Pressable onPress={() => setOpenDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text></Pressable>
+            <Pressable
+              onPress={() => setOpenDialog(false)}
+              style={[
+                styles.closeBtn,
+                isLightTheme && styles.closeBtnLight,
+                { marginBottom: Math.max(0, androidBottomInset - 4) },
+              ]}
+            >
+              <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -576,6 +632,8 @@ const styles = StyleSheet.create({
   dangerBtnLight: { backgroundColor: '#dc2626' },
   dangerBtnTextLight: { color: '#fff1f2' },
   fab: {
+    position: 'absolute',
+    right: 16,
     backgroundColor: '#57d65a',
     borderRadius: 999,
     paddingHorizontal: 16,

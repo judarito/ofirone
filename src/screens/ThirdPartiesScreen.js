@@ -117,6 +117,8 @@ export default function ThirdPartiesScreen({
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     updateFilters,
@@ -305,6 +307,8 @@ export default function ThirdPartiesScreen({
         themeMode={themeMode}
         title={title}
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={rows}
         emptyText="No hay terceros."

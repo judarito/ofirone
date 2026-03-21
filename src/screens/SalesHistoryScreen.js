@@ -175,6 +175,8 @@ export default function SalesHistoryScreen({
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     setError,
     filters,
     updateFilters,
@@ -1067,6 +1069,8 @@ export default function SalesHistoryScreen({
         themeMode={themeMode}
         title="Historial de Ventas"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={sales}
         emptyText="Sin ventas para este filtro."

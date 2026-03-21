@@ -81,6 +81,8 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -327,6 +329,8 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
         themeMode={themeMode}
         title="Reglas de Impuesto"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay reglas de impuesto configuradas."

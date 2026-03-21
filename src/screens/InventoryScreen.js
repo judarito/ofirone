@@ -66,6 +66,8 @@ export default function InventoryScreen({ tenant, offlineMode, pageSize = 20, fo
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     changePage,
     updateFilters,
@@ -197,6 +199,8 @@ export default function InventoryScreen({ tenant, offlineMode, pageSize = 20, fo
               : 'Stock por sede'
         }
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay registros para este filtro."

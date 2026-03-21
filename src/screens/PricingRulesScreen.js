@@ -94,6 +94,8 @@ export default function PricingRulesScreen({ tenant, offlineMode, pageSize = 20 
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -347,6 +349,8 @@ export default function PricingRulesScreen({ tenant, offlineMode, pageSize = 20 
         themeMode={themeMode}
         title="Reglas de Precio"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay reglas de precio configuradas."

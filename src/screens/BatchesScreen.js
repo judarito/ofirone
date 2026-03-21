@@ -37,6 +37,8 @@ export default function BatchesScreen({ tenant, offlineMode, pageSize = 20 }) {
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     changePage,
     updateFilters,
@@ -108,6 +110,8 @@ export default function BatchesScreen({ tenant, offlineMode, pageSize = 20 }) {
         themeMode={themeMode}
         title="Lotes y Vencimientos"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay lotes para este filtro."

@@ -33,6 +33,8 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -153,6 +155,8 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
         themeMode={themeMode}
         title="Metodos de Pago"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay metodos de pago."

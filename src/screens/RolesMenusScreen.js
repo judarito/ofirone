@@ -67,6 +67,8 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -334,6 +336,8 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
         themeMode={themeMode}
         title="Roles y Menus"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay roles configurados."

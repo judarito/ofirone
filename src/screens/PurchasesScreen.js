@@ -18,6 +18,8 @@ export default function PurchasesScreen({ tenant, offlineMode, pageSize = 20, fo
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -82,6 +84,8 @@ export default function PurchasesScreen({ tenant, offlineMode, pageSize = 20, fo
         themeMode={themeMode}
         title="Compras"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay compras para este filtro."

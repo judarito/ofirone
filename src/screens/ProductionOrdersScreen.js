@@ -37,6 +37,8 @@ export default function ProductionOrdersScreen({ tenant, offlineMode, pageSize =
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     changePage,
     updateFilters,
@@ -114,6 +116,8 @@ export default function ProductionOrdersScreen({ tenant, offlineMode, pageSize =
         themeMode={themeMode}
         title="Ordenes de Produccion"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay ordenes para este filtro."

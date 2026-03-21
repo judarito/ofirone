@@ -66,6 +66,8 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -227,6 +229,8 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
         themeMode={themeMode}
         title="Asignacion de Cajas"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={items}
         emptyText="No hay asignaciones para este filtro."

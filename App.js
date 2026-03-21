@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   BackHandler,
@@ -227,6 +227,204 @@ const HOME_ACTION_LABELS = {
   Reports: 'Reportes',
 };
 const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights']);
+
+const ActiveModuleScreen = memo(function ActiveModuleScreen({
+  currentScreen,
+  tenant,
+  userProfile,
+  tenantSettings,
+  themeMode,
+  offlineMode,
+  onPendingOpsChange,
+  onPointOfSaleSaleCompleted,
+  formatMoney,
+  pendingOpsCount,
+  pageSize,
+  reportsInitialTab,
+  navigateToScreen,
+  handleLocalThemeChange,
+}) {
+  switch (currentScreen) {
+    case 'PointOfSale':
+      return (
+        <PointOfSaleScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          tenantSettings={tenantSettings}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          onPendingOpsChange={onPendingOpsChange}
+          onSaleCompleted={onPointOfSaleSaleCompleted}
+        />
+      );
+    case 'Sales':
+      return (
+        <SalesHistoryScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          formatMoney={formatMoney}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pendingOpsCount={pendingOpsCount}
+          onPendingOpsChange={onPendingOpsChange}
+          pageSize={pageSize}
+        />
+      );
+    case 'Layaway':
+      return (
+        <LayawayScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          tenantSettings={tenantSettings}
+          formatMoney={formatMoney}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+        />
+      );
+    case 'ThirdParties':
+      return <ThirdPartiesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Customers':
+      return (
+        <ThirdPartiesScreen
+          tenant={tenant}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          forcedType="customer"
+          title="Clientes"
+        />
+      );
+    case 'Suppliers':
+      return (
+        <ThirdPartiesScreen
+          tenant={tenant}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          forcedType="supplier"
+          title="Proveedores"
+        />
+      );
+    case 'Cartera':
+      return (
+        <CarteraScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          formatMoney={formatMoney}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+        />
+      );
+    case 'Products':
+      return <ProductsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Categories':
+      return <CategoriesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Units':
+      return <UnitsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'BulkImports':
+      return <BulkImportsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} />;
+    case 'Inventory':
+      return (
+        <InventoryScreen
+          tenant={tenant}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          formatMoney={formatMoney}
+        />
+      );
+    case 'Batches':
+      return <BatchesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Purchases':
+      return (
+        <PurchasesScreen
+          tenant={tenant}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          formatMoney={formatMoney}
+        />
+      );
+    case 'ProductionOrders':
+      return <ProductionOrdersScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'BOMs':
+      return <BOMsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'CashSessions':
+      return (
+        <CashSessionsScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          formatMoney={formatMoney}
+        />
+      );
+    case 'CashRegisters':
+      return <CashRegistersScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'CashAssignments':
+      return (
+        <CashAssignmentsScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+        />
+      );
+    case 'PaymentMethods':
+      return <PaymentMethodsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Reports':
+      return (
+        <ReportsScreen
+          tenant={tenant}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          formatMoney={formatMoney}
+          initialTab={reportsInitialTab}
+        />
+      );
+    case 'AIInsights':
+      return <AIInsightsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} />;
+    case 'Setup':
+      return <SetupScreen onOpenScreen={navigateToScreen} themeMode={themeMode} />;
+    case 'TenantConfig':
+    case 'TenantManagement':
+      return (
+        <TenantConfigScreen
+          tenant={tenant}
+          offlineMode={offlineMode}
+          themeMode={themeMode}
+          onLocalThemeChange={handleLocalThemeChange}
+        />
+      );
+    case 'Locations':
+      return <LocationsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Taxes':
+      return <TaxesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'TaxRules':
+      return <TaxRulesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'PricingRules':
+      return <PricingRulesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Users':
+      return <UsersScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'RolesMenus':
+      return (
+        <RolesMenusScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+        />
+      );
+    case 'About':
+      return <AboutScreen tenant={tenant} userProfile={userProfile} themeMode={themeMode} offlineMode={offlineMode} />;
+    default:
+      return null;
+  }
+});
 
 export default function App() {
   const androidTopInset = Platform.OS === 'android' ? RNStatusBar.currentHeight || 0 : 0;
@@ -745,7 +943,7 @@ export default function App() {
     () => extractInitials(userProfile?.full_name || userEmail || 'U'),
     [userProfile?.full_name, userEmail],
   );
-  const formatMoney = (value) => {
+  const formatMoney = useCallback((value) => {
     const currency = tenant?.currency_code || 'COP';
     const amount = Number(value || 0);
     try {
@@ -757,7 +955,7 @@ export default function App() {
     } catch (_e) {
       return `$ ${Math.round(amount).toLocaleString('es-CO')}`;
     }
-  };
+  }, [tenant?.currency_code]);
   const defaultPageSize = Number(tenantSettings?.default_page_size || 20);
   const formatDateTime = (value) => {
     if (!value) return '-';
@@ -807,7 +1005,7 @@ export default function App() {
     }
   };
 
-  const loadDashboard = async (tenantId) => {
+  const loadDashboard = useCallback(async (tenantId) => {
     if (!tenantId) {
       setKpis(null);
       setDailySeries([]);
@@ -837,7 +1035,7 @@ export default function App() {
     } finally {
       setLoadingKpis(false);
     }
-  };
+  }, []);
 
   const refreshPendingOpsCount = async ({
     tenantId = tenant?.tenant_id || null,
@@ -981,7 +1179,7 @@ export default function App() {
     }
   };
 
-  const handleLocalThemeChange = async (nextTheme) => {
+  const handleLocalThemeChange = useCallback(async (nextTheme) => {
     const normalizedPreference = normalizeThemePreference(nextTheme);
     setThemePreference(normalizedPreference);
     setThemeMode(resolveThemeMode(normalizedPreference));
@@ -991,7 +1189,12 @@ export default function App() {
         await setCachedUserThemePreference(tenant.tenant_id, userProfile.user_id, normalizedPreference);
       }
     }
-  };
+  }, [tenant?.tenant_id, userProfile?.user_id]);
+
+  const handlePointOfSaleSaleCompleted = useCallback(
+    () => loadDashboard(tenant?.tenant_id),
+    [loadDashboard, tenant?.tenant_id],
+  );
 
   useEffect(() => {
     const sub = Appearance.addChangeListener(() => {
@@ -1789,227 +1992,7 @@ export default function App() {
         </View>
       </Modal>
 
-      {currentScreen === 'PointOfSale' ? (
-        <PointOfSaleScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          tenantSettings={tenantSettings}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          onPendingOpsChange={setPendingOpsCount}
-          onSaleCompleted={() => loadDashboard(tenant?.tenant_id)}
-        />
-      ) : currentScreen === 'Sales' ? (
-        <SalesHistoryScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          formatMoney={formatMoney}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pendingOpsCount={pendingOpsCount}
-          onPendingOpsChange={setPendingOpsCount}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Layaway' ? (
-        <LayawayScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          tenantSettings={tenantSettings}
-          formatMoney={formatMoney}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'ThirdParties' ? (
-        <ThirdPartiesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Customers' ? (
-        <ThirdPartiesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-          forcedType="customer"
-          title="Clientes"
-        />
-      ) : currentScreen === 'Suppliers' ? (
-        <ThirdPartiesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-          forcedType="supplier"
-          title="Proveedores"
-        />
-      ) : currentScreen === 'Cartera' ? (
-        <CarteraScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          formatMoney={formatMoney}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-        />
-      ) : currentScreen === 'Products' ? (
-        <ProductsScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Categories' ? (
-        <CategoriesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Units' ? (
-        <UnitsScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'BulkImports' ? (
-        <BulkImportsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} />
-      ) : currentScreen === 'Inventory' ? (
-        <InventoryScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-          formatMoney={formatMoney}
-        />
-      ) : currentScreen === 'Batches' ? (
-        <BatchesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Purchases' ? (
-        <PurchasesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-          formatMoney={formatMoney}
-        />
-      ) : currentScreen === 'ProductionOrders' ? (
-        <ProductionOrdersScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'BOMs' ? (
-        <BOMsScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'CashSessions' ? (
-        <CashSessionsScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-          formatMoney={formatMoney}
-        />
-      ) : currentScreen === 'CashRegisters' ? (
-        <CashRegistersScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'CashAssignments' ? (
-        <CashAssignmentsScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'PaymentMethods' ? (
-        <PaymentMethodsScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Reports' ? (
-        <ReportsScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          formatMoney={formatMoney}
-          initialTab={reportsInitialTab}
-        />
-      ) : currentScreen === 'AIInsights' ? (
-        <AIInsightsScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-        />
-      ) : currentScreen === 'Setup' ? (
-        <SetupScreen onOpenScreen={navigateToScreen} themeMode={themeMode} />
-      ) : currentScreen === 'TenantConfig' ? (
-        <TenantConfigScreen
-          tenant={tenant}
-          offlineMode={offlineMode}
-          themeMode={themeMode}
-          onLocalThemeChange={handleLocalThemeChange}
-        />
-      ) : currentScreen === 'TenantManagement' ? (
-        <TenantConfigScreen
-          tenant={tenant}
-          offlineMode={offlineMode}
-          themeMode={themeMode}
-          onLocalThemeChange={handleLocalThemeChange}
-        />
-      ) : currentScreen === 'Locations' ? (
-        <LocationsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={defaultPageSize} />
-      ) : currentScreen === 'Taxes' ? (
-        <TaxesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={defaultPageSize} />
-      ) : currentScreen === 'TaxRules' ? (
-        <TaxRulesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'PricingRules' ? (
-        <PricingRulesScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'Users' ? (
-        <UsersScreen
-          tenant={tenant}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'RolesMenus' ? (
-        <RolesMenusScreen
-          tenant={tenant}
-          userProfile={userProfile}
-          themeMode={themeMode}
-          offlineMode={offlineMode}
-          pageSize={defaultPageSize}
-        />
-      ) : currentScreen === 'About' ? (
-        <AboutScreen tenant={tenant} userProfile={userProfile} themeMode={themeMode} offlineMode={offlineMode} />
-      ) : (
+      {currentScreen === 'Home' ? (
         <View style={styles.homeScreenContainer}>
           <ScrollView
             contentContainerStyle={[
@@ -2208,6 +2191,23 @@ export default function App() {
             </Pressable>
           </View>
         </View>
+      ) : (
+        <ActiveModuleScreen
+          currentScreen={currentScreen}
+          tenant={tenant}
+          userProfile={userProfile}
+          tenantSettings={tenantSettings}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          onPendingOpsChange={setPendingOpsCount}
+          onPointOfSaleSaleCompleted={handlePointOfSaleSaleCompleted}
+          formatMoney={formatMoney}
+          pendingOpsCount={pendingOpsCount}
+          pageSize={defaultPageSize}
+          reportsInitialTab={reportsInitialTab}
+          navigateToScreen={navigateToScreen}
+          handleLocalThemeChange={handleLocalThemeChange}
+        />
       )}
       <StatusBar
         style={isLightTheme ? 'dark' : 'light'}

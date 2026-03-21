@@ -72,6 +72,8 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -237,6 +239,8 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
         themeMode={themeMode}
         title={filters?.isComponent ? 'Insumos / Componentes' : 'Productos'}
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={rows}
         emptyText="No hay productos registrados."

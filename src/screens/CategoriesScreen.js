@@ -33,6 +33,8 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
     loading,
     error,
     cacheInfo,
+    refreshing,
+    reload,
     filters,
     setError,
     changePage,
@@ -158,6 +160,8 @@ export default function CategoriesScreen({ tenant, offlineMode, pageSize = 20 })
         themeMode={themeMode}
         title="Categorias"
         loading={loading}
+        refreshing={refreshing}
+        onRefresh={reload}
         error={error}
         items={rows}
         emptyText="No hay categorias registradas."

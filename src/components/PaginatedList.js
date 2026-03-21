@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useThemeMode } from '../lib/themeMode';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
@@ -16,6 +16,9 @@ export default function PaginatedList({
   headerRight = null,
   footerMeta = null,
   themeMode,
+  refreshing = false,
+  onRefresh = null,
+  contentContainerStyle = null,
 }) {
   const contextThemeMode = useThemeMode();
   const resolvedThemeMode = themeMode || contextThemeMode || 'dark';
@@ -33,7 +36,21 @@ export default function PaginatedList({
         {loading ? (
           <ActivityIndicator color={COMPONENT_THEME_COLORS.paginatedList.dark.loadingIndicator} style={{ marginTop: 24 }} />
         ) : (
-          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={[styles.listContent, contentContainerStyle]}
+            refreshControl={
+              onRefresh
+                ? (
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={isLightTheme ? '#235ea9' : '#93c5fd'}
+                  />
+                )
+                : undefined
+            }
+          >
             {items.length === 0 ? <Text style={[styles.empty, isLightTheme && styles.emptyLight]}>{emptyText}</Text> : null}
             {items.map(renderItem)}
           </ScrollView>
