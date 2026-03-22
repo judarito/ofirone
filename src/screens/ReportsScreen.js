@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
   },
   tabTextLight: { color: '#334155' },
   tabTextActive: { color: '#eff6ff' },
-  filtersBlock: { marginBottom: 8, position: 'relative', overflow: 'visible', zIndex: 10 },
+  filtersBlock: { marginBottom: 8, position: 'relative', overflow: 'visible' },
   filtersScroll: { marginBottom: 8 },
   filtersContent: { alignItems: 'center', paddingVertical: 6 },
   dateRangeCard: {
@@ -784,8 +784,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     position: 'relative',
     overflow: 'visible',
-    zIndex: 15,
-    elevation: 3,
   },
   dateRangeCardLight: { borderColor: '#dbe4ef', backgroundColor: '#ffffff' },
   dateRangeTitle: { color: '#e2e8f0', fontWeight: '700', fontSize: 14, marginBottom: 8 },

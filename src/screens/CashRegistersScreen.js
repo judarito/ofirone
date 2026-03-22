@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createCashRegister,
@@ -22,6 +23,7 @@ const EMPTY_FORM = {
 export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -213,8 +215,8 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.cash_register_id ? 'Editar caja' : 'Nueva caja'}</Text>
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
@@ -253,7 +255,7 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
                 <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
               </Pressable>
             </ScrollView>
-            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>

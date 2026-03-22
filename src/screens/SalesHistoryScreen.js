@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -15,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DatePickerField from '../components/DatePickerField';
 import PaginatedList from '../components/PaginatedList';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { getAndroidNavigationBottomInset } from '../lib/androidInsets';
 import { useThemeMode } from '../lib/themeMode';
 import { getLatestPageCache, getPageCache } from '../services/offlineCache.service';
 import { listLocations } from '../services/inventoryCatalog.service';
@@ -148,6 +151,7 @@ export default function SalesHistoryScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -264,6 +268,21 @@ export default function SalesHistoryScreen({
       };
     },
   });
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const updateInsets = () => {
+      setAndroidBottomInset(getAndroidNavigationBottomInset());
+    };
+
+    updateInsets();
+    const subscription = Dimensions.addEventListener('change', updateInsets);
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -897,7 +916,11 @@ export default function SalesHistoryScreen({
     updateFilters({ from_date: '', to_date: '' });
   };
 
-  const modalBodyStyles = [styles.modalBody, isLightTheme && styles.modalBodyLight];
+  const modalBodyStyles = [
+    styles.modalBody,
+    isLightTheme && styles.modalBodyLight,
+    { paddingBottom: 14 + Math.max(androidBottomInset, 8) },
+  ];
   const modalTitleStyles = [styles.modalTitle, isLightTheme && styles.modalTitleLight];
   const modalMetaLineStyles = [styles.metaLine, isLightTheme && styles.metaLineLight];
   const groupTitleStyles = [styles.groupTitle, isLightTheme && styles.groupTitleLight];
@@ -910,7 +933,11 @@ export default function SalesHistoryScreen({
   const refundCardStyles = [styles.refundCard, isLightTheme && styles.refundCardLight];
   const methodChipBaseStyles = [styles.methodChip, isLightTheme && styles.methodChipLight];
   const methodChipTextStyles = [styles.methodChipText, isLightTheme && styles.methodChipTextLight];
-  const closeBtnStyles = [styles.closeBtn, isLightTheme && styles.closeBtnLight];
+  const closeBtnStyles = [
+    styles.closeBtn,
+    isLightTheme && styles.closeBtnLight,
+    { marginBottom: Math.max(0, androidBottomInset - 4) },
+  ];
   const voidModalCardStyles = [styles.voidModalCard, isLightTheme && styles.voidModalCardLight];
 
   return (
@@ -1021,7 +1048,7 @@ export default function SalesHistoryScreen({
       <Modal visible={Boolean(singleSelectFilter)} transparent animationType="fade" onRequestClose={closeSingleSelectFilter}>
         <View style={styles.pickerOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeSingleSelectFilter} />
-          <View style={[styles.pickerSheet, isLightTheme && styles.pickerSheetLight]}>
+          <View style={[styles.pickerSheet, isLightTheme && styles.pickerSheetLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.pickerTitle, isLightTheme && styles.pickerTitleLight]}>
               {singleSelectFilter === 'status'
                 ? 'Seleccionar estado'
@@ -1083,6 +1110,8 @@ export default function SalesHistoryScreen({
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        bottomInset={androidBottomInset}
+        contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}
         renderItem={(sale) => (
           <View key={sale.sale_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <View style={styles.cardTopRow}>
@@ -1224,7 +1253,7 @@ export default function SalesHistoryScreen({
             {loadingDetail ? (
               <ActivityIndicator color="#38bdf8" />
             ) : (
-              <ScrollView>
+              <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
                 <Text style={modalTitleStyles}>Detalle de venta</Text>
                 <Text style={modalMetaLineStyles}>{detail?.sale_number || '-'}</Text>
                 <Text style={modalMetaLineStyles}>{detail?.customer?.full_name || 'Consumidor final'}</Text>
@@ -1288,7 +1317,7 @@ export default function SalesHistoryScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={modalBodyStyles}>
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={modalTitleStyles}>Crear Devolución</Text>
               <TextInput
                 value={returnReason}
@@ -1504,7 +1533,7 @@ export default function SalesHistoryScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={modalBodyStyles}>
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={modalTitleStyles}>Editar venta offline</Text>
               <Text style={modalMetaLineStyles}>Ajusta cantidades para reintentar sincronización.</Text>
               {editLines.map((line, idx) => (
@@ -1564,8 +1593,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     position: 'relative',
     overflow: 'visible',
-    zIndex: 20,
-    elevation: 4,
   },
   quickFiltersCardLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
   quickFiltersTitle: { color: '#e2e8f0', fontWeight: '700', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' },
@@ -1660,8 +1687,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     position: 'relative',
     overflow: 'visible',
-    zIndex: 15,
-    elevation: 3,
   },
   dateRangeCardLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
   dateRangeTitle: { color: '#e2e8f0', fontWeight: '700', marginBottom: 8 },

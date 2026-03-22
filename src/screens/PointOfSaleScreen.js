@@ -6,12 +6,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  StatusBar as RNStatusBar,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getAndroidNavigationBottomInset } from '../lib/androidInsets';
 import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -75,24 +75,6 @@ const WEB_DATE_TIME_INPUT_LIGHT_STYLE = {
   fontSize: 14,
   minHeight: 24,
 };
-
-function getAndroidNavigationBottomInset() {
-  if (Platform.OS !== 'android') return 0;
-
-  const screen = Dimensions.get('screen');
-  const window = Dimensions.get('window');
-  const screenHeight = Number(screen?.height || 0);
-  const screenWidth = Number(screen?.width || 0);
-  const windowHeight = Number(window?.height || 0);
-  const statusBarInset = Number(RNStatusBar.currentHeight || 0);
-
-  if (screenHeight <= 0 || windowHeight <= 0) return 0;
-
-  const verticalInset = Math.max(0, screenHeight - windowHeight);
-  return screenHeight >= screenWidth
-    ? Math.max(0, verticalInset - statusBarInset)
-    : 0;
-}
 
 function favoritesCacheKey(tenantId, userId) {
   return `pos-favorites:${tenantId}:${userId}`;
@@ -1922,7 +1904,7 @@ export default function PointOfSaleScreen({
         contentContainerStyle={[
           styles.container,
           isLightTheme && styles.containerLight,
-          { paddingBottom: 24 + androidBottomInset + 28 },
+          { paddingBottom: 48 + androidBottomInset + 44 },
         ]}
       >
       <View style={styles.headerRow}>
@@ -2626,7 +2608,11 @@ export default function PointOfSaleScreen({
       <Pressable
         onPress={handleProcessSale}
         disabled={processing || cart.length === 0 || remaining > 0 || sessionExpired}
-        style={[styles.chargeBtn, (processing || cart.length === 0 || remaining > 0 || sessionExpired) && styles.btnDisabled]}
+        style={[
+          styles.chargeBtn,
+          { marginTop: 8 + Math.max(8, androidBottomInset * 0.35) },
+          (processing || cart.length === 0 || remaining > 0 || sessionExpired) && styles.btnDisabled,
+        ]}
       >
         <View style={styles.btnContentRow}>
           <Ionicons name={offlineMode ? 'cloud-upload-outline' : 'card-outline'} size={18} color="#eff6ff" />
@@ -2640,7 +2626,7 @@ export default function PointOfSaleScreen({
         </View>
       </Pressable>
 
-      <Pressable onPress={clearSale} disabled={cart.length === 0} style={[styles.clearBtn, cart.length === 0 && styles.btnDisabled]}>
+      <Pressable onPress={clearSale} disabled={cart.length === 0} style={[styles.clearBtn, { marginBottom: 8 + androidBottomInset }, cart.length === 0 && styles.btnDisabled]}>
         <View style={styles.btnContentRow}>
           <Ionicons name="trash-outline" size={16} color="#fca5a5" />
           <Text style={styles.clearText}>Limpiar</Text>

@@ -36,6 +36,8 @@ Regla de trabajo:
 - En POS se ajusto la UX del bloque IA: el panel ahora respeta mejor el tema claro/oscuro, los estados activos tienen mejor contraste y el banner de trabajo ya no queda visualmente ambiguo en modo oscuro.
 - El matching IA de catalogo para pedidos/chat/OCR se volvio mas estricto contra falsos positivos por prefijos cortos de SKU: ahora prioriza coincidencia real por nombre y evita casos como interpretar `Pan tajado` como un `Pantalon` solo por coincidir con `PAN-...`.
 - El POS ya no depende de cargar un catalogo masivo completo antes de cada comando IA: el pipeline sigue `cache -> parser deterministico -> llm local -> llm cloud`, y luego resuelve productos con retrieval de candidatos por linea + matching, con fallback controlado a catalogo mas amplio solo si hace falta.
+- En tablet/Android se reforzo el manejo del inset inferior del sistema: `PaginatedList`, `SalesHistoryScreen`, `CashSessionsScreen`, `ProductsScreen` y `PointOfSaleScreen` ahora reservan mejor espacio para modales, paginacion y botones finales sin quedar debajo de la barra de navegacion.
+- En tema claro tambien se aumento el contraste visual de la paginacion compartida para que los controles inferiores no se vean lavados en pantallas grandes.
 
 ## 1. Proposito
 

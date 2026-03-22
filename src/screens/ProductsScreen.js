@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { getAndroidNavigationBottomInset } from '../lib/androidInsets';
 import { useThemeMode } from '../lib/themeMode';
 import { listActiveUnits } from '../services/units.service';
 import {
@@ -40,6 +41,7 @@ function boolText(value, yes, no) {
 export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -97,6 +99,21 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
       });
     },
   });
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const updateInsets = () => {
+      setAndroidBottomInset(getAndroidNavigationBottomInset());
+    };
+
+    updateInsets();
+    const subscription = Dimensions.addEventListener('change', updateInsets);
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, []);
 
   useEffect(() => {
     const loadLookups = async () => {
@@ -254,6 +271,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        bottomInset={androidBottomInset}
         renderItem={(item) => (
           <View key={item.product_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
@@ -339,7 +357,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.product_id ? 'Editar producto' : 'Nuevo producto'}</Text>
 
               <TextInput
@@ -469,7 +487,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
               </Pressable>
             </ScrollView>
 
-            <Pressable onPress={() => setModalOpen(false)} style={styles.closeBtn}>
+            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <View style={styles.btnContentRow}>
                 <Ionicons name="close-circle-outline" size={16} color="#fff" />
                 <Text style={styles.closeBtnText}>Cerrar</Text>

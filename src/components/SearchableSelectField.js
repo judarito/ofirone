@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { COMMON_TEXT } from '../constants/uiText';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
 export default function SearchableSelectField({
@@ -27,6 +28,7 @@ export default function SearchableSelectField({
   allowClear = true,
 }) {
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -73,7 +75,7 @@ export default function SearchableSelectField({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
         >
-          <View style={[styles.sheet, isLightTheme && styles.sheetLight]}>
+          <View style={[styles.sheet, isLightTheme && styles.sheetLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>
               {title || COMMON_TEXT.select}
             </Text>
@@ -93,7 +95,7 @@ export default function SearchableSelectField({
               style={styles.list}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, { paddingBottom: 8 + androidBottomInset }]}
               renderItem={({ item }) => {
                 const active =
                   allowClear && item.key === '__clear__'
@@ -115,7 +117,7 @@ export default function SearchableSelectField({
               }
             />
 
-            <Pressable onPress={close} style={styles.closeBtn}>
+            <Pressable onPress={close} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={styles.closeBtnText}>{COMMON_TEXT.close}</Text>
             </Pressable>
           </View>

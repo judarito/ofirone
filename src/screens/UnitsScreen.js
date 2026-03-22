@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import PaginatedList from '../components/PaginatedList';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { createUnit, listUnits, removeUnit, updateUnit } from '../services/units.service';
 
@@ -22,6 +23,7 @@ function boolText(value, yes, no) {
 export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -222,8 +224,8 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 {form.unit_id ? 'Editar unidad' : 'Nueva unidad'}
               </Text>
@@ -278,7 +280,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
               </Pressable>
             </ScrollView>
 
-            <Pressable onPress={() => setModalOpen(false)} style={styles.closeBtn}>
+            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>

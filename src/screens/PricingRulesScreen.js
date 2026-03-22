@@ -4,6 +4,7 @@ import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createPricingRule,
@@ -78,6 +79,7 @@ function formatRuleTarget(rule) {
 export default function PricingRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -397,8 +399,8 @@ export default function PricingRulesScreen({ tenant, offlineMode, pageSize = 20 
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 {form.pricing_rule_id ? 'Editar regla de precio' : 'Nueva regla de precio'}
               </Text>
@@ -545,7 +547,7 @@ export default function PricingRulesScreen({ tenant, offlineMode, pageSize = 20 
               </Pressable>
             </ScrollView>
 
-            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>

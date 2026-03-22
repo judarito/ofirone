@@ -14,6 +14,7 @@ import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   addLayawayPayment,
@@ -46,6 +47,7 @@ export default function LayawayScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detail, setDetail] = useState(null);
   const [payAmount, setPayAmount] = useState('');
@@ -266,11 +268,11 @@ export default function LayawayScreen({
 
       <Modal visible={Boolean(detail) || loadingDetail} transparent animationType="slide" onRequestClose={() => setDetail(null)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             {loadingDetail ? (
               <ActivityIndicator color="#4ade80" />
             ) : (
-              <ScrollView>
+              <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
                 <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Contrato</Text>
                 <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>{detail?.contract_number || detail?.layaway_id}</Text>
                 <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>Cliente: {detail?.customer?.full_name || '-'}</Text>
@@ -352,7 +354,7 @@ export default function LayawayScreen({
               </ScrollView>
             )}
 
-            <Pressable onPress={() => setDetail(null)} style={styles.closeBtn}>
+            <Pressable onPress={() => setDetail(null)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <View style={styles.btnContentRow}>
                 <Ionicons name="chevron-down-circle-outline" size={16} color="#fff" />
                 <Text style={styles.closeBtnText}>Cerrar</Text>

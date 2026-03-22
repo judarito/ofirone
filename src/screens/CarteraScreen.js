@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   getAllCreditAccounts,
@@ -20,6 +21,7 @@ import {
 export default function CarteraScreen({ tenant, userProfile, formatMoney, offlineMode }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [loading, setLoading] = useState(true);
   const [loadingMovements, setLoadingMovements] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -160,7 +162,7 @@ export default function CarteraScreen({ tenant, userProfile, formatMoney, offlin
         onRequestClose={() => setSelectedAccount(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimientos de cartera</Text>
             <Text style={[styles.meta, isLightTheme && styles.metaLight]}>
               {selectedAccount?.customer?.full_name || '-'} · Saldo {formatMoney(selectedAccount?.current_balance || 0)}
@@ -169,7 +171,7 @@ export default function CarteraScreen({ tenant, userProfile, formatMoney, offlin
             {loadingMovements ? (
               <ActivityIndicator color="#22d3ee" style={{ marginVertical: 14 }} />
             ) : (
-              <ScrollView style={{ maxHeight: 260 }}>
+              <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
                 {movements.length === 0 ? <Text style={[styles.empty, isLightTheme && styles.emptyLight]}>Sin movimientos</Text> : null}
                 {movements.map((move) => (
                   <View key={move.movement_id} style={styles.moveRow}>
@@ -204,7 +206,7 @@ export default function CarteraScreen({ tenant, userProfile, formatMoney, offlin
               </Pressable>
             </View>
 
-            <Pressable onPress={() => setSelectedAccount(null)} style={styles.closeBtn}>
+            <Pressable onPress={() => setSelectedAccount(null)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>

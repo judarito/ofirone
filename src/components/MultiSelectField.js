@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { COMMON_TEXT } from '../constants/uiText';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
 function normalizeKeys(values = []) {
@@ -30,6 +31,7 @@ export default function MultiSelectField({
   maxPreview = 2,
 }) {
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -92,7 +94,7 @@ export default function MultiSelectField({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
         >
-          <View style={[styles.sheet, isLightTheme && styles.sheetLight]}>
+          <View style={[styles.sheet, isLightTheme && styles.sheetLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{title || COMMON_TEXT.select}</Text>
 
             <TextInput
@@ -110,7 +112,7 @@ export default function MultiSelectField({
               style={styles.list}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, { paddingBottom: 8 + androidBottomInset }]}
               renderItem={({ item }) => {
                 const active = normalizedSelectedKeys.includes(String(item.key));
                 return (
@@ -130,7 +132,7 @@ export default function MultiSelectField({
               }
             />
 
-            <View style={styles.actionsRow}>
+            <View style={[styles.actionsRow, { paddingBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Pressable style={[styles.clearBtn, isLightTheme && styles.clearBtnLight]} onPress={() => onChange?.([])}>
                 <Text style={[styles.clearBtnText, isLightTheme && styles.clearBtnTextLight]}>{clearLabel}</Text>
               </Pressable>

@@ -4,6 +4,7 @@ import MultiSelectField from '../components/MultiSelectField';
 import PaginatedList from '../components/PaginatedList';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   changeTenantUserPassword,
@@ -32,6 +33,7 @@ const EMPTY_PASSWORD_FORM = {
 export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -325,8 +327,8 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 {form.user_id ? 'Editar usuario' : 'Nuevo usuario'}
               </Text>
@@ -398,7 +400,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
               </Pressable>
             </ScrollView>
 
-            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>
@@ -412,8 +414,8 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
         onRequestClose={() => setPasswordModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Cambiar contraseña</Text>
               <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Usuario: {form.email || '-'}</Text>
 
@@ -448,7 +450,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
 
             <Pressable
               onPress={() => setPasswordModalOpen(false)}
-              style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}
+              style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}
             >
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>

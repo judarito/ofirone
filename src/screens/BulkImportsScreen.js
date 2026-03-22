@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.service';
 import { listBulkImportErrors, listBulkImports } from '../services/bulkImports.service';
@@ -94,6 +95,7 @@ function createDraftRow(seed = {}) {
 export default function BulkImportsScreen({ tenant, offlineMode }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [selectedType, setSelectedType] = useState('product_variants');
   const [rows, setRows] = useState([]);
   const [errors, setErrors] = useState([]);
@@ -523,9 +525,9 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
 
       <Modal visible={errorsModal} transparent animationType="slide" onRequestClose={() => setErrorsModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Errores de importacion</Text>
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               {errors.length === 0 ? <Text style={[styles.empty, isLightTheme && styles.emptyLight]}>No hay errores para este archivo.</Text> : null}
               {errors.map((e) => (
                 <View key={e.error_id} style={[styles.errorCard, isLightTheme && styles.errorCardLight]}>
@@ -534,7 +536,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
                 </View>
               ))}
             </ScrollView>
-            <Pressable onPress={() => setErrorsModal(false)} style={styles.closeBtn}>
+            <Pressable onPress={() => setErrorsModal(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>
@@ -543,7 +545,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
 
       <Modal visible={previewModal} transparent animationType="slide" onRequestClose={() => setPreviewModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { maxHeight: '92%' }]}>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { maxHeight: '92%', paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
               Revisar carga por foto ({draftRows.length})
             </Text>
@@ -566,7 +568,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
               </Pressable>
             </View>
 
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               {draftRows.map((row) => (
                 <View key={row.local_id} style={[styles.previewCard, isLightTheme && styles.previewCardLight]}>
                   <View style={styles.previewCardTop}>
@@ -632,7 +634,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
               ))}
             </ScrollView>
 
-            <Pressable onPress={() => setPreviewModal(false)} style={styles.closeBtn}>
+            <Pressable onPress={() => setPreviewModal(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>

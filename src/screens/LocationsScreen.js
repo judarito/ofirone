@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createLocationConfig,
@@ -23,6 +24,7 @@ const EMPTY_FORM = {
 export default function LocationsScreen({ tenant, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -175,7 +177,7 @@ export default function LocationsScreen({ tenant, offlineMode, pageSize = 20 }) 
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{editing ? 'Editar sede' : 'Nueva sede'}</Text>
             <TextInput
               style={[styles.input, isLightTheme && styles.inputLight]}
@@ -220,7 +222,7 @@ export default function LocationsScreen({ tenant, offlineMode, pageSize = 20 }) 
             <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={onSave} disabled={saving}>
               <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
             </Pressable>
-            <Pressable style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]} onPress={() => setModalOpen(false)}>
+            <Pressable style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]} onPress={() => setModalOpen(false)}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text>
             </Pressable>
           </View>

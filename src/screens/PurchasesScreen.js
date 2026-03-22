@@ -3,12 +3,14 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { listLocations, listPurchases } from '../services/inventoryCatalog.service';
 
 export default function PurchasesScreen({ tenant, offlineMode, pageSize = 20, formatMoney }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [locations, setLocations] = useState([]);
 
   const {
@@ -120,7 +122,7 @@ export default function PurchasesScreen({ tenant, offlineMode, pageSize = 20, fo
       />
 
       {offlineMode ? (
-        <Pressable style={[styles.infoBtn, isLightTheme && styles.infoBtnLight]} onPress={() => setError('Modo offline: solo consulta con caché local.') }>
+        <Pressable style={[styles.infoBtn, isLightTheme && styles.infoBtnLight, { bottom: 16 + androidBottomInset }]} onPress={() => setError('Modo offline: solo consulta con caché local.') }>
           <Text style={[styles.infoBtnText, isLightTheme && styles.infoBtnTextLight]}>Info offline</Text>
         </Pressable>
       ) : null}

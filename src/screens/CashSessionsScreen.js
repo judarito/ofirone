@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, StatusBar as RNStatusBar } from 'react-native';
+import { Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
+import { getAndroidNavigationBottomInset } from '../lib/androidInsets';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -20,24 +21,6 @@ const STATUS_FILTER_LABELS = {
   CLOSED: 'Cerradas',
   FORCE_CLOSED: 'Cierre forzado',
 };
-
-function getAndroidNavigationBottomInset() {
-  if (Platform.OS !== 'android') return 0;
-
-  const screen = Dimensions.get('screen');
-  const window = Dimensions.get('window');
-  const screenHeight = Number(screen?.height || 0);
-  const screenWidth = Number(screen?.width || 0);
-  const windowHeight = Number(window?.height || 0);
-  const statusBarInset = Number(RNStatusBar.currentHeight || 0);
-
-  if (screenHeight <= 0 || windowHeight <= 0) return 0;
-
-  const verticalInset = Math.max(0, screenHeight - windowHeight);
-  return screenHeight >= screenWidth
-    ? Math.max(0, verticalInset - statusBarInset)
-    : 0;
-}
 
 export default function CashSessionsScreen({
   tenant,
@@ -313,6 +296,7 @@ export default function CashSessionsScreen({
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        bottomInset={androidBottomInset}
         contentContainerStyle={{ paddingBottom: 84 + androidBottomInset }}
         renderItem={(item) => (
           <View key={item.cash_session_id} style={[styles.card, isLightTheme && styles.cardLight]}>
@@ -411,7 +395,7 @@ export default function CashSessionsScreen({
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Cerrar sesión</Text>
             {closeSummary ? (
-              <ScrollView>
+              <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
                 <View style={[styles.infoCard, isLightTheme && styles.infoCardLight]}>
                   <Text style={[styles.summaryLine, isLightTheme && styles.summaryLineLight]}>Caja: {selectedSession?.cash_register?.name || '-'}</Text>
                   <Text style={[styles.summaryLine, isLightTheme && styles.summaryLineLight]}>Abierta: {selectedSession?.opened_at ? new Date(selectedSession.opened_at).toLocaleString() : '-'}</Text>
@@ -490,7 +474,7 @@ export default function CashSessionsScreen({
             <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={saveCloseSession} disabled={closing}>
               <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{closing ? 'Cerrando...' : 'Confirmar Cierre'}</Text>
             </Pressable>
-            <Pressable onPress={() => setCloseDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text></Pressable>
+            <Pressable onPress={() => setCloseDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text></Pressable>
           </View>
         </View>
       </Modal>
@@ -498,58 +482,60 @@ export default function CashSessionsScreen({
       <Modal visible={movementDialog} transparent animationType="slide" onRequestClose={() => setMovementDialog(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimiento de caja</Text>
-            <View style={styles.actions}>
-              <Pressable
-                style={[
-                  styles.secondaryBtn,
-                  isLightTheme && styles.secondaryBtnLight,
-                  movementData.type === 'INCOME' && styles.optionActive,
-                  movementData.type === 'INCOME' && isLightTheme && styles.optionActiveLight,
-                ]}
-                onPress={() => setMovementData((prev) => ({ ...prev, type: 'INCOME' }))}
-              >
-                <Text style={[styles.secondaryBtnText, isLightTheme && styles.secondaryBtnTextLight]}>Ingreso</Text>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
+              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimiento de caja</Text>
+              <View style={styles.actions}>
+                <Pressable
+                  style={[
+                    styles.secondaryBtn,
+                    isLightTheme && styles.secondaryBtnLight,
+                    movementData.type === 'INCOME' && styles.optionActive,
+                    movementData.type === 'INCOME' && isLightTheme && styles.optionActiveLight,
+                  ]}
+                  onPress={() => setMovementData((prev) => ({ ...prev, type: 'INCOME' }))}
+                >
+                  <Text style={[styles.secondaryBtnText, isLightTheme && styles.secondaryBtnTextLight]}>Ingreso</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.secondaryBtn,
+                    isLightTheme && styles.secondaryBtnLight,
+                    movementData.type === 'EXPENSE' && styles.optionActive,
+                    movementData.type === 'EXPENSE' && isLightTheme && styles.optionActiveLight,
+                  ]}
+                  onPress={() => setMovementData((prev) => ({ ...prev, type: 'EXPENSE' }))}
+                >
+                  <Text style={[styles.secondaryBtnText, isLightTheme && styles.secondaryBtnTextLight]}>Gasto</Text>
+                </Pressable>
+              </View>
+              <TextInput
+                style={[styles.input, isLightTheme && styles.inputLight]}
+                value={movementData.category}
+                onChangeText={(v) => setMovementData((prev) => ({ ...prev, category: v }))}
+                placeholder="Categoría"
+                placeholderTextColor="#64748b"
+              />
+              <TextInput
+                style={[styles.input, isLightTheme && styles.inputLight]}
+                value={movementData.amount}
+                onChangeText={(v) => setMovementData((prev) => ({ ...prev, amount: v }))}
+                placeholder="Monto"
+                placeholderTextColor="#64748b"
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 70 }]}
+                value={movementData.note}
+                onChangeText={(v) => setMovementData((prev) => ({ ...prev, note: v }))}
+                placeholder="Nota"
+                placeholderTextColor="#64748b"
+                multiline
+              />
+              <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={saveMovement} disabled={savingMovement}>
+                <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{savingMovement ? 'Guardando...' : 'Guardar movimiento'}</Text>
               </Pressable>
-              <Pressable
-                style={[
-                  styles.secondaryBtn,
-                  isLightTheme && styles.secondaryBtnLight,
-                  movementData.type === 'EXPENSE' && styles.optionActive,
-                  movementData.type === 'EXPENSE' && isLightTheme && styles.optionActiveLight,
-                ]}
-                onPress={() => setMovementData((prev) => ({ ...prev, type: 'EXPENSE' }))}
-              >
-                <Text style={[styles.secondaryBtnText, isLightTheme && styles.secondaryBtnTextLight]}>Gasto</Text>
-              </Pressable>
-            </View>
-            <TextInput
-              style={[styles.input, isLightTheme && styles.inputLight]}
-              value={movementData.category}
-              onChangeText={(v) => setMovementData((prev) => ({ ...prev, category: v }))}
-              placeholder="Categoría"
-              placeholderTextColor="#64748b"
-            />
-            <TextInput
-              style={[styles.input, isLightTheme && styles.inputLight]}
-              value={movementData.amount}
-              onChangeText={(v) => setMovementData((prev) => ({ ...prev, amount: v }))}
-              placeholder="Monto"
-              placeholderTextColor="#64748b"
-              keyboardType="numeric"
-            />
-            <TextInput
-              style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 70 }]}
-              value={movementData.note}
-              onChangeText={(v) => setMovementData((prev) => ({ ...prev, note: v }))}
-              placeholder="Nota"
-              placeholderTextColor="#64748b"
-              multiline
-            />
-            <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={saveMovement} disabled={savingMovement}>
-              <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{savingMovement ? 'Guardando...' : 'Guardar movimiento'}</Text>
-            </Pressable>
-            <Pressable onPress={() => setMovementDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text></Pressable>
+            </ScrollView>
+            <Pressable onPress={() => setMovementDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text></Pressable>
           </View>
         </View>
       </Modal>
@@ -558,7 +544,7 @@ export default function CashSessionsScreen({
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimientos de sesión</Text>
-            <ScrollView>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               {movementRows.length === 0 ? <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Sin movimientos</Text> : null}
               {movementRows.map((m) => (
                 <View key={m.cash_movement_id} style={[styles.card, isLightTheme && styles.cardLight]}>
@@ -569,7 +555,7 @@ export default function CashSessionsScreen({
                 </View>
               ))}
             </ScrollView>
-            <Pressable onPress={() => setDetailDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text></Pressable>
+            <Pressable onPress={() => setDetailDialog(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}><Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text></Pressable>
           </View>
         </View>
       </Modal>

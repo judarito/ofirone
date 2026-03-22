@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   assignCashRegisterToUser,
@@ -21,6 +22,7 @@ const ACTIVE_FILTERS = [
 export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const [users, setUsers] = useState([]);
   const [locations, setLocations] = useState([]);
   const [registers, setRegisters] = useState([]);
@@ -266,8 +268,8 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
 
       <Modal visible={dialogOpen} transparent animationType="slide" onRequestClose={() => setDialogOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Asignar caja</Text>
 
               <SearchableSelectField
@@ -298,7 +300,7 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
                 <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
               </Pressable>
             </ScrollView>
-            <Pressable onPress={() => setDialogOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Pressable onPress={() => setDialogOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>

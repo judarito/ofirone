@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COMMON_TEXT } from '../constants/uiText';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
@@ -20,10 +21,13 @@ export default function PaginatedList({
   refreshing = false,
   onRefresh = null,
   contentContainerStyle = null,
+  bottomInset = 0,
 }) {
   const contextThemeMode = useThemeMode();
+  const androidBottomInset = useAndroidBottomInset();
   const resolvedThemeMode = themeMode || contextThemeMode || 'dark';
   const isLightTheme = resolvedThemeMode === 'light';
+  const resolvedBottomInset = bottomInset > 0 ? bottomInset : androidBottomInset;
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={[styles.surface, isLightTheme && styles.surfaceLight]}>
@@ -59,7 +63,7 @@ export default function PaginatedList({
 
         {footerMeta ? <Text style={[styles.meta, isLightTheme && styles.metaLight]}>{footerMeta}</Text> : null}
 
-        <View style={styles.pagination}>
+        <View style={[styles.pagination, resolvedBottomInset > 0 && { paddingBottom: 10 + resolvedBottomInset }]}>
           <Pressable style={[styles.pageBtn, isLightTheme && styles.pageBtnLight, page <= 1 && styles.disabled]} onPress={onPrev} disabled={page <= 1}>
             <Text style={[styles.pageBtnText, isLightTheme && styles.pageBtnTextLight]}>{COMMON_TEXT.previous}</Text>
           </Pressable>

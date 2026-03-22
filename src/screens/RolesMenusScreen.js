@@ -3,6 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import MultiSelectField from '../components/MultiSelectField';
 import PaginatedList from '../components/PaginatedList';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createGlobalRoleForAllTenants,
@@ -31,6 +32,7 @@ function normalizeRoleName(name = '') {
 export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pageSize = 20 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
 
   const [search, setSearch] = useState('');
   const [roleModalOpen, setRoleModalOpen] = useState(false);
@@ -380,8 +382,8 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
 
       <Modal visible={roleModalOpen} transparent animationType="slide" onRequestClose={() => setRoleModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 {roleForm.role_id ? 'Editar rol' : 'Nuevo rol'}
               </Text>
@@ -412,7 +414,7 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
               </Pressable>
             </ScrollView>
 
-            <Pressable onPress={() => setRoleModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Pressable onPress={() => setRoleModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>
@@ -426,8 +428,8 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
         onRequestClose={() => setPermissionsModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 Permisos de {selectedRole?.name || 'rol'}
               </Text>
@@ -455,7 +457,7 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
 
             <Pressable
               onPress={() => setPermissionsModalOpen(false)}
-              style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}
+              style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}
             >
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
@@ -465,8 +467,8 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
 
       <Modal visible={menusModalOpen} transparent animationType="slide" onRequestClose={() => setMenusModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
-            <ScrollView>
+          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 Menus de {selectedRole?.name || 'rol'}
               </Text>
@@ -504,7 +506,7 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
               ) : null}
             </ScrollView>
 
-            <Pressable onPress={() => setMenusModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Pressable onPress={() => setMenusModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>

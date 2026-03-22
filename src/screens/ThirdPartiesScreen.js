@@ -16,6 +16,7 @@ import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createThirdParty,
@@ -104,6 +105,7 @@ export default function ThirdPartiesScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
   const lockedType = normalizeForcedType(forcedType);
   const hideTypeFilter = Boolean(lockedType);
   const [saving, setSaving] = useState(false);
@@ -374,10 +376,10 @@ export default function ThirdPartiesScreen({
             style={styles.modalAvoider}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
               <ScrollView
                 style={styles.modalScroll}
-                contentContainerStyle={styles.modalScrollContent}
+                contentContainerStyle={[styles.modalScrollContent, { paddingBottom: 20 + androidBottomInset }]}
                 keyboardShouldPersistTaps="handled"
               >
                 <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.third_party_id ? 'Editar tercero' : 'Nuevo tercero'}</Text>
@@ -643,7 +645,7 @@ export default function ThirdPartiesScreen({
                 </Pressable>
               </ScrollView>
 
-              <Pressable onPress={() => setModalOpen(false)} style={styles.closeBtn}>
+              <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
                 <View style={styles.btnContentRow}>
                   <Ionicons name="chevron-down-circle-outline" size={15} color="#fff" />
                   <Text style={styles.closeBtnText}>Cerrar</Text>
