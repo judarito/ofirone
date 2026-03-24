@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -185,6 +186,7 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Nueva" onPress={openCreate} />}
         renderItem={(item) => (
           <View key={item.unit_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
@@ -217,10 +219,6 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
           </View>
         )}
       />
-
-      <Pressable style={styles.fab} onPress={openCreate}>
-        <Text style={styles.fabText}>+ Nueva</Text>
-      </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>

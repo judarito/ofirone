@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-03-21
+Fecha: 2026-03-24
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -24,7 +24,7 @@ Regla de trabajo:
 - El modelo local de IA ahora empieza a descargarse en segundo plano despues del inicio de sesion cuando el runtime local esta habilitado.
 - La descarga del modelo embebido ya es compartida a nivel app para evitar carreras o descargas duplicadas entre `App.js` y POS.
 - En POS, camara/chat/voz IA quedan bloqueados mientras el modelo local siga descargandose, aunque la descarga haya arrancado desde background.
-- En push Android, la app ahora declara explicitamente `POST_NOTIFICATIONS` en nativo y el dispatcher envia a Expo Push con `priority: high` + `ttl`, para mejorar entrega en la barra del sistema.
+- En push Android, la app ahora declara explicitamente `POST_NOTIFICATIONS` en nativo y el dispatcher ya no depende de Expo Push: Android registra token FCM nativo y `push-dispatcher` envia directo a FCM HTTP v1; Expo queda como fallback/iOS por ahora.
 - En POS, los atajos de efectivo ya no representan incrementos (`+5000`, `+10000`); ahora representan montos reales recibidos y resaltan el valor aplicado para que el flujo de cobro sea mas natural para caja.
 - El detector de conectividad en `App.js` ya no manda la app a offline automatico con una sola falla aislada: ahora usa timeout mas amplio y exige varias fallas consecutivas antes de cambiar el estado operativo.
 - Se definio una propuesta arquitectonica separada para monetizacion por tenant en `docs/TENANT_BILLING_MONETIZATION_DESIGN.md`, con planes, suscripciones, renovaciones, gracia, suspension y enforcement por features/limites.
@@ -36,8 +36,23 @@ Regla de trabajo:
 - En POS se ajusto la UX del bloque IA: el panel ahora respeta mejor el tema claro/oscuro, los estados activos tienen mejor contraste y el banner de trabajo ya no queda visualmente ambiguo en modo oscuro.
 - El matching IA de catalogo para pedidos/chat/OCR se volvio mas estricto contra falsos positivos por prefijos cortos de SKU: ahora prioriza coincidencia real por nombre y evita casos como interpretar `Pan tajado` como un `Pantalon` solo por coincidir con `PAN-...`.
 - El POS ya no depende de cargar un catalogo masivo completo antes de cada comando IA: el pipeline sigue `cache -> parser deterministico -> llm local -> llm cloud`, y luego resuelve productos con retrieval de candidatos por linea + matching, con fallback controlado a catalogo mas amplio solo si hace falta.
-- En tablet/Android se reforzo el manejo del inset inferior del sistema: `PaginatedList`, `SalesHistoryScreen`, `CashSessionsScreen`, `ProductsScreen` y `PointOfSaleScreen` ahora reservan mejor espacio para modales, paginacion y botones finales sin quedar debajo de la barra de navegacion.
+- En tablet/Android el manejo del inset inferior del sistema ya no debe depender solo de pantallas puntuales: `App.js` ahora reserva ese espacio desde el shell/layout del modulo activo, y los componentes/pantallas especificos solo agregan ajustes finos para modales, paginacion o acciones fijas.
+- El calculo del inset inferior Android se endurecio con heuristica para tablets/pantallas grandes cuando `Dimensions` subreporta la barra de navegacion; `PaginatedList` ahora usa ese inset con mas aire para que la paginacion no quede debajo de la barra del sistema.
+- El chequeo periodico de conectividad del shell mobile ya no consulta el root ` /rest/v1/ ` con `anon key`; ahora usa ` /auth/v1/health ` para no depender del acceso anonimo al esquema OpenAPI que Supabase retirara para proyectos existentes el 8 de abril de 2026.
+- Se introdujo una pasada transversal para compactar filtros mobile: ahora existe una seccion reusable colapsable para filtros y ya se aplico en modulos con filtros altos como ventas, reportes, reglas de precio, reglas de impuesto y asignaciones de caja para liberar viewport por defecto.
+- Tambien se creo una base reusable de `BottomSheetModal` para unificar manejo de safe area + teclado + footer en sheets mobile; `SearchableSelectField` y flujos clave como sesiones de caja/detalle de ventas ya consumen esa base para reducir huecos inferiores y mejorar visibilidad del input activo.
+- En filtros con fechas (`SalesHistoryScreen`, `ReportsScreen`, `DatePickerField`) se bajo el uso de `overflow`/`zIndex` agresivo solo en Android para evitar que las tarjetas de filtros se monten unas sobre otras.
+- Decision de arquitectura vigente: la correccion definitiva de la barra de navegacion Android no debe seguir resolviendose por componente o heuristica local; debe migrarse a una solucion global desde el root/layout de la app usando safe areas reales del sistema.
+- Esa migracion global ya se movio a `App.js` con `react-native-safe-area-context` (`SafeAreaProvider` + `useSafeAreaInsets()`), de modo que el shell principal consuma insets reales del sistema para header, drawer, contenido y dock inferior.
+- `useAndroidBottomInset()` ya no intenta absorber altura del teclado: su responsabilidad global queda limitada al espacio real del sistema (`safe area` + fallback Android). El manejo del teclado debe resolverse en contenedores modal/form reutilizables, no sumando ese alto al inset base.
+- En modulos paginados con accion principal de crear/abrir, el patron recomendado ya no es boton fijo abajo peleando con la paginacion; ahora existe `ListHeaderActionButton` y varias pantallas (`CashSessions`, `Products`, `Users`, `ThirdParties`, `CashRegisters`, `PaymentMethods`, `Categories`, `Units`, `PricingRules`, `TaxRules`, `RolesMenus`, `CashAssignments`) ya movieron esa accion al header del `PaginatedList`.
 - En tema claro tambien se aumento el contraste visual de la paginacion compartida para que los controles inferiores no se vean lavados en pantallas grandes.
+- `TenantConfigScreen` ya expone tambien configuracion de `Contabilidad` y de `Facturacion Electronica` avanzada (proveedor FE + resolucion DIAN activa) alineada con web, pero por ahora eso se limita a cargar/guardar configuracion; no activa todavia operacion contable ni emision FE avanzada desde mobile.
+- La app ya tiene una base reusable de sonidos UI con `expo-audio`: se precargan desde el root y POS ya reproduce feedback local al agregar un item al carrito.
+- El flujo de fotos por producto ya quedo validado en mobile: la carga al bucket privado funciona, pero si el bucket `productmedia` no existe debe crearse manualmente en Supabase Storage antes de probar.
+- La IA asociada a fotos por producto depende de la Edge Function `product-photo-analyzer`; si la app muestra `HTTP 404`, normalmente significa que la function no esta desplegada o que el nombre configurado en mobile no coincide con el deploy real.
+- El aislamiento multi-tenant de fotos por producto hoy se apoya en tres capas: `tenant_id` en `product_media`, path fisico `tenantId/productId/...` dentro de Storage y policies sobre `storage.objects` que restringen acceso a la carpeta del tenant autenticado.
+- El Security Advisor de Supabase reporto en produccion cinco tablas core sin RLS (`customers`, `locations`, `product_variants`, `products`, `tenants`); el repo ya incluye hardening adicional en `migrations/HARDEN_PUBLIC_RLS_REMAINING_TABLES.sql`, pero sigue siendo necesario aplicarlo/verificarlo en el proyecto remoto.
 
 ## 1. Proposito
 
@@ -50,6 +65,7 @@ La app no es un MVP pequeno: hoy cubre una parte importante del flujo operativo 
 - React `19.1.0`
 - React Native `0.81.5`
 - Expo SDK `54`
+- Expo Audio `expo-audio` para sonidos cortos de feedback UI
 - Supabase JS `v2`
 - SQLite local con `expo-sqlite`
 - AsyncStorage para persistencia de sesion
@@ -146,7 +162,7 @@ Supabase es el backend principal para:
 - RPC
 - Edge Functions
 - notificaciones/realtime
-- push remoto para barra del sistema via Expo Push API + Edge Function `push-dispatcher` + Supabase Cron
+- push remoto para barra del sistema via Edge Function `push-dispatcher` + Supabase Cron; Android usa FCM directo y iOS/fallback sigue pudiendo usar Expo Push
 
 Variables publicas criticas:
 
@@ -336,8 +352,9 @@ Nota operativa:
 - varias funciones locales requieren build nativo/dev build y no funcionaran en Expo Go
 - el flujo de push remoto a barra del sistema debe validarse en dev build o build nativa; Expo Go no debe considerarse entorno valido para esa verificacion
 - en Android, la barra del sistema requiere FCM configurado (`google-services.json` + plugin Google Services); el inbox in-app por realtime no sustituye esa capa
-- en este proyecto, como el dispatcher envia a Expo Push API, Android tambien requiere credencial FCM V1 cargada en Expo/EAS; `google-services.json` por si solo no garantiza entrega a la barra del sistema
-- la ruta de diagnostico cuando solo funciona la campanita es: permiso SO -> token en `user_push_devices` -> filas en `notification_push_queue` -> `push-dispatcher`/cron -> credenciales Expo/EAS
+- la app mobile ya intenta registrar `push_provider = fcm` en Android mediante `expo-notifications.getDevicePushTokenAsync()`; si eso falla, puede caer a Expo como fallback, pero el camino objetivo es FCM directo
+- el dispatcher ahora necesita la credencial `FIREBASE_SERVICE_ACCOUNT_JSON` en Supabase Edge Functions para Android; la dependencia de Expo/EAS para entrega Android deja de ser el camino principal
+- la ruta de diagnostico cuando solo funciona la campanita es: permiso SO -> token/proveedor en `user_push_devices` -> filas en `notification_push_queue` -> `push-dispatcher`/cron -> secret `FIREBASE_SERVICE_ACCOUNT_JSON`
 
 ## 11. Tema y experiencia visual
 
@@ -409,7 +426,31 @@ Antes de tocar codigo sensible, conviene asumir estas reglas practicas:
 - revisar si el modulo tiene integraciones con Supabase RPC o Edge Functions
 - en flujos de POS, ventas, OCR o voz, probar en dispositivo/build nativo cuando aplique
 
-## 16. Resumen ejecutivo
+## 16. Novedades recientes relevantes
+
+Fotos de producto:
+
+- `ProductsScreen` ya soporta portada y galeria por producto usando `product_media`
+- el limite actual es `5` fotos por producto y cada imagen se comprime a JPEG con tope cercano a `2 MB`
+- las imagenes viven en bucket privado `productmedia` y se consumen via signed URLs
+- el listado de productos ahora puede mostrar portada y conteo de fotos sin consultas manuales en la UI
+
+IA aplicada a fotos de producto:
+
+- existe la edge function `product-photo-analyzer`
+- la IA hoy se usa como asistente de catalogacion: sugiere nombre, categoria, marca, descripcion corta, etiquetas y warnings
+- las sugerencias quedan asociadas a `product_media` y desde `ProductsScreen` se pueden aplicar al formulario del producto
+- el modelo actual de producto no tiene campo estructurado para marca, asi que por ahora esa señal queda como sugerencia y no como columna propia
+
+Backend de soporte:
+
+- migracion nueva: `migrations/ADD_PRODUCT_MEDIA_PHOTOS.sql`
+- hardening adicional de seguridad: `migrations/HARDEN_PUBLIC_RLS_REMAINING_TABLES.sql`
+- servicio mobile nuevo: `src/services/productMedia.service.js`
+- el feature depende de ejecutar la migracion, crear/verificar el bucket `productmedia` y desplegar la edge function antes de probar en app
+- para diagnostico operativo del feature conviene revisar tambien `docs/PRODUCT_PHOTOS_AI_SETUP.md`
+
+## 17. Resumen ejecutivo
 
 POSLite Mobile ya es una app operativa amplia, con backend Supabase, base offline consistente y una capa diferencial de IA/OCR/voz. El proyecto esta avanzado funcionalmente, pero aun arrastra deuda estructural importante, especialmente por el tamano de `App.js`, la falta de tooling de calidad y la mezcla entre documentacion actualizada y documentacion historica.
 

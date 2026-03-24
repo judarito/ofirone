@@ -2,15 +2,73 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { getTenantConfig, saveTenantConfig } from '../services/setup.service';
+import {
+  getActiveResolution,
+  getDefaultFeProviderConfig,
+  getDefaultInvoiceResolution,
+  getProviderConfig,
+  saveProviderConfig,
+  upsertResolution,
+} from '../services/electronicInvoicing.service';
 
 const TABS = [
   { key: 'general', label: 'General' },
   { key: 'ui', label: 'Interfaz' },
   { key: 'ai', label: 'IA' },
+  { key: 'accounting', label: 'Contabilidad' },
   { key: 'inventory', label: 'Inventario' },
   { key: 'sales', label: 'Ventas' },
   { key: 'invoicing', label: 'Facturación' },
   { key: 'notifications', label: 'Notificaciones' },
+];
+
+const ACCOUNTING_MODE_OPTIONS = [
+  { key: 'OFF', label: 'OFF - Desactivado' },
+  { key: 'ASYNC', label: 'ASYNC - Cola desacoplada' },
+  { key: 'MANUAL', label: 'MANUAL - Registro manual' },
+];
+
+const ROUNDING_METHOD_OPTIONS = [
+  { key: 'normal', label: 'Normal (Matemático)' },
+  { key: 'up', label: 'Hacia arriba' },
+  { key: 'down', label: 'Hacia abajo' },
+  { key: 'none', label: 'Sin redondeo' },
+];
+
+const ROUNDING_MULTIPLE_OPTIONS = [
+  { key: 1, label: 'Unidades (1)' },
+  { key: 10, label: 'Decenas (10)' },
+  { key: 100, label: 'Centenas (100)' },
+  { key: 1000, label: 'Miles (1000)' },
+];
+
+const PRINT_FORMAT_OPTIONS = [
+  { key: 'thermal', label: 'Impresora térmica' },
+  { key: 'letter', label: 'Carta (A4)' },
+  { key: 'ticket', label: 'Ticket (media carta)' },
+];
+
+const PAPER_WIDTH_OPTIONS = [
+  { key: 58, label: '58 mm' },
+  { key: 80, label: '80 mm' },
+];
+
+const FE_AUTH_TYPE_OPTIONS = [
+  { key: 'apikey', label: 'API Key (header)' },
+  { key: 'bearer', label: 'Bearer token' },
+  { key: 'basic', label: 'Basic auth' },
+];
+
+const FE_ENVIRONMENT_OPTIONS = [
+  { key: 'habilitacion', label: 'Habilitación (pruebas)' },
+  { key: 'produccion', label: 'Producción' },
+];
+
+const FE_DOCUMENT_TYPE_OPTIONS = [
+  { key: 'FE', label: 'Factura Electrónica (FE)' },
+  { key: 'FV', label: 'Tiquete POS (FV)' },
+  { key: 'NC', label: 'Nota Crédito (NC)' },
+  { key: 'ND', label: 'Nota Débito (ND)' },
 ];
 
 export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'dark', onLocalThemeChange }) {
@@ -22,6 +80,8 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
   const [tab, setTab] = useState('general');
   const [tenantForm, setTenantForm] = useState({});
   const [settingsForm, setSettingsForm] = useState({});
+  const [feProviderForm, setFeProviderForm] = useState(getDefaultFeProviderConfig);
+  const [invoiceResolutionForm, setInvoiceResolutionForm] = useState(getDefaultInvoiceResolution);
 
   const load = async () => {
     if (!tenant?.tenant_id) return;
@@ -36,6 +96,23 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
 
     setTenantForm(result.data?.tenant || {});
     setSettingsForm(result.data?.settings || {});
+    setFeProviderForm(getDefaultFeProviderConfig());
+    setInvoiceResolutionForm(getDefaultInvoiceResolution());
+
+    if (!offlineMode) {
+      const [providerResult, resolutionResult] = await Promise.all([
+        getProviderConfig(tenant.tenant_id),
+        getActiveResolution(tenant.tenant_id, 'FE'),
+      ]);
+
+      if (providerResult.success && providerResult.data) {
+        setFeProviderForm(providerResult.data);
+      }
+      if (resolutionResult.success && resolutionResult.data) {
+        setInvoiceResolutionForm(resolutionResult.data);
+      }
+    }
+
     setSource(result.source || '');
     setLoading(false);
   };
@@ -49,6 +126,12 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
   };
   const setSettingsField = (key, value) => {
     setSettingsForm((prev) => ({ ...prev, [key]: value }));
+  };
+  const setFeProviderField = (key, value) => {
+    setFeProviderForm((prev) => ({ ...prev, [key]: value }));
+  };
+  const setInvoiceResolutionField = (key, value) => {
+    setInvoiceResolutionForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const onSave = async () => {
@@ -89,6 +172,24 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
       setError(result.error || 'No fue posible guardar la configuración.');
       setSaving(false);
       return;
+    }
+
+    if (settingsForm.electronic_invoicing_enabled === true) {
+      const providerResult = await saveProviderConfig(tenant?.tenant_id, feProviderForm);
+      if (!providerResult.success) {
+        setError(providerResult.error || 'No fue posible guardar la configuración del proveedor FE.');
+        setSaving(false);
+        return;
+      }
+
+      if (String(feProviderForm.base_url || '').trim() && (String(invoiceResolutionForm.resolution_number || '').trim() || String(invoiceResolutionForm.prefix || '').trim())) {
+        const resolutionResult = await upsertResolution(tenant?.tenant_id, invoiceResolutionForm);
+        if (!resolutionResult.success) {
+          setError(resolutionResult.error || 'No fue posible guardar la resolución FE.');
+          setSaving(false);
+          return;
+        }
+      }
     }
 
     setSaving(false);
@@ -136,13 +237,58 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     </View>
   );
 
+  const selectField = ({ label, placeholder, value, options, onSelect, helper }) => (
+    <View style={styles.selectBlock}>
+      <SearchableSelectField
+        title={label}
+        themeMode={themeMode}
+        valueLabel={options.find((entry) => String(entry.key) === String(value))?.label || placeholder}
+        placeholder={placeholder}
+        searchPlaceholder={`Buscar ${label.toLowerCase()}...`}
+        options={options.map((entry) => ({
+          key: entry.key,
+          label: entry.label,
+          searchText: `${entry.label} ${entry.key}`,
+        }))}
+        selectedKey={value}
+        onSelect={onSelect}
+        allowClear={false}
+      />
+      {helper ? <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>{helper}</Text> : null}
+    </View>
+  );
+
+  const textField = ({
+    label,
+    helper,
+    multiline = false,
+    style,
+    ...inputProps
+  }) => (
+    <View style={styles.fieldBlock}>
+      <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight]}>{label}</Text>
+      <TextInput
+        {...inputProps}
+        multiline={multiline}
+        style={[
+          styles.input,
+          multiline && styles.inputMulti,
+          isLightTheme && styles.inputLight,
+          style,
+        ]}
+        placeholderTextColor="#64748b"
+      />
+      {helper ? <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>{helper}</Text> : null}
+    </View>
+  );
+
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={styles.filtersBlock}>
         <SearchableSelectField
           title="Sección"
           themeMode={themeMode}
-          valueLabel="General"
+          valueLabel={TABS.find((entry) => entry.key === tab)?.label || 'General'}
           placeholder="Seleccionar sección"
           searchPlaceholder="Buscar sección..."
           options={TABS.map((entry) => ({ key: entry.key, label: entry.label, searchText: entry.label }))}
@@ -156,14 +302,55 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'general' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Información General</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.name || ''} onChangeText={(v) => setTenantField('name', v)} placeholder="Nombre de la empresa" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.tax_id || ''} onChangeText={(v) => setTenantField('tax_id', v)} placeholder="NIT / Tax ID" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.currency_code || ''} onChangeText={(v) => setTenantField('currency_code', v)} placeholder="Moneda (COP, USD...)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_name || ''} onChangeText={(v) => setSettingsField('business_name', v)} placeholder="Nombre comercial" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_phone || ''} onChangeText={(v) => setSettingsField('business_phone', v)} placeholder="Teléfono" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.business_address || ''} onChangeText={(v) => setSettingsField('business_address', v)} placeholder="Dirección" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.logo_url || ''} onChangeText={(v) => setSettingsField('logo_url', v)} placeholder="URL del logo" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, styles.inputMulti, isLightTheme && styles.inputLight]} value={settingsForm.receipt_footer || ''} onChangeText={(v) => setSettingsField('receipt_footer', v)} placeholder="Pie de recibo" placeholderTextColor="#64748b" multiline />
+            {textField({
+              label: 'Nombre de la empresa',
+              value: tenantForm.name || '',
+              onChangeText: (v) => setTenantField('name', v),
+              placeholder: 'Ej: Comercializadora Ofir SAS',
+            })}
+            {textField({
+              label: 'NIT / identificación fiscal',
+              value: tenantForm.tax_id || '',
+              onChangeText: (v) => setTenantField('tax_id', v),
+              placeholder: 'Ej: 900123456-7',
+            })}
+            {textField({
+              label: 'Moneda',
+              value: tenantForm.currency_code || '',
+              onChangeText: (v) => setTenantField('currency_code', v),
+              placeholder: 'Ej: COP',
+            })}
+            {textField({
+              label: 'Nombre comercial',
+              value: settingsForm.business_name || '',
+              onChangeText: (v) => setSettingsField('business_name', v),
+              placeholder: 'Ej: OfirOne Bogotá',
+            })}
+            {textField({
+              label: 'Teléfono',
+              value: settingsForm.business_phone || '',
+              onChangeText: (v) => setSettingsField('business_phone', v),
+              placeholder: 'Ej: 3001234567',
+            })}
+            {textField({
+              label: 'Dirección',
+              value: settingsForm.business_address || '',
+              onChangeText: (v) => setSettingsField('business_address', v),
+              placeholder: 'Ej: Calle 10 # 20-30',
+            })}
+            {textField({
+              label: 'URL del logo',
+              value: settingsForm.logo_url || '',
+              onChangeText: (v) => setSettingsField('logo_url', v),
+              placeholder: 'https://...',
+            })}
+            {textField({
+              label: 'Pie de recibo',
+              value: settingsForm.receipt_footer || '',
+              onChangeText: (v) => setSettingsField('receipt_footer', v),
+              placeholder: 'Texto final del recibo o factura',
+              multiline: true,
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Impuesto incluido por defecto</Text>
             {yesNoButton(Boolean(settingsForm.default_tax_included), (v) => setSettingsField('default_tax_included', v))}
           </View>
@@ -172,8 +359,19 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'ui' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Interfaz</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.default_page_size ?? '')} onChangeText={(v) => setSettingsField('default_page_size', v)} placeholder="Registros por página" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.theme || ''} onChangeText={(v) => setSettingsField('theme', v)} placeholder="Tema (light/dark/auto)" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Registros por página',
+              value: String(settingsForm.default_page_size ?? ''),
+              onChangeText: (v) => setSettingsField('default_page_size', v),
+              placeholder: 'Ej: 20',
+              keyboardType: 'numeric',
+            })}
+            {textField({
+              label: 'Tema configurado',
+              value: settingsForm.theme || '',
+              onChangeText: (v) => setSettingsField('theme', v),
+              placeholder: 'light / dark / auto',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Tema activo cache/local</Text>
             <View style={styles.segmentRow}>
               <Pressable
@@ -204,28 +402,97 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
                 <Text style={[styles.segmentText, isLightTheme && styles.segmentTextLight, (settingsForm.theme === 'auto') && styles.segmentTextActive]}>Auto</Text>
               </Pressable>
             </View>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.date_format || ''} onChangeText={(v) => setSettingsField('date_format', v)} placeholder="Formato fecha" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.locale || ''} onChangeText={(v) => setSettingsField('locale', v)} placeholder="Locale (es-CO)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.session_timeout_minutes ?? '')} onChangeText={(v) => setSettingsField('session_timeout_minutes', v)} placeholder="Timeout de sesión (minutos)" keyboardType="numeric" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Formato de fecha',
+              value: settingsForm.date_format || '',
+              onChangeText: (v) => setSettingsField('date_format', v),
+              placeholder: 'Ej: DD/MM/YYYY',
+            })}
+            {textField({
+              label: 'Idioma / región',
+              value: settingsForm.locale || '',
+              onChangeText: (v) => setSettingsField('locale', v),
+              placeholder: 'Ej: es-CO',
+            })}
+            {textField({
+              label: 'Tiempo de sesión (minutos)',
+              value: String(settingsForm.session_timeout_minutes ?? ''),
+              onChangeText: (v) => setSettingsField('session_timeout_minutes', v),
+              placeholder: 'Ej: 60',
+              keyboardType: 'numeric',
+            })}
           </View>
         ) : null}
 
         {tab === 'ai' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Inteligencia IA</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.ai_forecast_days_back ?? '')} onChangeText={(v) => setSettingsField('ai_forecast_days_back', v)} placeholder="Días de historial para pronóstico" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.ai_purchase_suggestion_days ?? '')} onChangeText={(v) => setSettingsField('ai_purchase_suggestion_days', v)} placeholder="Días para sugerencia de compras" keyboardType="numeric" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Días de historial para pronóstico',
+              value: String(settingsForm.ai_forecast_days_back ?? ''),
+              onChangeText: (v) => setSettingsField('ai_forecast_days_back', v),
+              placeholder: 'Ej: 90',
+              keyboardType: 'numeric',
+            })}
+            {textField({
+              label: 'Días de proyección de compras',
+              value: String(settingsForm.ai_purchase_suggestion_days ?? ''),
+              onChangeText: (v) => setSettingsField('ai_purchase_suggestion_days', v),
+              placeholder: 'Ej: 14',
+              keyboardType: 'numeric',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Asesor de compras con IA</Text>
             {yesNoButton(Boolean(settingsForm.ai_purchase_advisor_enabled), (v) => setSettingsField('ai_purchase_advisor_enabled', v))}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Pronóstico de ventas con IA</Text>
             {yesNoButton(Boolean(settingsForm.ai_sales_forecast_enabled), (v) => setSettingsField('ai_sales_forecast_enabled', v))}
+            <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
+              La administración de caché IA avanzada sigue concentrada en web. Aquí solo dejamos el control base del comportamiento del tenant.
+            </Text>
+          </View>
+        ) : null}
+
+        {tab === 'accounting' ? (
+          <View style={[styles.card, isLightTheme && styles.cardLight]}>
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Contabilidad</Text>
+            <Text style={[styles.noticeText, isLightTheme && styles.noticeTextLight]}>
+              Estos parámetros se guardan para el tenant, pero la operación contable mobile sigue desactivada por ahora.
+            </Text>
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Contabilidad habilitada</Text>
+            {yesNoButton(Boolean(settingsForm.accounting_enabled), (v) => setSettingsField('accounting_enabled', v))}
+            {selectField({
+              label: 'Modo de integración contable',
+              placeholder: 'Seleccionar modo',
+              value: settingsForm.accounting_mode || 'ASYNC',
+              options: ACCOUNTING_MODE_OPTIONS,
+              onSelect: (nextValue) => setSettingsField('accounting_mode', nextValue || 'ASYNC'),
+              helper: 'Se guarda como configuración del tenant, sin activar todavía la operación contable en mobile.',
+            })}
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>IA contable</Text>
+            {yesNoButton(Boolean(settingsForm.accounting_ai_enabled), (v) => setSettingsField('accounting_ai_enabled', v))}
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Auto contabilizar ventas</Text>
+            {yesNoButton(Boolean(settingsForm.accounting_auto_post_sales), (v) => setSettingsField('accounting_auto_post_sales', v))}
+            <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Auto contabilizar compras</Text>
+            {yesNoButton(Boolean(settingsForm.accounting_auto_post_purchases), (v) => setSettingsField('accounting_auto_post_purchases', v))}
+            {textField({
+              label: 'País contable',
+              value: settingsForm.accounting_country_code || '',
+              onChangeText: (v) => setSettingsField('accounting_country_code', v),
+              placeholder: 'Ej: CO',
+              autoCapitalize: 'characters',
+            })}
           </View>
         ) : null}
 
         {tab === 'inventory' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Inventario</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.expiry_alert_days ?? '')} onChangeText={(v) => setSettingsField('expiry_alert_days', v)} placeholder="Días de alerta por vencimiento" keyboardType="numeric" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Días de alerta por vencimiento',
+              value: String(settingsForm.expiry_alert_days ?? ''),
+              onChangeText: (v) => setSettingsField('expiry_alert_days', v),
+              placeholder: 'Ej: 30',
+              keyboardType: 'numeric',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Reservar stock en plan separe</Text>
             {yesNoButton(Boolean(settingsForm.reserve_stock_on_layaway), (v) => setSettingsField('reserve_stock_on_layaway', v))}
           </View>
@@ -234,21 +501,49 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'sales' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas y Precios</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.max_discount_without_auth ?? '')} onChangeText={(v) => setSettingsField('max_discount_without_auth', v)} placeholder="Descuento máximo cajero %" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.rounding_method || ''} onChangeText={(v) => setSettingsField('rounding_method', v)} placeholder="Redondeo (normal/up/down/none)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.rounding_multiple ?? '')} onChangeText={(v) => setSettingsField('rounding_multiple', v)} placeholder="Múltiplo de redondeo" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.cash_session_max_hours ?? '')} onChangeText={(v) => setSettingsField('cash_session_max_hours', v)} placeholder="Máx. horas de sesión de caja" keyboardType="numeric" placeholderTextColor="#64748b" />
+            <Text style={[styles.noticeText, isLightTheme && styles.noticeTextLight]}>
+              Nota: descuentos y retrofecha de venta en POS deben restringirse a personal de confianza.
+            </Text>
+            {textField({
+              label: 'Descuento máximo cajero (%)',
+              value: String(settingsForm.max_discount_without_auth ?? ''),
+              onChangeText: (v) => setSettingsField('max_discount_without_auth', v),
+              placeholder: 'Ej: 15',
+              keyboardType: 'numeric',
+            })}
+            {selectField({
+              label: 'Método de redondeo',
+              placeholder: 'Seleccionar método',
+              value: settingsForm.rounding_method || 'normal',
+              options: ROUNDING_METHOD_OPTIONS,
+              onSelect: (nextValue) => setSettingsField('rounding_method', nextValue || 'normal'),
+              helper: 'Cómo redondear totales de ventas.',
+            })}
+            {selectField({
+              label: 'Múltiplo de redondeo',
+              placeholder: 'Seleccionar múltiplo',
+              value: Number(settingsForm.rounding_multiple || 100),
+              options: ROUNDING_MULTIPLE_OPTIONS,
+              onSelect: (nextValue) => setSettingsField('rounding_multiple', Number(nextValue || 100)),
+              helper: 'A qué múltiplo redondear.',
+            })}
+            {textField({
+              label: 'Máximo de horas de sesión de caja',
+              value: String(settingsForm.cash_session_max_hours ?? ''),
+              onChangeText: (v) => setSettingsField('cash_session_max_hours', v),
+              placeholder: 'Ej: 24',
+              keyboardType: 'numeric',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Permitir fecha manual en POS</Text>
             {yesNoButton(Boolean(settingsForm.pos_allow_manual_sale_datetime), (v) => setSettingsField('pos_allow_manual_sale_datetime', v))}
             {settingsForm.pos_allow_manual_sale_datetime ? (
-              <TextInput
-                style={[styles.input, isLightTheme && styles.inputLight]}
-                value={String(settingsForm.pos_max_backdate_hours ?? '')}
-                onChangeText={(v) => setSettingsField('pos_max_backdate_hours', v)}
-                placeholder="Máx. retrofecha POS (horas)"
-                keyboardType="numeric"
-                placeholderTextColor="#64748b"
-              />
+              textField({
+                label: 'Máximo de retrofecha POS (horas)',
+                value: String(settingsForm.pos_max_backdate_hours ?? ''),
+                onChangeText: (v) => setSettingsField('pos_max_backdate_hours', v),
+                placeholder: 'Ej: 24',
+                keyboardType: 'numeric',
+              })
             ) : null}
             <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
               Solo administradores y gerentes podrán cambiar la fecha/hora de la venta. La retrofecha no puede exceder el límite configurado ni quedar antes de la apertura de caja.
@@ -259,30 +554,263 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
         {tab === 'invoicing' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Facturación</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.invoice_prefix || ''} onChangeText={(v) => setSettingsField('invoice_prefix', v)} placeholder="Prefijo factura" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.next_invoice_number ?? '')} onChangeText={(v) => setSettingsField('next_invoice_number', v)} placeholder="Siguiente consecutivo" keyboardType="numeric" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.print_format || ''} onChangeText={(v) => setSettingsField('print_format', v)} placeholder="Formato impresión (thermal/letter)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={String(settingsForm.thermal_paper_width ?? '')} onChangeText={(v) => setSettingsField('thermal_paper_width', v)} placeholder="Ancho papel térmico" keyboardType="numeric" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Prefijo de factura',
+              value: settingsForm.invoice_prefix || '',
+              onChangeText: (v) => setSettingsField('invoice_prefix', v),
+              placeholder: 'Ej: FAC',
+            })}
+            {textField({
+              label: 'Siguiente número de factura',
+              value: String(settingsForm.next_invoice_number ?? ''),
+              onChangeText: (v) => setSettingsField('next_invoice_number', v),
+              placeholder: 'Ej: 1',
+              keyboardType: 'numeric',
+            })}
+            {selectField({
+              label: 'Formato de impresión',
+              placeholder: 'Seleccionar formato',
+              value: settingsForm.print_format || 'thermal',
+              options: PRINT_FORMAT_OPTIONS,
+              onSelect: (nextValue) => setSettingsField('print_format', nextValue || 'thermal'),
+              helper: 'Tipo de impresora o salida POS.',
+            })}
+            {selectField({
+              label: 'Ancho papel térmico',
+              placeholder: 'Seleccionar ancho',
+              value: Number(settingsForm.thermal_paper_width || 80),
+              options: PAPER_WIDTH_OPTIONS,
+              onSelect: (nextValue) => setSettingsField('thermal_paper_width', Number(nextValue || 80)),
+              helper: 'Ancho del rollo para impresión térmica.',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Facturación electrónica habilitada</Text>
             {yesNoButton(Boolean(settingsForm.electronic_invoicing_enabled), (v) => setSettingsField('electronic_invoicing_enabled', v))}
 
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Datos Fiscales Emisor</Text>
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.dv || ''} onChangeText={(v) => setTenantField('dv', v)} placeholder="DV" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.trade_name || ''} onChangeText={(v) => setTenantField('trade_name', v)} placeholder="Nombre comercial" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.tax_regime || ''} onChangeText={(v) => setTenantField('tax_regime', v)} placeholder="Régimen DIAN (48,49,O-13,ZZ)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.ciiu_code || ''} onChangeText={(v) => setTenantField('ciiu_code', v)} placeholder="Código CIIU" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.fiscal_email || ''} onChangeText={(v) => setTenantField('fiscal_email', v)} placeholder="Email fiscal" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.fiscal_phone || ''} onChangeText={(v) => setTenantField('fiscal_phone', v)} placeholder="Teléfono fiscal" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'DV',
+              value: tenantForm.dv || '',
+              onChangeText: (v) => setTenantField('dv', v),
+              placeholder: 'Dígito de verificación',
+            })}
+            {textField({
+              label: 'Nombre comercial',
+              value: tenantForm.trade_name || '',
+              onChangeText: (v) => setTenantField('trade_name', v),
+              placeholder: 'Nombre comercial del emisor',
+            })}
+            {textField({
+              label: 'Régimen DIAN',
+              value: tenantForm.tax_regime || '',
+              onChangeText: (v) => setTenantField('tax_regime', v),
+              placeholder: 'Ej: 48, 49, O-13, ZZ',
+            })}
+            {textField({
+              label: 'Código CIIU',
+              value: tenantForm.ciiu_code || '',
+              onChangeText: (v) => setTenantField('ciiu_code', v),
+              placeholder: 'Actividad económica',
+            })}
+            {textField({
+              label: 'Email fiscal',
+              value: tenantForm.fiscal_email || '',
+              onChangeText: (v) => setTenantField('fiscal_email', v),
+              placeholder: 'correo@empresa.com',
+              autoCapitalize: 'none',
+            })}
+            {textField({
+              label: 'Teléfono fiscal',
+              value: tenantForm.fiscal_phone || '',
+              onChangeText: (v) => setTenantField('fiscal_phone', v),
+              placeholder: 'Ej: 3001234567',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Responsable IVA</Text>
             {yesNoButton(Boolean(tenantForm.is_responsible_for_iva), (v) => setTenantField('is_responsible_for_iva', v))}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Obligado a contabilidad</Text>
             {yesNoButton(Boolean(tenantForm.obligated_accounting), (v) => setTenantField('obligated_accounting', v))}
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.address || ''} onChangeText={(v) => setTenantField('address', v)} placeholder="Dirección fiscal" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.city || ''} onChangeText={(v) => setTenantField('city', v)} placeholder="Ciudad" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.department || ''} onChangeText={(v) => setTenantField('department', v)} placeholder="Departamento" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.country_code || ''} onChangeText={(v) => setTenantField('country_code', v)} placeholder="País (CO)" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.postal_code || ''} onChangeText={(v) => setTenantField('postal_code', v)} placeholder="Código postal" placeholderTextColor="#64748b" />
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={tenantForm.city_code || ''} onChangeText={(v) => setTenantField('city_code', v)} placeholder="Código DANE ciudad" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Dirección fiscal',
+              value: tenantForm.address || '',
+              onChangeText: (v) => setTenantField('address', v),
+              placeholder: 'Ej: Calle 68 # 95-30',
+            })}
+            {textField({
+              label: 'Ciudad',
+              value: tenantForm.city || '',
+              onChangeText: (v) => setTenantField('city', v),
+              placeholder: 'Ej: Bogotá',
+            })}
+            {textField({
+              label: 'Departamento',
+              value: tenantForm.department || '',
+              onChangeText: (v) => setTenantField('department', v),
+              placeholder: 'Ej: Cundinamarca',
+            })}
+            {textField({
+              label: 'País',
+              value: tenantForm.country_code || '',
+              onChangeText: (v) => setTenantField('country_code', v),
+              placeholder: 'Ej: CO',
+              autoCapitalize: 'characters',
+            })}
+            {textField({
+              label: 'Código postal',
+              value: tenantForm.postal_code || '',
+              onChangeText: (v) => setTenantField('postal_code', v),
+              placeholder: 'Código postal',
+            })}
+            {textField({
+              label: 'Código DANE ciudad',
+              value: tenantForm.city_code || '',
+              onChangeText: (v) => setTenantField('city_code', v),
+              placeholder: 'Ej: 11001',
+            })}
+
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Proveedor Tecnológico FE</Text>
+            <Text style={[styles.noticeText, isLightTheme && styles.noticeTextLight]}>
+              Esta configuración queda guardada para web/backend. La operación avanzada de FE todavía no se activa desde mobile.
+            </Text>
+            {textField({
+              label: 'Nombre del proveedor',
+              value: feProviderForm.provider_name || '',
+              onChangeText: (v) => setFeProviderField('provider_name', v),
+              placeholder: 'Ej: Gosocket',
+            })}
+            {textField({
+              label: 'URL base API',
+              value: feProviderForm.base_url || '',
+              onChangeText: (v) => setFeProviderField('base_url', v),
+              placeholder: 'https://api.proveedor.co/v1',
+              autoCapitalize: 'none',
+            })}
+            {selectField({
+              label: 'Tipo de autenticación FE',
+              placeholder: 'Seleccionar autenticación',
+              value: feProviderForm.auth_type || 'apikey',
+              options: FE_AUTH_TYPE_OPTIONS,
+              onSelect: (nextValue) => setFeProviderField('auth_type', nextValue || 'apikey'),
+            })}
+            {feProviderForm.auth_type === 'apikey' ? (
+              textField({
+                label: 'Header de autenticación',
+                value: feProviderForm.auth_header || '',
+                onChangeText: (v) => setFeProviderField('auth_header', v),
+                placeholder: 'Ej: X-API-Key',
+                autoCapitalize: 'none',
+              })
+            ) : null}
+            {textField({
+              label: feProviderForm.auth_type === 'basic' ? 'Usuario:Contraseña' : 'API Key / Token',
+              value: feProviderForm.api_key || '',
+              onChangeText: (v) => setFeProviderField('api_key', v),
+              placeholder: feProviderForm.auth_type === 'basic' ? 'usuario:clave' : 'Credencial del proveedor',
+              secureTextEntry: true,
+            })}
+            {textField({
+              label: 'Software ID (DIAN)',
+              value: feProviderForm.software_id || '',
+              onChangeText: (v) => setFeProviderField('software_id', v),
+              placeholder: 'ID del software',
+            })}
+            {textField({
+              label: 'Software PIN (DIAN)',
+              value: feProviderForm.software_pin || '',
+              onChangeText: (v) => setFeProviderField('software_pin', v),
+              placeholder: 'PIN del software',
+              secureTextEntry: true,
+            })}
+            {selectField({
+              label: 'Ambiente FE',
+              placeholder: 'Seleccionar ambiente',
+              value: feProviderForm.environment || 'habilitacion',
+              options: FE_ENVIRONMENT_OPTIONS,
+              onSelect: (nextValue) => setFeProviderField('environment', nextValue || 'habilitacion'),
+            })}
+            {feProviderForm.environment === 'habilitacion' ? (
+              textField({
+                label: 'Test Set ID',
+                value: feProviderForm.test_set_id || '',
+                onChangeText: (v) => setFeProviderField('test_set_id', v),
+                placeholder: 'Identificador de pruebas DIAN',
+              })
+            ) : null}
+            {textField({
+              label: 'Timeout (segundos)',
+              value: String(feProviderForm.timeout_seconds ?? ''),
+              onChangeText: (v) => setFeProviderField('timeout_seconds', v),
+              placeholder: 'Ej: 30',
+              keyboardType: 'numeric',
+            })}
+
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Resolución DIAN Activa</Text>
+            {selectField({
+              label: 'Tipo de documento FE',
+              placeholder: 'Seleccionar documento',
+              value: invoiceResolutionForm.document_type || 'FE',
+              options: FE_DOCUMENT_TYPE_OPTIONS,
+              onSelect: (nextValue) => setInvoiceResolutionField('document_type', nextValue || 'FE'),
+            })}
+            {textField({
+              label: 'Prefijo autorizado',
+              value: invoiceResolutionForm.prefix || '',
+              onChangeText: (v) => setInvoiceResolutionField('prefix', v),
+              placeholder: 'Ej: FE',
+            })}
+            {textField({
+              label: 'Desde #',
+              value: String(invoiceResolutionForm.from_number ?? ''),
+              onChangeText: (v) => setInvoiceResolutionField('from_number', v),
+              placeholder: 'Ej: 1',
+              keyboardType: 'numeric',
+            })}
+            {textField({
+              label: 'Hasta #',
+              value: String(invoiceResolutionForm.to_number ?? ''),
+              onChangeText: (v) => setInvoiceResolutionField('to_number', v),
+              placeholder: 'Ej: 1000',
+              keyboardType: 'numeric',
+            })}
+            {textField({
+              label: 'Último consecutivo usado',
+              value: String(invoiceResolutionForm.current_number ?? ''),
+              onChangeText: (v) => setInvoiceResolutionField('current_number', v),
+              placeholder: 'Ej: 0',
+              keyboardType: 'numeric',
+            })}
+            {textField({
+              label: 'Número de resolución DIAN',
+              value: invoiceResolutionForm.resolution_number || '',
+              onChangeText: (v) => setInvoiceResolutionField('resolution_number', v),
+              placeholder: 'Número oficial',
+            })}
+            {textField({
+              label: 'Fecha de resolución',
+              value: invoiceResolutionForm.resolution_date || '',
+              onChangeText: (v) => setInvoiceResolutionField('resolution_date', v),
+              placeholder: 'YYYY-MM-DD',
+              autoCapitalize: 'none',
+            })}
+            {textField({
+              label: 'Vigencia desde',
+              value: invoiceResolutionForm.valid_from || '',
+              onChangeText: (v) => setInvoiceResolutionField('valid_from', v),
+              placeholder: 'YYYY-MM-DD',
+              autoCapitalize: 'none',
+            })}
+            {textField({
+              label: 'Vigencia hasta',
+              value: invoiceResolutionForm.valid_to || '',
+              onChangeText: (v) => setInvoiceResolutionField('valid_to', v),
+              placeholder: 'YYYY-MM-DD',
+              autoCapitalize: 'none',
+            })}
+            {textField({
+              label: 'Clave técnica DIAN',
+              value: invoiceResolutionForm.technical_key || '',
+              onChangeText: (v) => setInvoiceResolutionField('technical_key', v),
+              placeholder: 'Clave técnica entregada por DIAN',
+              multiline: true,
+            })}
           </View>
         ) : null}
 
@@ -291,7 +819,13 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Notificaciones</Text>
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Alertas por email</Text>
             {yesNoButton(Boolean(settingsForm.email_alerts_enabled), (v) => setSettingsField('email_alerts_enabled', v))}
-            <TextInput style={[styles.input, isLightTheme && styles.inputLight]} value={settingsForm.alert_email || ''} onChangeText={(v) => setSettingsField('alert_email', v)} placeholder="Email alertas" placeholderTextColor="#64748b" />
+            {textField({
+              label: 'Email para alertas',
+              value: settingsForm.alert_email || '',
+              onChangeText: (v) => setSettingsField('alert_email', v),
+              placeholder: 'correo@empresa.com',
+              autoCapitalize: 'none',
+            })}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Notificar stock bajo</Text>
             {yesNoButton(Boolean(settingsForm.notify_low_stock), (v) => setSettingsField('notify_low_stock', v))}
             <Text style={[styles.inlineLabel, isLightTheme && styles.inlineLabelLight]}>Notificar productos por vencer</Text>
@@ -315,6 +849,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#060b16', padding: 12 },
   containerLight: { backgroundColor: '#edf2fb' },
   filtersBlock: { marginBottom: 8 },
+  selectBlock: { marginTop: 8 },
+  fieldBlock: { marginTop: 8 },
   filtersScroll: { maxHeight: 44, marginBottom: 8 },
   chipsRow: { flexDirection: 'row', gap: 6 },
   filterChip: {
@@ -344,10 +880,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { color: '#f8fafc', fontSize: 15, fontWeight: '700', marginBottom: 6, marginTop: 4 },
   sectionTitleLight: { color: '#0f172a' },
+  fieldLabel: { color: '#e2e8f0', fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  fieldLabelLight: { color: '#334155' },
   inlineLabel: { color: '#cbd5e1', fontSize: 12, marginTop: 8, marginBottom: 4 },
   inlineLabelLight: { color: '#475569' },
   helperText: { color: '#94a3b8', fontSize: 12, lineHeight: 18, marginTop: 2 },
   helperTextLight: { color: '#64748b' },
+  noticeText: {
+    color: '#93c5fd',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  noticeTextLight: {
+    color: '#235ea9',
+  },
   input: {
     minHeight: 42,
     borderRadius: 8,

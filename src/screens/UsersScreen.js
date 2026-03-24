@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import MultiSelectField from '../components/MultiSelectField';
 import PaginatedList from '../components/PaginatedList';
 import { COMMON_TEXT } from '../constants/uiText';
@@ -290,6 +291,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Nuevo" onPress={openCreate} />}
         renderItem={(item) => (
           <View key={item.user_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.full_name || '-'}</Text>
@@ -320,10 +322,6 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
           </View>
         )}
       />
-
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openCreate}>
-        <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Nuevo</Text>
-      </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>

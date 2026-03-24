@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { COMMON_TEXT } from '../constants/uiText';
@@ -324,6 +325,7 @@ export default function ThirdPartiesScreen({
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="Nuevo" onPress={openCreate} />}
         renderItem={(item) => (
           <View key={item.third_party_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.name, isLightTheme && styles.nameLight]}>{item.legal_name}</Text>
@@ -362,13 +364,6 @@ export default function ThirdPartiesScreen({
           </View>
         )}
       />
-
-      <Pressable style={styles.fab} onPress={openCreate}>
-        <View style={styles.btnContentRow}>
-          <Ionicons name="add-circle-outline" size={16} color="#062915" />
-          <Text style={styles.fabText}>Nuevo</Text>
-        </View>
-      </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>

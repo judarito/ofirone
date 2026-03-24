@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -188,6 +189,7 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Nueva" onPress={openCreate} />}
         renderItem={(item) => (
           <View key={item.cash_register_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
@@ -208,10 +210,6 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
           </View>
         )}
       />
-
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openCreate}>
-        <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Nueva</Text>
-      </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>

@@ -6,18 +6,17 @@ import {
   AppState,
   Appearance,
   ActivityIndicator,
-  Dimensions,
   Image,
   Modal,
   Platform,
   Pressable,
   StatusBar as RNStatusBar,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './src/lib/supabase';
 import { ThemeModeProvider } from './src/lib/themeMode';
 import { normalizeThemePreference, resolveThemeMode } from './src/lib/themePreferences';
@@ -73,6 +72,7 @@ import {
   subscribeToPushForeground,
   subscribeToPushResponses,
 } from './src/services/pushNotifications.service';
+import { preloadUiSounds, releaseUiSounds } from './src/services/soundFeedback.service';
 import {
   getCurrentUserOpenSession,
   getPaymentMethodsForDropdown,
@@ -186,29 +186,6 @@ function resolveMenuIcon(item) {
 function resolveMenuAccent(item) {
   const target = String(item?.targetScreen || '').trim();
   return SCREEN_ACCENT_MAP[target] || SCREEN_ACCENT_COLORS.fallback;
-}
-
-function getAndroidNavigationBottomInset() {
-  if (Platform.OS !== 'android') return 0;
-
-  const screen = Dimensions.get('screen');
-  const window = Dimensions.get('window');
-  const screenHeight = Number(screen?.height || 0);
-  const screenWidth = Number(screen?.width || 0);
-  const windowHeight = Number(window?.height || 0);
-  const statusBarInset = Number(RNStatusBar.currentHeight || 0);
-
-  if (screenHeight <= 0 || windowHeight <= 0) return 0;
-
-  // On classic Android 3-button navigation, the vertical gap usually includes
-  // both status bar and navigation bar. We remove the top inset to keep only
-  // the bottom safe breathing room we need for fixed footers.
-  const verticalInset = Math.max(0, screenHeight - windowHeight);
-  const bottomInset = screenHeight >= screenWidth
-    ? Math.max(0, verticalInset - statusBarInset)
-    : 0;
-
-  return bottomInset;
 }
 
 const HOME_BAR_COLORS = HOME_BAR_THEME_COLORS;
@@ -421,9 +398,13 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
   }
 });
 
-export default function App() {
-  const androidTopInset = Platform.OS === 'android' ? RNStatusBar.currentHeight || 0 : 0;
-  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
+function AppContent() {
+  const insets = useSafeAreaInsets();
+  const safeAreaTopInset = Math.max(
+    Platform.OS === 'android' ? Number(RNStatusBar.currentHeight || 0) : 0,
+    Number(insets?.top || 0),
+  );
+  const safeAreaBottomInset = Math.max(0, Number(insets?.bottom || 0));
 
   const [session, setSession] = useState(null);
   const [loadingBoot, setLoadingBoot] = useState(true);
@@ -464,17 +445,9 @@ export default function App() {
   const connectivityFailuresRef = useRef(0);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-
-    const updateInsets = () => {
-      setAndroidBottomInset(getAndroidNavigationBottomInset());
-    };
-
-    updateInsets();
-    const subscription = Dimensions.addEventListener('change', updateInsets);
-
+    preloadUiSounds();
     return () => {
-      subscription?.remove?.();
+      releaseUiSounds();
     };
   }, []);
 
@@ -741,12 +714,13 @@ export default function App() {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), CONNECTIVITY_TIMEOUT_MS);
       try {
-        const response = await fetch(`${baseUrl}/rest/v1/`, {
+        // Usa un health endpoint publico en vez del root de PostgREST para
+        // evitar depender del acceso anonimo al esquema OpenAPI.
+        const response = await fetch(`${baseUrl}/auth/v1/health`, {
           method: 'GET',
           headers: anonKey
             ? {
                 apikey: anonKey,
-                Authorization: `Bearer ${anonKey}`,
               }
             : undefined,
           signal: controller.signal,
@@ -1661,9 +1635,9 @@ export default function App() {
   if (loadingBoot || loadingProfile) {
     return (
       <ThemeModeProvider mode={themeMode}>
-        <SafeAreaView style={styles.centered}>
+        <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.centered}>
           <ActivityIndicator size="large" color={SCREEN_ACCENT_COLORS.Sales} />
-            <Text style={styles.loadingText}>Inicializando app offline-first...</Text>
+          <Text style={styles.loadingText}>Inicializando app offline-first...</Text>
           <StatusBar style="auto" />
         </SafeAreaView>
       </ThemeModeProvider>
@@ -1671,6 +1645,7 @@ export default function App() {
   }
 
   const isLightTheme = themeMode === 'light';
+  const appContentBottomInset = safeAreaBottomInset;
 
   if (!session && !offlineMode) {
     return (
@@ -1694,7 +1669,7 @@ export default function App() {
 
   return (
     <ThemeModeProvider mode={themeMode}>
-      <SafeAreaView style={isLightTheme ? styles.root : styles.rootDark}>
+      <SafeAreaView edges={['left', 'right']} style={isLightTheme ? styles.root : styles.rootDark}>
       <View
         pointerEvents="none"
         style={[styles.brandGlowTop, isLightTheme ? styles.brandGlowTopLight : null]}
@@ -1708,8 +1683,8 @@ export default function App() {
           styles.appBar,
           isLightTheme ? styles.appBarLight : null,
           {
-            paddingTop: androidTopInset,
-            height: 68 + androidTopInset,
+            paddingTop: safeAreaTopInset,
+            height: 68 + safeAreaTopInset,
           },
         ]}
       >
@@ -1812,7 +1787,7 @@ export default function App() {
               </View>
             </Pressable>
 
-            <ScrollView contentContainerStyle={[styles.menuContent, { paddingBottom: 30 + androidBottomInset }]}>
+            <ScrollView contentContainerStyle={[styles.menuContent, { paddingBottom: 30 + appContentBottomInset }]}>
               {(menuTree || []).length === 0 ? (
                 <Text style={[styles.menuEmptyText, isLightTheme ? null : styles.menuEmptyTextDark]}>{APP_TEXT.noMenuAvailable}</Text>
               ) : null}
@@ -1945,7 +1920,7 @@ export default function App() {
               style={[
                 styles.menuFooter,
                 isLightTheme ? null : styles.menuFooterDark,
-                { paddingBottom: 10 + androidBottomInset },
+                { paddingBottom: 10 + appContentBottomInset },
               ]}
             >
               <Pressable onPress={handleLogout} style={[styles.menuLogoutBtn, isLightTheme ? null : styles.menuLogoutBtnDark]}>
@@ -2026,6 +2001,12 @@ export default function App() {
         </View>
       </Modal>
 
+      <View
+        style={[
+          styles.moduleShell,
+          appContentBottomInset > 0 ? { paddingBottom: appContentBottomInset } : null,
+        ]}
+      >
       {currentScreen === 'Home' ? (
         <View style={styles.homeScreenContainer}>
           <ScrollView
@@ -2033,7 +2014,7 @@ export default function App() {
               styles.homeScrollDark,
               styles.homeScrollWithDock,
               isLightTheme && styles.homeScrollLight,
-              { paddingBottom: 124 + androidBottomInset },
+              { paddingBottom: 110 + Math.min(appContentBottomInset, 20) },
             ]}
           >
             <View style={styles.homeWrap}>
@@ -2204,7 +2185,7 @@ export default function App() {
               styles.mobileBottomDock,
               styles.mobileBottomDockFixed,
               isLightTheme && styles.mobileBottomDockLight,
-              { bottom: 10 + androidBottomInset },
+              { bottom: 10 + Math.min(appContentBottomInset, 18) },
             ]}
           >
             <Pressable style={styles.mobileDockSideBtn} onPress={() => navigateToScreen('AIInsights', { routeHint: '/ai-insights' })}>
@@ -2243,6 +2224,7 @@ export default function App() {
           handleLocalThemeChange={handleLocalThemeChange}
         />
       )}
+      </View>
       <StatusBar
         style={isLightTheme ? 'dark' : 'light'}
         backgroundColor={isLightTheme ? APP_THEME_COLORS.light.statusBarBackground : APP_THEME_COLORS.dark.statusBarBackground}
@@ -2250,6 +2232,14 @@ export default function App() {
       />
       </SafeAreaView>
     </ThemeModeProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
   );
 }
 
@@ -2867,6 +2857,9 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   homeScreenContainer: {
+    flex: 1,
+  },
+  moduleShell: {
     flex: 1,
   },
   homeScrollWithDock: {

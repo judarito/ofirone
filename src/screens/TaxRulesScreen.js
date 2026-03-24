@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import CollapsibleFilterSection from '../components/CollapsibleFilterSection';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { COMMON_TEXT } from '../constants/uiText';
@@ -109,6 +111,15 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
       });
     },
   });
+
+  const activeFilterCount = [filters?.scope, filters?.tax_id, filters?.status && filters.status !== 'ALL' ? filters.status : '']
+    .filter(Boolean)
+    .length;
+  const filterSummaryParts = [];
+  if (filters?.scope) filterSummaryParts.push(`Alcance: ${SCOPE_OPTIONS.find((entry) => entry.key === filters.scope)?.label || filters.scope}`);
+  if (filters?.tax_id) filterSummaryParts.push('Impuesto filtrado');
+  if (filters?.status && filters.status !== 'ALL') filterSummaryParts.push(`Estado: ${filters.status}`);
+  const filterSummary = filterSummaryParts.length ? filterSummaryParts.join(' · ') : 'Mostrar filtros';
 
   useEffect(() => {
     let active = true;
@@ -289,44 +300,52 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
-      <View style={styles.filtersRow}>
-        <View style={styles.filterCell}>
-          <SearchableSelectField
-            title="Alcance"
-            options={SCOPE_OPTIONS}
-            selectedKey={filters?.scope || null}
-            onSelect={(value) => updateFilters({ scope: value || '' })}
-            placeholder="Todos"
-            clearLabel="Todos"
-            themeMode={themeMode}
-          />
+      <CollapsibleFilterSection
+        title="Filtros"
+        themeMode={themeMode}
+        defaultCollapsed
+        activeCount={activeFilterCount}
+        summary={filterSummary}
+      >
+        <View style={styles.filtersRow}>
+          <View style={styles.filterCell}>
+            <SearchableSelectField
+              title="Alcance"
+              options={SCOPE_OPTIONS}
+              selectedKey={filters?.scope || null}
+              onSelect={(value) => updateFilters({ scope: value || '' })}
+              placeholder="Todos"
+              clearLabel="Todos"
+              themeMode={themeMode}
+            />
+          </View>
+          <View style={styles.filterCell}>
+            <SearchableSelectField
+              title="Impuesto"
+              options={taxOptions}
+              selectedKey={filters?.tax_id || null}
+              onSelect={(value) => updateFilters({ tax_id: value || '' })}
+              placeholder="Todos"
+              clearLabel="Todos"
+              themeMode={themeMode}
+            />
+          </View>
         </View>
-        <View style={styles.filterCell}>
-          <SearchableSelectField
-            title="Impuesto"
-            options={taxOptions}
-            selectedKey={filters?.tax_id || null}
-            onSelect={(value) => updateFilters({ tax_id: value || '' })}
-            placeholder="Todos"
-            clearLabel="Todos"
-            themeMode={themeMode}
-          />
-        </View>
-      </View>
 
-      <View style={styles.filtersRow}>
-        <View style={styles.filterCell}>
-          <SearchableSelectField
-            title="Estado"
-            options={STATUS_OPTIONS}
-            selectedKey={filters?.status || 'ALL'}
-            onSelect={(value) => updateFilters({ status: value || 'ALL' })}
-            placeholder="Todos"
-            clearLabel="Todos"
-            themeMode={themeMode}
-          />
+        <View style={styles.filtersRow}>
+          <View style={styles.filterCell}>
+            <SearchableSelectField
+              title="Estado"
+              options={STATUS_OPTIONS}
+              selectedKey={filters?.status || 'ALL'}
+              onSelect={(value) => updateFilters({ status: value || 'ALL' })}
+              placeholder="Todos"
+              clearLabel="Todos"
+              themeMode={themeMode}
+            />
+          </View>
         </View>
-      </View>
+      </CollapsibleFilterSection>
 
       <PaginatedList
         themeMode={themeMode}
@@ -346,6 +365,7 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Nueva" onPress={openCreate} />}
         renderItem={(item) => (
           <View key={item.tax_rule_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>
@@ -366,10 +386,6 @@ export default function TaxRulesScreen({ tenant, offlineMode, pageSize = 20 }) {
           </View>
         )}
       />
-
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openCreate}>
-        <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Nueva</Text>
-      </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>

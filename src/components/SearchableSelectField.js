@@ -1,17 +1,14 @@
 import { useMemo, useState } from 'react';
 import {
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import BottomSheetModal from './BottomSheetModal';
 import { COMMON_TEXT } from '../constants/uiText';
-import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
 export default function SearchableSelectField({
@@ -28,7 +25,6 @@ export default function SearchableSelectField({
   allowClear = true,
 }) {
   const isLightTheme = themeMode === 'light';
-  const androidBottomInset = useAndroidBottomInset();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -69,13 +65,21 @@ export default function SearchableSelectField({
         <Text style={[styles.chevron, isLightTheme && styles.chevronLight]}>▼</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
-        <KeyboardAvoidingView
-          style={styles.overlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-        >
-          <View style={[styles.sheet, isLightTheme && styles.sheetLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+      <BottomSheetModal
+        visible={open}
+        onClose={close}
+        themeMode={themeMode}
+        maxHeight="78%"
+        scrollable={false}
+        sheetStyle={styles.sheet}
+        contentContainerStyle={styles.sheetContent}
+        footer={(
+          <Pressable onPress={close} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
+            <Text style={styles.closeBtnText}>{COMMON_TEXT.close}</Text>
+          </Pressable>
+        )}
+      >
+        <View style={[styles.sheetContent, isLightTheme && styles.sheetContentLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>
               {title || COMMON_TEXT.select}
             </Text>
@@ -94,8 +98,8 @@ export default function SearchableSelectField({
               keyExtractor={(item) => String(item.key)}
               style={styles.list}
               keyboardShouldPersistTaps="handled"
-              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-              contentContainerStyle={[styles.listContent, { paddingBottom: 8 + androidBottomInset }]}
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={styles.listContent}
               renderItem={({ item }) => {
                 const active =
                   allowClear && item.key === '__clear__'
@@ -116,13 +120,8 @@ export default function SearchableSelectField({
                 <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>{COMMON_TEXT.noResults}</Text>
               }
             />
-
-            <Pressable onPress={close} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
-              <Text style={styles.closeBtnText}>{COMMON_TEXT.close}</Text>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -158,21 +157,15 @@ const styles = StyleSheet.create({
   triggerTextLight: { color: COMPONENT_THEME_COLORS.selectableField.light.triggerText },
   chevron: { color: COMPONENT_THEME_COLORS.selectableField.dark.chevron, fontSize: 11 },
   chevronLight: { color: COMPONENT_THEME_COLORS.selectableField.light.chevron },
-  overlay: { flex: 1, backgroundColor: COMPONENT_THEME_COLORS.shared.modalOverlay, justifyContent: 'flex-end' },
   sheet: {
     height: '78%',
-    backgroundColor: COMPONENT_THEME_COLORS.selectableField.dark.sheetBackground,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderTopWidth: 1,
-    borderColor: COMPONENT_THEME_COLORS.selectableField.dark.sheetBorder,
-    padding: 14,
     gap: 10,
   },
-  sheetLight: {
-    backgroundColor: COMPONENT_THEME_COLORS.selectableField.light.sheetBackground,
-    borderColor: COMPONENT_THEME_COLORS.selectableField.light.sheetBorder,
+  sheetContent: {
+    flex: 1,
+    gap: 10,
   },
+  sheetContentLight: {},
   title: { color: COMPONENT_THEME_COLORS.selectableField.dark.title, fontSize: 17, fontWeight: '800' },
   titleLight: { color: COMPONENT_THEME_COLORS.selectableField.light.title },
   searchInput: {
@@ -222,6 +215,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COMPONENT_THEME_COLORS.selectableField.dark.closeBtnBorder,
     marginTop: 4,
+  },
+  closeBtnLight: {
+    borderColor: COMPONENT_THEME_COLORS.selectableField.light.sheetBorder,
+    backgroundColor: COMPONENT_THEME_COLORS.selectableField.light.sheetBackground,
   },
   closeBtnText: { color: COMPONENT_THEME_COLORS.selectableField.dark.closeBtnText, fontWeight: '700' },
 });

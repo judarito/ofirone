@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import CollapsibleFilterSection from '../components/CollapsibleFilterSection';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -94,6 +96,15 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
     },
   });
 
+  const activeFilterCount = [filters?.user_id, filters?.location_id, filters?.is_active === false ? 'false' : '']
+    .filter(Boolean)
+    .length;
+  const assignmentSummaryParts = [];
+  if (filters?.user_id) assignmentSummaryParts.push('Cajero filtrado');
+  if (filters?.location_id) assignmentSummaryParts.push('Sede filtrada');
+  if (filters?.is_active === false) assignmentSummaryParts.push('Inactivas');
+  const assignmentSummary = assignmentSummaryParts.length ? assignmentSummaryParts.join(' · ') : 'Mostrar filtros';
+
   useEffect(() => {
     const loadLookups = async () => {
       if (!tenant?.tenant_id) return;
@@ -172,60 +183,68 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
-      <View style={styles.filtersBlock}>
-        <SearchableSelectField
-          title="Cajero"
-          themeMode={themeMode}
-          valueLabel="Todos los cajeros"
-          clearLabel="Todos los cajeros"
-          placeholder="Todos los cajeros"
-          searchPlaceholder="Buscar cajero..."
-          options={userSelectOptions}
-          selectedKey={filters?.user_id || ''}
-          onSelect={(nextValue) => updateFilters({ user_id: nextValue || '' })}
-        />
-      </View>
+      <CollapsibleFilterSection
+        title="Filtros"
+        themeMode={themeMode}
+        defaultCollapsed
+        activeCount={activeFilterCount}
+        summary={assignmentSummary}
+      >
+        <View style={styles.filtersBlock}>
+          <SearchableSelectField
+            title="Cajero"
+            themeMode={themeMode}
+            valueLabel="Todos los cajeros"
+            clearLabel="Todos los cajeros"
+            placeholder="Todos los cajeros"
+            searchPlaceholder="Buscar cajero..."
+            options={userSelectOptions}
+            selectedKey={filters?.user_id || ''}
+            onSelect={(nextValue) => updateFilters({ user_id: nextValue || '' })}
+          />
+        </View>
 
-      <View style={styles.filtersBlock}>
-        <SearchableSelectField
-          title="Sede"
-          themeMode={themeMode}
-          valueLabel="Todas las sedes"
-          clearLabel="Todas las sedes"
-          placeholder="Todas las sedes"
-          searchPlaceholder="Buscar sede..."
-          options={locationSelectOptions}
-          selectedKey={filters?.location_id || ''}
-          onSelect={(nextValue) => updateFilters({ location_id: nextValue || '' })}
-        />
-      </View>
+        <View style={styles.filtersBlock}>
+          <SearchableSelectField
+            title="Sede"
+            themeMode={themeMode}
+            valueLabel="Todas las sedes"
+            clearLabel="Todas las sedes"
+            placeholder="Todas las sedes"
+            searchPlaceholder="Buscar sede..."
+            options={locationSelectOptions}
+            selectedKey={filters?.location_id || ''}
+            onSelect={(nextValue) => updateFilters({ location_id: nextValue || '' })}
+          />
+        </View>
 
-      <View style={styles.filtersBlock}>
-        <SearchableSelectField
-          title="Estado asignacion"
-          themeMode={themeMode}
-          valueLabel="Activas"
-          clearLabel="Todas"
-          placeholder="Estado"
-          searchPlaceholder="Buscar estado..."
-          options={ACTIVE_FILTERS.filter((opt) => opt.value !== null).map((opt) => ({
-            key: String(opt.value),
-            label: opt.label,
-          }))}
-          selectedKey={filters?.is_active === true ? 'true' : filters?.is_active === false ? 'false' : ''}
-          onSelect={(nextValue) => {
-            if (nextValue === 'true') {
-              updateFilters({ is_active: true });
-              return;
-            }
-            if (nextValue === 'false') {
-              updateFilters({ is_active: false });
-              return;
-            }
-            updateFilters({ is_active: null });
-          }}
-        />
-      </View>
+        <View style={styles.filtersBlock}>
+          <SearchableSelectField
+            title="Estado asignacion"
+            themeMode={themeMode}
+            valueLabel="Activas"
+            clearLabel="Todas"
+            placeholder="Estado"
+            searchPlaceholder="Buscar estado..."
+            options={ACTIVE_FILTERS.filter((opt) => opt.value !== null).map((opt) => ({
+              key: String(opt.value),
+              label: opt.label,
+            }))}
+            selectedKey={filters?.is_active === true ? 'true' : filters?.is_active === false ? 'false' : ''}
+            onSelect={(nextValue) => {
+              if (nextValue === 'true') {
+                updateFilters({ is_active: true });
+                return;
+              }
+              if (nextValue === 'false') {
+                updateFilters({ is_active: false });
+                return;
+              }
+              updateFilters({ is_active: null });
+            }}
+          />
+        </View>
+      </CollapsibleFilterSection>
 
       <PaginatedList
         themeMode={themeMode}
@@ -245,6 +264,7 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Asignar" onPress={openAssignDialog} />}
         renderItem={(item) => (
           <View key={item.assignment_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.user_name || 'Cajero'}</Text>
@@ -261,10 +281,6 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
           </View>
         )}
       />
-
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openAssignDialog}>
-        <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Asignar</Text>
-      </Pressable>
 
       <Modal visible={dialogOpen} transparent animationType="slide" onRequestClose={() => setDialogOpen(false)}>
         <View style={styles.modalOverlay}>

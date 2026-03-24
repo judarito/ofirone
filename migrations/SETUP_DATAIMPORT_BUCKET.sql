@@ -24,8 +24,8 @@ AS $$
   LIMIT 1;
 $$;
 
--- Activar RLS sobre storage.objects (Supabase storage)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- storage.objects ya es administrada por Supabase y este ALTER puede fallar
+-- con "must be owner of table objects" en algunos proyectos/roles.
 
 -- POLÍTICAS: permitir sólo al tenant propietario acceder al bucket dataimport
 DROP POLICY IF EXISTS "dataimport_select" ON storage.objects;

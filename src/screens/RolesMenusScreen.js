@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import MultiSelectField from '../components/MultiSelectField';
 import PaginatedList from '../components/PaginatedList';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -352,6 +353,7 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Nuevo" onPress={openCreateRole} />}
         renderItem={(item) => (
           <View key={item.role_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
@@ -375,10 +377,6 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
           </View>
         )}
       />
-
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openCreateRole}>
-        <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Nuevo</Text>
-      </Pressable>
 
       <Modal visible={roleModalOpen} transparent animationType="slide" onRequestClose={() => setRoleModalOpen(false)}>
         <View style={styles.modalOverlay}>

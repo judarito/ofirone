@@ -1,6 +1,5 @@
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COMMON_TEXT } from '../constants/uiText';
-import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { COMPONENT_THEME_COLORS } from '../theme/colors';
 
@@ -24,10 +23,9 @@ export default function PaginatedList({
   bottomInset = 0,
 }) {
   const contextThemeMode = useThemeMode();
-  const androidBottomInset = useAndroidBottomInset();
   const resolvedThemeMode = themeMode || contextThemeMode || 'dark';
   const isLightTheme = resolvedThemeMode === 'light';
-  const resolvedBottomInset = bottomInset > 0 ? bottomInset : androidBottomInset;
+  const footerBottomGap = bottomInset > 0 ? Math.min(8, Math.round(Number(bottomInset || 0) / 6)) : 0;
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={[styles.surface, isLightTheme && styles.surfaceLight]}>
@@ -63,7 +61,7 @@ export default function PaginatedList({
 
         {footerMeta ? <Text style={[styles.meta, isLightTheme && styles.metaLight]}>{footerMeta}</Text> : null}
 
-        <View style={[styles.pagination, resolvedBottomInset > 0 && { paddingBottom: 10 + resolvedBottomInset }]}>
+        <View style={[styles.pagination, footerBottomGap > 0 && { marginBottom: footerBottomGap }]}>
           <Pressable style={[styles.pageBtn, isLightTheme && styles.pageBtnLight, page <= 1 && styles.disabled]} onPress={onPrev} disabled={page <= 1}>
             <Text style={[styles.pageBtnText, isLightTheme && styles.pageBtnTextLight]}>{COMMON_TEXT.previous}</Text>
           </Pressable>
@@ -96,8 +94,15 @@ const styles = StyleSheet.create({
     borderColor: COMPONENT_THEME_COLORS.paginatedList.light.surfaceBorder,
     backgroundColor: COMPONENT_THEME_COLORS.paginatedList.light.surfaceBackground,
   },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
-  title: { color: COMPONENT_THEME_COLORS.paginatedList.dark.title, fontSize: 20, fontWeight: '800' },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  title: { color: COMPONENT_THEME_COLORS.paginatedList.dark.title, fontSize: 20, fontWeight: '800', flexShrink: 1 },
   titleLight: { color: COMPONENT_THEME_COLORS.paginatedList.light.title },
   list: { flex: 1 },
   listContent: { paddingBottom: 6 },

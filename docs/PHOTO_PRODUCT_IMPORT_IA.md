@@ -1,5 +1,10 @@
 # Carga De Productos Por Foto (IA)
 
+Nota:
+- Este documento cubre la carga masiva de productos desde una foto de hoja/factura.
+- No cubre la galeria de fotos por producto dentro de `ProductsScreen`.
+- Para ese flujo ver `docs/PRODUCT_PHOTOS_AI_SETUP.md`.
+
 ## Objetivo
 Permitir cargar productos desde una foto de una hoja escrita, usando OCR + IA, con previsualizacion editable antes de importar a catalogo.
 

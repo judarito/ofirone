@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -14,10 +13,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheetModal from '../components/BottomSheetModal';
+import CollapsibleFilterSection from '../components/CollapsibleFilterSection';
 import DatePickerField from '../components/DatePickerField';
 import PaginatedList from '../components/PaginatedList';
 import { usePaginatedList } from '../hooks/usePaginatedList';
-import { getAndroidNavigationBottomInset } from '../lib/androidInsets';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { getLatestPageCache, getPageCache } from '../services/offlineCache.service';
 import { listLocations } from '../services/inventoryCatalog.service';
@@ -151,7 +152,7 @@ export default function SalesHistoryScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
-  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
+  const androidBottomInset = useAndroidBottomInset();
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -268,21 +269,6 @@ export default function SalesHistoryScreen({
       };
     },
   });
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-
-    const updateInsets = () => {
-      setAndroidBottomInset(getAndroidNavigationBottomInset());
-    };
-
-    updateInsets();
-    const subscription = Dimensions.addEventListener('change', updateInsets);
-
-    return () => {
-      subscription?.remove?.();
-    };
-  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -919,7 +905,6 @@ export default function SalesHistoryScreen({
   const modalBodyStyles = [
     styles.modalBody,
     isLightTheme && styles.modalBodyLight,
-    { paddingBottom: 14 + Math.max(androidBottomInset, 8) },
   ];
   const modalTitleStyles = [styles.modalTitle, isLightTheme && styles.modalTitleLight];
   const modalMetaLineStyles = [styles.metaLine, isLightTheme && styles.metaLineLight];
@@ -936,161 +921,178 @@ export default function SalesHistoryScreen({
   const closeBtnStyles = [
     styles.closeBtn,
     isLightTheme && styles.closeBtnLight,
-    { marginBottom: Math.max(0, androidBottomInset - 4) },
   ];
   const voidModalCardStyles = [styles.voidModalCard, isLightTheme && styles.voidModalCardLight];
+  const androidFilterSurfaceReset = Platform.OS === 'android' ? styles.filterSurfaceAndroid : null;
+  const activeFilterCount = [filters?.status, filters?.location_id, filters?.from_date, filters?.to_date].filter(Boolean).length;
+  const filtersSummaryParts = [];
+  if (filters?.status) filtersSummaryParts.push(`Estado: ${selectedStatusLabel}`);
+  if (activeDateFilterKey !== 'all') filtersSummaryParts.push(`Periodo: ${selectedDateLabel}`);
+  if (filters?.location_id) filtersSummaryParts.push(`Sede: ${selectedLocationLabel}`);
+  if (filters?.from_date || filters?.to_date) filtersSummaryParts.push('Rango personalizado');
+  const filtersSummary = filtersSummaryParts.length ? filtersSummaryParts.join(' · ') : 'Mostrar filtros';
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
-      <View style={[styles.quickFiltersCard, isLightTheme && styles.quickFiltersCardLight]}>
-        <Text style={[styles.quickFiltersTitle, isLightTheme && styles.quickFiltersTitleLight]}>Filtros rápidos</Text>
-        <View style={styles.quickFiltersRow}>
-          <Pressable
-            style={[
-              styles.compactFilterBtn,
-              isLightTheme && styles.compactFilterBtnLight,
-              Boolean(filters?.status) && styles.compactFilterBtnActive,
-            ]}
-            onPress={() => setSingleSelectFilter('status')}
-          >
-            <Text
-              style={[
-                styles.compactFilterBtnText,
-                isLightTheme && styles.compactFilterBtnTextLight,
-                Boolean(filters?.status) && styles.compactFilterBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              Estado: {selectedStatusLabel}
-            </Text>
-            <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.compactFilterBtn,
-              isLightTheme && styles.compactFilterBtnLight,
-              activeDateFilterKey !== 'all' && styles.compactFilterBtnActive,
-            ]}
-            onPress={() => setSingleSelectFilter('date')}
-          >
-            <Text
-              style={[
-                styles.compactFilterBtnText,
-                isLightTheme && styles.compactFilterBtnTextLight,
-                activeDateFilterKey !== 'all' && styles.compactFilterBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              Período: {selectedDateLabel}
-            </Text>
-            <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          style={[
-            styles.compactFilterBtn,
-            styles.compactFilterBtnFull,
-            isLightTheme && styles.compactFilterBtnLight,
-            Boolean(filters?.location_id) && styles.compactFilterBtnActive,
-          ]}
-          onPress={() => setSingleSelectFilter('location')}
-        >
-          <Text
-            style={[
-              styles.compactFilterBtnText,
-              isLightTheme && styles.compactFilterBtnTextLight,
-              Boolean(filters?.location_id) && styles.compactFilterBtnTextActive,
-            ]}
-            numberOfLines={1}
-          >
-            Sede: {selectedLocationLabel}
-          </Text>
-          <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
-        </Pressable>
-      </View>
-
-      <View style={[styles.dateRangeCard, isLightTheme && styles.dateRangeCardLight]}>
-        <Text style={[styles.dateRangeTitle, isLightTheme && styles.dateRangeTitleLight]}>Rango de fechas</Text>
-        <View style={styles.dateRangeInputsRow}>
-          <DatePickerField
-            label="Desde"
-            value={fromDateInput}
-            onChange={setFromDateInput}
-            maximumDate={toDateInput || undefined}
-            style={styles.dateInput}
-          />
-          <DatePickerField
-            label="Hasta"
-            value={toDateInput}
-            onChange={setToDateInput}
-            minimumDate={fromDateInput || undefined}
-            style={styles.dateInput}
-          />
-        </View>
-        <View style={styles.dateActionsRow}>
-          <Pressable style={[styles.actionBtn, styles.detailBtn]} onPress={applyCustomDateRange}>
-            <View style={styles.actionBtnContent}>
-              <Ionicons name="checkmark-done-outline" size={13} style={styles.actionBtnIcon} />
-              <Text style={styles.actionBtnText}>Aplicar</Text>
-            </View>
-          </Pressable>
-          <Pressable style={[styles.actionBtn, styles.printBtn]} onPress={clearCustomDateRange}>
-            <View style={styles.actionBtnContent}>
-              <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
-              <Text style={styles.actionBtnText}>Limpiar</Text>
-            </View>
-          </Pressable>
-        </View>
-      </View>
-
-      <Modal visible={Boolean(singleSelectFilter)} transparent animationType="fade" onRequestClose={closeSingleSelectFilter}>
-        <View style={styles.pickerOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeSingleSelectFilter} />
-          <View style={[styles.pickerSheet, isLightTheme && styles.pickerSheetLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <Text style={[styles.pickerTitle, isLightTheme && styles.pickerTitleLight]}>
-              {singleSelectFilter === 'status'
-                ? 'Seleccionar estado'
-                : singleSelectFilter === 'date'
-                  ? 'Seleccionar período'
-                  : 'Seleccionar sede'}
-            </Text>
-            <ScrollView style={styles.pickerOptions} contentContainerStyle={styles.pickerOptionsContent}>
-              {compactFilterOptions.map((option) => {
-                const active = isCompactFilterOptionActive(option.key);
-                return (
-                  <Pressable
-                    key={`${singleSelectFilter}-${String(option.key)}`}
-                    style={[
-                      styles.pickerOption,
-                      isLightTheme && styles.pickerOptionLight,
-                      active && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => selectCompactFilterOption(option.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        isLightTheme && styles.pickerOptionTextLight,
-                        active && styles.pickerOptionTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+      <CollapsibleFilterSection
+        title="Filtros de ventas"
+        themeMode={themeMode}
+        defaultCollapsed
+        activeCount={activeFilterCount}
+        summary={filtersSummary}
+      >
+        <View style={[styles.quickFiltersCard, isLightTheme && styles.quickFiltersCardLight, androidFilterSurfaceReset]}>
+          <Text style={[styles.quickFiltersTitle, isLightTheme && styles.quickFiltersTitleLight]}>Filtros rápidos</Text>
+          <View style={styles.quickFiltersRow}>
             <Pressable
-              style={[styles.pickerCloseBtn, isLightTheme && styles.pickerCloseBtnLight]}
-              onPress={closeSingleSelectFilter}
+              style={[
+                styles.compactFilterBtn,
+                isLightTheme && styles.compactFilterBtnLight,
+                Boolean(filters?.status) && styles.compactFilterBtnActive,
+              ]}
+              onPress={() => setSingleSelectFilter('status')}
             >
-              <Text style={[styles.pickerCloseBtnText, isLightTheme && styles.pickerCloseBtnTextLight]}>Cerrar</Text>
+              <Text
+                style={[
+                  styles.compactFilterBtnText,
+                  isLightTheme && styles.compactFilterBtnTextLight,
+                  Boolean(filters?.status) && styles.compactFilterBtnTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Estado: {selectedStatusLabel}
+              </Text>
+              <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.compactFilterBtn,
+                isLightTheme && styles.compactFilterBtnLight,
+                activeDateFilterKey !== 'all' && styles.compactFilterBtnActive,
+              ]}
+              onPress={() => setSingleSelectFilter('date')}
+            >
+              <Text
+                style={[
+                  styles.compactFilterBtnText,
+                  isLightTheme && styles.compactFilterBtnTextLight,
+                  activeDateFilterKey !== 'all' && styles.compactFilterBtnTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Período: {selectedDateLabel}
+              </Text>
+              <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={[
+              styles.compactFilterBtn,
+              styles.compactFilterBtnFull,
+              isLightTheme && styles.compactFilterBtnLight,
+              Boolean(filters?.location_id) && styles.compactFilterBtnActive,
+            ]}
+            onPress={() => setSingleSelectFilter('location')}
+          >
+            <Text
+              style={[
+                styles.compactFilterBtnText,
+                isLightTheme && styles.compactFilterBtnTextLight,
+                Boolean(filters?.location_id) && styles.compactFilterBtnTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Sede: {selectedLocationLabel}
+            </Text>
+            <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.dateRangeCard, isLightTheme && styles.dateRangeCardLight, androidFilterSurfaceReset]}>
+          <Text style={[styles.dateRangeTitle, isLightTheme && styles.dateRangeTitleLight]}>Rango de fechas</Text>
+          <View style={[styles.dateRangeInputsRow, Platform.OS === 'android' && styles.dateRangeInputsRowAndroid]}>
+            <DatePickerField
+              label="Desde"
+              value={fromDateInput}
+              onChange={setFromDateInput}
+              maximumDate={toDateInput || undefined}
+              style={styles.dateInput}
+            />
+            <DatePickerField
+              label="Hasta"
+              value={toDateInput}
+              onChange={setToDateInput}
+              minimumDate={fromDateInput || undefined}
+              style={styles.dateInput}
+            />
+          </View>
+          <View style={styles.dateActionsRow}>
+            <Pressable style={[styles.actionBtn, styles.detailBtn]} onPress={applyCustomDateRange}>
+              <View style={styles.actionBtnContent}>
+                <Ionicons name="checkmark-done-outline" size={13} style={styles.actionBtnIcon} />
+                <Text style={styles.actionBtnText}>Aplicar</Text>
+              </View>
+            </Pressable>
+            <Pressable style={[styles.actionBtn, styles.printBtn]} onPress={clearCustomDateRange}>
+              <View style={styles.actionBtnContent}>
+                <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
+                <Text style={styles.actionBtnText}>Limpiar</Text>
+              </View>
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </CollapsibleFilterSection>
+
+      <BottomSheetModal
+        visible={Boolean(singleSelectFilter)}
+        onClose={closeSingleSelectFilter}
+        themeMode={themeMode}
+        maxHeight="62%"
+        footer={(
+          <Pressable
+            style={[styles.pickerCloseBtn, isLightTheme && styles.pickerCloseBtnLight]}
+            onPress={closeSingleSelectFilter}
+          >
+            <Text style={[styles.pickerCloseBtnText, isLightTheme && styles.pickerCloseBtnTextLight]}>Cerrar</Text>
+          </Pressable>
+        )}
+      >
+        <Text style={[styles.pickerTitle, isLightTheme && styles.pickerTitleLight]}>
+          {singleSelectFilter === 'status'
+            ? 'Seleccionar estado'
+            : singleSelectFilter === 'date'
+              ? 'Seleccionar período'
+              : 'Seleccionar sede'}
+        </Text>
+        <ScrollView style={styles.pickerOptions} contentContainerStyle={styles.pickerOptionsContent}>
+          {compactFilterOptions.map((option) => {
+            const active = isCompactFilterOptionActive(option.key);
+            return (
+              <Pressable
+                key={`${singleSelectFilter}-${String(option.key)}`}
+                style={[
+                  styles.pickerOption,
+                  isLightTheme && styles.pickerOptionLight,
+                  active && styles.pickerOptionActive,
+                ]}
+                onPress={() => selectCompactFilterOption(option.key)}
+              >
+                <Text
+                  style={[
+                    styles.pickerOptionText,
+                    isLightTheme && styles.pickerOptionTextLight,
+                    active && styles.pickerOptionTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </BottomSheetModal>
 
       <PaginatedList
         themeMode={themeMode}
@@ -1111,7 +1113,7 @@ export default function SalesHistoryScreen({
             : null
         }
         bottomInset={androidBottomInset}
-        contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}
+        contentContainerStyle={{ paddingBottom: 16 }}
         renderItem={(sale) => (
           <View key={sale.sale_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <View style={styles.cardTopRow}>
@@ -1242,72 +1244,68 @@ export default function SalesHistoryScreen({
         )}
       />
 
-      <Modal
+      <BottomSheetModal
         visible={Boolean(detail) || loadingDetail}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetail(null)}
+        onClose={() => setDetail(null)}
+        themeMode={themeMode}
+        footer={(
+          <Pressable onPress={() => setDetail(null)} style={closeBtnStyles}>
+            <Text style={styles.closeBtnText}>Cerrar</Text>
+          </Pressable>
+        )}
       >
-        <View style={styles.modalOverlay}>
-          <View style={modalBodyStyles}>
-            {loadingDetail ? (
-              <ActivityIndicator color="#38bdf8" />
-            ) : (
-              <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
-                <Text style={modalTitleStyles}>Detalle de venta</Text>
-                <Text style={modalMetaLineStyles}>{detail?.sale_number || '-'}</Text>
-                <Text style={modalMetaLineStyles}>{detail?.customer?.full_name || 'Consumidor final'}</Text>
-                <Text style={modalMetaLineStyles}>Total: {formatMoney(detail?.total || 0)}</Text>
-                <Text style={modalMetaLineStyles}>Documento: {detail?.invoice_type || 'FV'}</Text>
-                {detail?.dian_status ? <Text style={modalMetaLineStyles}>Estado DIAN: {detail.dian_status}</Text> : null}
-                {detail?.cufe ? <Text style={modalMetaLineStyles}>CUFE: {detail.cufe}</Text> : null}
-                {detail?.dian_consecutive ? (
-                  <Text style={modalMetaLineStyles}>Consecutivo DIAN: {detail.dian_consecutive}</Text>
-                ) : null}
-                {detail?.third_party?.legal_name ? (
-                  <Text style={modalMetaLineStyles}>
-                    Receptor FE: {detail.third_party.legal_name} ({detail.third_party.document_number || 'N/D'})
-                  </Text>
-                ) : null}
-                {shouldAllowFeRetry(detail) ? (
-                  <Pressable
-                    style={[styles.actionBtn, styles.retryBtn, processing && styles.pageBtnDisabled, { marginTop: 8 }]}
-                    disabled={processing}
-                    onPress={() => retryFe(detail)}
-                  >
-                    <View style={styles.actionBtnContent}>
-                      <Ionicons name="sync-outline" size={13} style={styles.actionBtnIcon} />
-                      <Text style={styles.actionBtnText}>Reintentar FE</Text>
-                    </View>
-                  </Pressable>
-                ) : null}
+        {loadingDetail ? (
+          <ActivityIndicator color="#38bdf8" />
+        ) : (
+          <>
+            <Text style={modalTitleStyles}>Detalle de venta</Text>
+            <Text style={modalMetaLineStyles}>{detail?.sale_number || '-'}</Text>
+            <Text style={modalMetaLineStyles}>{detail?.customer?.full_name || 'Consumidor final'}</Text>
+            <Text style={modalMetaLineStyles}>Total: {formatMoney(detail?.total || 0)}</Text>
+            <Text style={modalMetaLineStyles}>Documento: {detail?.invoice_type || 'FV'}</Text>
+            {detail?.dian_status ? <Text style={modalMetaLineStyles}>Estado DIAN: {detail.dian_status}</Text> : null}
+            {detail?.cufe ? <Text style={modalMetaLineStyles}>CUFE: {detail.cufe}</Text> : null}
+            {detail?.dian_consecutive ? (
+              <Text style={modalMetaLineStyles}>Consecutivo DIAN: {detail.dian_consecutive}</Text>
+            ) : null}
+            {detail?.third_party?.legal_name ? (
+              <Text style={modalMetaLineStyles}>
+                Receptor FE: {detail.third_party.legal_name} ({detail.third_party.document_number || 'N/D'})
+              </Text>
+            ) : null}
+            {shouldAllowFeRetry(detail) ? (
+              <Pressable
+                style={[styles.actionBtn, styles.retryBtn, processing && styles.pageBtnDisabled, { marginTop: 8 }]}
+                disabled={processing}
+                onPress={() => retryFe(detail)}
+              >
+                <View style={styles.actionBtnContent}>
+                  <Ionicons name="sync-outline" size={13} style={styles.actionBtnIcon} />
+                  <Text style={styles.actionBtnText}>Reintentar FE</Text>
+                </View>
+              </Pressable>
+            ) : null}
 
-                <Text style={groupTitleStyles}>Líneas</Text>
-                {(detail?.sale_lines || []).map((line) => (
-                  <View key={line.sale_line_id} style={detailRowStyles}>
-                    <Text style={modalMetaLineStyles}>
-                      {line.variant?.product?.name || line.variant?.variant_name || 'Producto'} x {line.quantity}
-                    </Text>
-                    <Text style={modalMetaLineStyles}>{formatMoney(line.line_total || 0)}</Text>
-                  </View>
-                ))}
+            <Text style={groupTitleStyles}>Líneas</Text>
+            {(detail?.sale_lines || []).map((line) => (
+              <View key={line.sale_line_id} style={detailRowStyles}>
+                <Text style={modalMetaLineStyles}>
+                  {line.variant?.product?.name || line.variant?.variant_name || 'Producto'} x {line.quantity}
+                </Text>
+                <Text style={modalMetaLineStyles}>{formatMoney(line.line_total || 0)}</Text>
+              </View>
+            ))}
 
-                <Text style={groupTitleStyles}>Pagos</Text>
-                {(detail?.sale_payments || []).map((payment) => (
-                  <View key={payment.sale_payment_id} style={detailRowStyles}>
-                    <Text style={modalMetaLineStyles}>{payment.payment_method?.name || 'Pago'}</Text>
-                    <Text style={modalMetaLineStyles}>{formatMoney(payment.amount || 0)}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-
-            <Pressable onPress={() => setDetail(null)} style={closeBtnStyles}>
-              <Text style={styles.closeBtnText}>Cerrar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+            <Text style={groupTitleStyles}>Pagos</Text>
+            {(detail?.sale_payments || []).map((payment) => (
+              <View key={payment.sale_payment_id} style={detailRowStyles}>
+                <Text style={modalMetaLineStyles}>{payment.payment_method?.name || 'Pago'}</Text>
+                <Text style={modalMetaLineStyles}>{formatMoney(payment.amount || 0)}</Text>
+              </View>
+            ))}
+          </>
+        )}
+      </BottomSheetModal>
 
       <Modal
         visible={returnDialogOpen}
@@ -1595,6 +1593,11 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   quickFiltersCardLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
+  filterSurfaceAndroid: {
+    overflow: 'hidden',
+    zIndex: 0,
+    elevation: 0,
+  },
   quickFiltersTitle: { color: '#e2e8f0', fontWeight: '700', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' },
   quickFiltersTitleLight: { color: '#0f172a' },
   quickFiltersRow: { flexDirection: 'row', gap: 8 },
@@ -1692,6 +1695,7 @@ const styles = StyleSheet.create({
   dateRangeTitle: { color: '#e2e8f0', fontWeight: '700', marginBottom: 8 },
   dateRangeTitleLight: { color: '#0f172a' },
   dateRangeInputsRow: { flexDirection: 'row', gap: 8, overflow: 'visible' },
+  dateRangeInputsRowAndroid: { overflow: 'hidden' },
   dateInput: { flex: 1, marginTop: 0 },
   dateActionsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   list: { flex: 1 },

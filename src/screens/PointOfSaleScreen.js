@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -11,8 +10,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getAndroidNavigationBottomInset } from '../lib/androidInsets';
 import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
   createSale,
@@ -45,6 +44,7 @@ import {
 import { enqueuePendingOp, getPendingOpsCount } from '../storage/sqlite/database';
 import { getOrCreateDeviceId } from '../services/device.service';
 import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.service';
+import { playCartAddSound } from '../services/soundFeedback.service';
 
 const OCR_MAX_BYTES = 980 * 1024;
 const QUICK_CASH_DENOMINATIONS = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
@@ -449,7 +449,7 @@ export default function PointOfSaleScreen({
 }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
-  const [androidBottomInset, setAndroidBottomInset] = useState(getAndroidNavigationBottomInset);
+  const androidBottomInset = useAndroidBottomInset();
   const [loadingInit, setLoadingInit] = useState(true);
   const [search, setSearch] = useState('');
   const [searchingProducts, setSearchingProducts] = useState(false);
@@ -647,21 +647,6 @@ export default function PointOfSaleScreen({
     setMessage('');
     showFloatingNotice(content, 'error', ttlMs);
   };
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-
-    const updateInsets = () => {
-      setAndroidBottomInset(getAndroidNavigationBottomInset());
-    };
-
-    updateInsets();
-    const subscription = Dimensions.addEventListener('change', updateInsets);
-
-    return () => {
-      subscription?.remove?.();
-    };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -959,6 +944,8 @@ export default function PointOfSaleScreen({
       upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
       return next;
     });
+
+    playCartAddSound();
   };
 
   const addToCart = async (variant) => {

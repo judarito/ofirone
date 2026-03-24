@@ -52,6 +52,48 @@ function getPushRuntimeContext() {
   };
 }
 
+async function getExpoPushRegistration(runtime) {
+  const tokenResult = await Notifications.getExpoPushTokenAsync(
+    runtime?.projectId ? { projectId: runtime.projectId } : undefined,
+  );
+
+  const token = String(tokenResult?.data || '').trim();
+  if (!token) {
+    throw new Error('No se obtuvo Expo push token.');
+  }
+
+  return {
+    provider: 'expo',
+    pushToken: token,
+    expoPushToken: token,
+    mode: 'expo',
+  };
+}
+
+async function getAndroidPushRegistration(runtime) {
+  try {
+    const devicePushToken = await Notifications.getDevicePushTokenAsync();
+    const nativeToken = String(devicePushToken?.data || '').trim();
+    if (nativeToken) {
+      return {
+        provider: 'fcm',
+        pushToken: nativeToken,
+        expoPushToken: null,
+        mode: 'android_fcm_direct',
+        nativeType: String(devicePushToken?.type || 'android'),
+      };
+    }
+  } catch (error) {
+    console.warn('[push] no fue posible obtener token FCM nativo, usando fallback Expo:', error?.message || error);
+  }
+
+  const expoRegistration = await getExpoPushRegistration(runtime);
+  return {
+    ...expoRegistration,
+    mode: 'android_expo_fallback',
+  };
+}
+
 export function configurePushNotifications() {
   ensureModules();
   if (!Notifications?.setNotificationHandler) return;
@@ -121,21 +163,26 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
     const appOwnership = String(runtime.appOwnership || runtime.executionEnvironment || 'unknown');
     const deviceUid = String(Device?.osBuildId || Device?.modelId || '');
 
-    const tokenResult = await Notifications.getExpoPushTokenAsync(
-      runtime.projectId ? { projectId: runtime.projectId } : undefined,
-    );
+    const registration =
+      Platform.OS === 'android'
+        ? await getAndroidPushRegistration(runtime)
+        : await getExpoPushRegistration(runtime);
 
-    const expoPushToken = String(tokenResult?.data || '').trim();
-    if (!expoPushToken) {
-      return { success: false, error: 'No se obtuvo Expo push token.' };
+    const pushToken = String(registration?.pushToken || '').trim();
+    const pushProvider = String(registration?.provider || 'expo').trim().toLowerCase();
+    const expoPushToken = registration?.expoPushToken ? String(registration.expoPushToken).trim() : null;
+    if (!pushToken) {
+      return { success: false, error: 'No se obtuvo token push para el dispositivo.' };
     }
 
     const { data, error } = await supabase.rpc('fn_upsert_my_push_device', {
-      p_expo_push_token: expoPushToken,
+      p_push_token: pushToken,
+      p_push_provider: pushProvider,
       p_platform: Platform.OS || 'unknown',
       p_device_name: Device?.deviceName || null,
       p_app_version: appVersion ? `${appVersion} (${appOwnership})` : appOwnership,
       p_device_uid: deviceUid,
+      p_expo_push_token: expoPushToken,
     });
 
     if (error) {
@@ -151,7 +198,7 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
         .eq('user_id', userId)
         .eq('platform', Platform.OS || 'unknown')
         .eq('device_uid', deviceUid)
-        .neq('expo_push_token', expoPushToken)
+        .neq('push_token', pushToken)
         .eq('is_active', true);
     }
 
@@ -163,7 +210,7 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
         .eq('tenant_id', tenantId)
         .eq('user_id', userId)
         .eq('platform', Platform.OS || 'unknown')
-        .neq('expo_push_token', expoPushToken)
+        .neq('push_token', pushToken)
         .eq('is_active', true);
     }
 
@@ -171,7 +218,10 @@ export async function registerPushTokenForCurrentUser({ tenantId, userId }) {
       success: true,
       data: {
         push_device_id: data,
+        push_provider: pushProvider,
+        push_token: pushToken,
         expo_push_token: expoPushToken,
+        registration_mode: registration?.mode || pushProvider,
         ...runtime,
       },
     };

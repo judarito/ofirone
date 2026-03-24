@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import CollapsibleFilterSection from '../components/CollapsibleFilterSection';
 import DatePickerField from '../components/DatePickerField';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { useThemeMode } from '../lib/themeMode';
@@ -64,6 +65,7 @@ export default function ReportsScreen({
   const [error, setError] = useState('');
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
+  const androidFilterSurfaceReset = Platform.OS === 'android' ? styles.filterSurfaceAndroid : null;
 
   useEffect(() => {
     setTab(initialTab || 'sales');
@@ -212,6 +214,9 @@ export default function ReportsScreen({
       : cacheInfo?.source === 'server'
         ? 'Servidor'
         : 'Sin fuente';
+  const selectedLocationName = (locations || []).find((loc) => loc.location_id === locationId)?.name || 'Todas las sedes';
+  const reportFiltersSummary = `Vista: ${TABS.find((entry) => entry.key === tab)?.label || 'Ventas'} · ${fromDate} a ${toDate} · ${selectedLocationName}`;
+  const reportFiltersActiveCount = locationId ? 1 : 0;
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
@@ -288,87 +293,95 @@ export default function ReportsScreen({
         ) : null}
       </View>
 
-      <View style={styles.filtersBlock}>
-        <SearchableSelectField
-          title="Vista"
-          themeMode={themeMode}
-          valueLabel={TABS.find((entry) => entry.key === tab)?.label || 'Ventas'}
-          placeholder="Seleccionar vista"
-          searchPlaceholder="Buscar vista..."
-          options={TABS.map((entry) => ({ key: entry.key, label: entry.label, searchText: entry.label }))}
-          selectedKey={tab}
-          onSelect={(nextValue) => setTab(nextValue || 'sales')}
-          allowClear={false}
-        />
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersScroll}
-        contentContainerStyle={styles.filtersContent}
+      <CollapsibleFilterSection
+        title="Filtros de reportes"
+        themeMode={themeMode}
+        defaultCollapsed
+        activeCount={reportFiltersActiveCount}
+        summary={reportFiltersSummary}
       >
-        <View style={styles.chipsRow}>
-          {[
-            { label: 'Hoy', days: 1 },
-            { label: '7 dias', days: 7 },
-            { label: '30 dias', days: 30 },
-          ].map((preset) => (
-            <Pressable
-              key={preset.label}
-              style={[styles.filterChip, isLightTheme && styles.filterChipLight]}
-              onPress={() => {
-                const next = getPresetRange(preset.days);
-                setFromDate(next.from);
-                setToDate(next.to);
-              }}
-            >
-              <Text style={[styles.filterChipText, isLightTheme && styles.filterChipTextLight]}>{preset.label}</Text>
+        <View style={[styles.filtersBlock, androidFilterSurfaceReset]}>
+          <SearchableSelectField
+            title="Vista"
+            themeMode={themeMode}
+            valueLabel={TABS.find((entry) => entry.key === tab)?.label || 'Ventas'}
+            placeholder="Seleccionar vista"
+            searchPlaceholder="Buscar vista..."
+            options={TABS.map((entry) => ({ key: entry.key, label: entry.label, searchText: entry.label }))}
+            selectedKey={tab}
+            onSelect={(nextValue) => setTab(nextValue || 'sales')}
+            allowClear={false}
+          />
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtersScroll}
+          contentContainerStyle={styles.filtersContent}
+        >
+          <View style={styles.chipsRow}>
+            {[
+              { label: 'Hoy', days: 1 },
+              { label: '7 dias', days: 7 },
+              { label: '30 dias', days: 30 },
+            ].map((preset) => (
+              <Pressable
+                key={preset.label}
+                style={[styles.filterChip, isLightTheme && styles.filterChipLight]}
+                onPress={() => {
+                  const next = getPresetRange(preset.days);
+                  setFromDate(next.from);
+                  setToDate(next.to);
+                }}
+              >
+                <Text style={[styles.filterChipText, isLightTheme && styles.filterChipTextLight]}>{preset.label}</Text>
+              </Pressable>
+            ))}
+            <Pressable style={[styles.filterChip, isLightTheme && styles.filterChipLight]} onPress={loadSnapshot}>
+              <Text style={[styles.filterChipText, isLightTheme && styles.filterChipTextLight]}>{loading ? 'Cargando...' : 'Recargar'}</Text>
             </Pressable>
-          ))}
-          <Pressable style={[styles.filterChip, isLightTheme && styles.filterChipLight]} onPress={loadSnapshot}>
-            <Text style={[styles.filterChipText, isLightTheme && styles.filterChipTextLight]}>{loading ? 'Cargando...' : 'Recargar'}</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
 
-      <View style={[styles.dateRangeCard, isLightTheme && styles.dateRangeCardLight]}>
-        <Text style={[styles.dateRangeTitle, isLightTheme && styles.dateRangeTitleLight]}>Rango de fechas</Text>
-        <View style={styles.dateRangeInputsRow}>
-          <DatePickerField
-            label="Desde"
-            value={fromDate}
-            onChange={setFromDate}
-            maximumDate={toDate || undefined}
-            style={styles.dateField}
-          />
-          <DatePickerField
-            label="Hasta"
-            value={toDate}
-            onChange={setToDate}
-            minimumDate={fromDate || undefined}
-            style={styles.dateField}
+        <View style={[styles.dateRangeCard, isLightTheme && styles.dateRangeCardLight, androidFilterSurfaceReset]}>
+          <Text style={[styles.dateRangeTitle, isLightTheme && styles.dateRangeTitleLight]}>Rango de fechas</Text>
+          <View style={[styles.dateRangeInputsRow, Platform.OS === 'android' && styles.dateRangeInputsRowAndroid]}>
+            <DatePickerField
+              label="Desde"
+              value={fromDate}
+              onChange={setFromDate}
+              maximumDate={toDate || undefined}
+              style={styles.dateField}
+            />
+            <DatePickerField
+              label="Hasta"
+              value={toDate}
+              onChange={setToDate}
+              minimumDate={fromDate || undefined}
+              style={styles.dateField}
+            />
+          </View>
+        </View>
+
+        <View style={[styles.filtersBlock, androidFilterSurfaceReset]}>
+          <SearchableSelectField
+            title="Sede"
+            themeMode={themeMode}
+            valueLabel="Todas las sedes"
+            clearLabel="Todas las sedes"
+            placeholder="Todas las sedes"
+            searchPlaceholder="Buscar sede..."
+            options={(locations || []).map((loc) => ({
+              key: loc.location_id,
+              label: loc.name,
+              searchText: loc.name,
+            }))}
+            selectedKey={locationId || ''}
+            onSelect={(nextValue) => setLocationId(nextValue || '')}
           />
         </View>
-      </View>
-
-      <View style={styles.filtersBlock}>
-        <SearchableSelectField
-          title="Sede"
-          themeMode={themeMode}
-          valueLabel="Todas las sedes"
-          clearLabel="Todas las sedes"
-          placeholder="Todas las sedes"
-          searchPlaceholder="Buscar sede..."
-          options={(locations || []).map((loc) => ({
-            key: loc.location_id,
-            label: loc.name,
-            searchText: loc.name,
-          }))}
-          selectedKey={locationId || ''}
-          onSelect={(nextValue) => setLocationId(nextValue || '')}
-        />
-      </View>
+      </CollapsibleFilterSection>
 
       <View style={styles.metaWrap}>
         <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Vista: {TABS.find((t) => t.key === tab)?.label || 'Reportes'}</Text>
@@ -773,6 +786,7 @@ const styles = StyleSheet.create({
   tabTextLight: { color: '#334155' },
   tabTextActive: { color: '#eff6ff' },
   filtersBlock: { marginBottom: 8, position: 'relative', overflow: 'visible' },
+  filterSurfaceAndroid: { overflow: 'hidden', zIndex: 0, elevation: 0 },
   filtersScroll: { marginBottom: 8 },
   filtersContent: { alignItems: 'center', paddingVertical: 6 },
   dateRangeCard: {
@@ -789,6 +803,7 @@ const styles = StyleSheet.create({
   dateRangeTitle: { color: '#e2e8f0', fontWeight: '700', fontSize: 14, marginBottom: 8 },
   dateRangeTitleLight: { color: '#0f172a' },
   dateRangeInputsRow: { flexDirection: 'row', gap: 8, overflow: 'visible' },
+  dateRangeInputsRowAndroid: { overflow: 'hidden' },
   dateField: { flex: 1 },
   chipsRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   filterChip: {

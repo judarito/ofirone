@@ -1,14 +1,17 @@
-# Push Notifications (Expo + Supabase)
+# Push Notifications (Android FCM directo + Expo fallback)
 
 ## Qué incluye
 - Registro de token push en app móvil (`expo-notifications`).
 - Persistencia de dispositivos: `user_push_devices`.
 - Cola de envíos push: `notification_push_queue`.
 - Trigger que encola push al crear una notificación in-app.
-- Edge Function `push-dispatcher` para enviar a Expo Push API.
+- Edge Function `push-dispatcher` para enviar:
+  - Android: directo a FCM HTTP v1
+  - iOS / fallback: Expo Push API
 
 ## Archivos
 - `migrations/ADD_PUSH_NOTIFICATIONS_EXPO.sql`
+- `migrations/ALTER_PUSH_NOTIFICATIONS_ANDROID_DIRECT_FCM.sql`
 - `src/services/pushNotifications.service.js`
 - `supabase/functions/push-dispatcher/index.ts`
 - `App.js`
@@ -16,6 +19,7 @@
 ## 1) Ejecutar migración SQL
 Ejecuta:
 - `migrations/ADD_PUSH_NOTIFICATIONS_EXPO.sql`
+- `migrations/ALTER_PUSH_NOTIFICATIONS_ANDROID_DIRECT_FCM.sql`
 - `migrations/ADD_PUSH_DISPATCHER_SUPABASE_CRON.sql`
 
 ## 2) Desplegar function
@@ -28,9 +32,10 @@ Estos secretos viven en el runtime de la function, no en Vault:
 ```bash
 supabase secrets set PUSH_DISPATCHER_SECRET=tu_secret_seguro --project-ref mcufhthejdwonndvpmev
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key --project-ref mcufhthejdwonndvpmev
+supabase secrets set FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}' --project-ref mcufhthejdwonndvpmev
 ```
 
-Opcional (si usas token de acceso de Expo push API):
+Opcional (si quieres mantener Expo Push para iOS/fallback):
 ```bash
 supabase secrets set EXPO_ACCESS_TOKEN=tu_expo_access_token --project-ref mcufhthejdwonndvpmev
 ```
@@ -102,19 +107,19 @@ Nota adicional para Android 13+:
 - este repo ya lo deja explicito en `app.json` y `android/app/src/main/AndroidManifest.xml`
 - si el problema persistia por permiso faltante, necesitas recompilar y reinstalar la app; no basta un hot reload
 
-## 9) Credencial FCM V1 requerida en Expo/EAS
-Este proyecto no envia push directo a FCM; el dispatcher envia a Expo Push API. Por eso, en Android no basta con `google-services.json`.
+## 9) Credencial FCM V1 requerida en Supabase Edge Function
+Este proyecto ya no depende de Expo Push para Android. El dispatcher envia directo a FCM HTTP v1, asi que la credencial clave ya no va a Expo/EAS, sino al runtime de Supabase Edge Function.
 
-Tambien necesitas subir a Expo/EAS la credencial FCM V1 del proyecto Firebase:
+Debes generar una private key JSON del proyecto Firebase:
 - Firebase Console -> `Project settings` -> `Service accounts`
 - Generar una nueva private key JSON
-- Subirla en EAS credentials para Android push notifications
+- Subirla como secret `FIREBASE_SERVICE_ACCOUNT_JSON` en Supabase
 
 Resumen practico:
 - `google-services.json` habilita el lado app/dispositivo Android
-- FCM V1 service account en EAS/Expo habilita que Expo Push entregue a Android
+- `FIREBASE_SERVICE_ACCOUNT_JSON` habilita que `push-dispatcher` entregue a Android por FCM directo
 
-Si falta la credencial FCM V1 en Expo/EAS, el inbox in-app puede seguir funcionando y el dispositivo puede registrar token, pero la barra del sistema no recibira push remoto.
+Si falta la credencial FCM V1 en Supabase, el inbox in-app puede seguir funcionando y el dispositivo puede registrar token, pero la barra del sistema no recibira push remoto.
 
 ## 10) Diagnostico rapido cuando solo funciona la campanita
 Si las notificaciones llegan a la campanita interna pero no a la barra del movil, revisar en este orden:
@@ -122,7 +127,7 @@ Si las notificaciones llegan a la campanita interna pero no a la barra del movil
 1. La app debe estar instalada como `dev build` o build nativa; no probar este flujo en Expo Go.
 2. Verificar permiso del sistema operativo para notificaciones en el dispositivo.
 3. Confirmar que existe `google-services.json` correcto para `com.juan.d.ricardo.t.app`.
-4. Confirmar que la credencial FCM V1 del proyecto Firebase fue subida a Expo/EAS.
+4. Confirmar que la credencial FCM V1 del proyecto Firebase fue cargada en `FIREBASE_SERVICE_ACCOUNT_JSON` en Supabase.
 5. Confirmar que `push-dispatcher` esta desplegada y que el cron `poslite_push_dispatcher_every_minute` esta activo.
 6. Revisar cola y errores en Supabase:
 
@@ -140,6 +145,8 @@ limit 20;
 
 ```sql
 select
+  push_provider,
+  push_token,
   expo_push_token,
   platform,
   app_version,
@@ -154,5 +161,10 @@ Interpretacion sugerida:
 - `PENDING` permanente: cron/dispatcher no esta procesando
 - `FAILED` o `RETRY`: revisar `last_error`
 - sin filas en `notification_push_queue`: el trigger no esta encolando push
-- `SENT` pero sin notificacion visible: revisar permiso del SO, Expo receipts o credenciales FCM/APNs
+- `SENT` pero sin notificacion visible: revisar permiso del SO, canal Android, `google-services.json` y token FCM valido
 - En Android 13+, si nunca aparecio el prompt o la app no figura con permiso de notificaciones, recompilar/reinstalar por cambio de manifest.
+
+Notas del flujo actual:
+- Android intenta registrar token FCM nativo con `expo-notifications.getDevicePushTokenAsync()`.
+- Si el token FCM nativo falla, la app puede caer a Expo como fallback, pero el objetivo operativo es `push_provider = 'fcm'` para Android.
+- iOS puede seguir usando Expo Push hasta que se implemente APNs directo.

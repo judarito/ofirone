@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
@@ -171,6 +172,7 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
             ? `Caché offline: ${new Date(cacheInfo.cachedAt).toLocaleString()}`
             : null
         }
+        headerRight={<ListHeaderActionButton themeMode={themeMode} label="+ Nuevo" onPress={openCreate} />}
         renderItem={(item) => (
           <View key={item.payment_method_id} style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.title, isLightTheme && styles.titleLight]}>{item.name}</Text>
@@ -194,10 +196,6 @@ export default function PaymentMethodsScreen({ tenant, offlineMode, pageSize = 2
           </View>
         )}
       />
-
-      <Pressable style={[styles.fab, isLightTheme && styles.fabLight]} onPress={openCreate}>
-        <Text style={[styles.fabText, isLightTheme && styles.fabTextLight]}>+ Nuevo</Text>
-      </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>

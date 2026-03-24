@@ -1,84 +1,105 @@
 -- ============================================================
--- Push notifications para Expo (barra del sistema)
--- Requiere que exista el centro in-app (notifications + helpers)
+-- Upgrade push notifications: Android directo a FCM, iOS/fallback por Expo
+-- Compatible con esquemas creados desde ADD_PUSH_NOTIFICATIONS_EXPO.sql
 -- ============================================================
 
-ALTER TABLE user_notification_prefs
-  ADD COLUMN IF NOT EXISTS push_enabled boolean NOT NULL DEFAULT true;
+ALTER TABLE user_push_devices
+  ADD COLUMN IF NOT EXISTS push_provider text;
 
-CREATE TABLE IF NOT EXISTS user_push_devices (
-  push_device_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-  user_id uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  push_provider text NOT NULL DEFAULT 'expo' CHECK (push_provider IN ('expo','fcm','apns','web','unknown')),
-  push_token text NOT NULL,
-  expo_push_token text,
-  platform text NOT NULL CHECK (platform IN ('ios','android','web','unknown')),
-  device_name text,
-  app_version text,
-  device_uid text,
-  is_active boolean NOT NULL DEFAULT true,
-  last_seen_at timestamptz NOT NULL DEFAULT now(),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, push_provider, push_token)
-);
+ALTER TABLE user_push_devices
+  ADD COLUMN IF NOT EXISTS push_token text;
 
-CREATE INDEX IF NOT EXISTS ix_user_push_devices_tenant_user
-  ON user_push_devices(tenant_id, user_id, is_active);
+ALTER TABLE notification_push_queue
+  ADD COLUMN IF NOT EXISTS push_provider text;
 
-CREATE INDEX IF NOT EXISTS ix_user_push_devices_token
-  ON user_push_devices(expo_push_token);
+ALTER TABLE notification_push_queue
+  ADD COLUMN IF NOT EXISTS push_token text;
+
+UPDATE user_push_devices
+SET
+  push_provider = COALESCE(push_provider, 'expo'),
+  push_token = COALESCE(push_token, expo_push_token)
+WHERE push_provider IS NULL
+   OR push_token IS NULL;
+
+UPDATE notification_push_queue
+SET
+  push_provider = COALESCE(push_provider, 'expo'),
+  push_token = COALESCE(push_token, expo_push_token)
+WHERE push_provider IS NULL
+   OR push_token IS NULL;
+
+ALTER TABLE user_push_devices
+  ALTER COLUMN expo_push_token DROP NOT NULL;
+
+ALTER TABLE notification_push_queue
+  ALTER COLUMN expo_push_token DROP NOT NULL;
+
+UPDATE user_push_devices
+SET push_provider = 'unknown'
+WHERE push_provider NOT IN ('expo','fcm','apns','web','unknown');
+
+UPDATE notification_push_queue
+SET push_provider = 'unknown'
+WHERE push_provider NOT IN ('expo','fcm','apns','web','unknown');
+
+ALTER TABLE user_push_devices
+  ALTER COLUMN push_provider SET DEFAULT 'expo';
+
+ALTER TABLE notification_push_queue
+  ALTER COLUMN push_provider SET DEFAULT 'expo';
+
+ALTER TABLE user_push_devices
+  ALTER COLUMN push_provider SET NOT NULL;
+
+ALTER TABLE user_push_devices
+  ALTER COLUMN push_token SET NOT NULL;
+
+ALTER TABLE notification_push_queue
+  ALTER COLUMN push_provider SET NOT NULL;
+
+ALTER TABLE notification_push_queue
+  ALTER COLUMN push_token SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chk_user_push_devices_provider'
+  ) THEN
+    ALTER TABLE user_push_devices
+      ADD CONSTRAINT chk_user_push_devices_provider
+      CHECK (push_provider IN ('expo','fcm','apns','web','unknown'));
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chk_notification_push_queue_provider'
+  ) THEN
+    ALTER TABLE notification_push_queue
+      ADD CONSTRAINT chk_notification_push_queue_provider
+      CHECK (push_provider IN ('expo','fcm','apns','web','unknown'));
+  END IF;
+END;
+$$;
 
 CREATE INDEX IF NOT EXISTS ix_user_push_devices_provider_token
   ON user_push_devices(push_provider, push_token);
 
-CREATE OR REPLACE FUNCTION trg_touch_user_push_devices()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  NEW.updated_at := now();
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_touch_user_push_devices ON user_push_devices;
-CREATE TRIGGER trg_touch_user_push_devices
-BEFORE UPDATE ON user_push_devices
-FOR EACH ROW
-EXECUTE FUNCTION trg_touch_user_push_devices();
-
-CREATE TABLE IF NOT EXISTS notification_push_queue (
-  push_queue_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  notification_id uuid NOT NULL REFERENCES notifications(notification_id) ON DELETE CASCADE,
-  tenant_id uuid NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-  user_id uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  push_device_id uuid REFERENCES user_push_devices(push_device_id) ON DELETE SET NULL,
-  push_provider text NOT NULL DEFAULT 'expo' CHECK (push_provider IN ('expo','fcm','apns','web','unknown')),
-  push_token text NOT NULL,
-  expo_push_token text,
-  title text NOT NULL,
-  message text NOT NULL,
-  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
-  status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENT','FAILED','RETRY')),
-  attempts integer NOT NULL DEFAULT 0,
-  last_error text,
-  next_attempt_at timestamptz NOT NULL DEFAULT now(),
-  sent_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (notification_id, push_provider, push_token)
-);
-
-CREATE INDEX IF NOT EXISTS ix_notification_push_queue_pending
-  ON notification_push_queue(status, next_attempt_at, created_at)
-  WHERE status IN ('PENDING','RETRY');
-
-CREATE INDEX IF NOT EXISTS ix_notification_push_queue_tenant_user
-  ON notification_push_queue(tenant_id, user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_user_push_devices_tenant_provider_token_uk
+  ON user_push_devices(tenant_id, push_provider, push_token);
 
 CREATE INDEX IF NOT EXISTS ix_notification_push_queue_provider_token
   ON notification_push_queue(push_provider, push_token);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_notification_push_queue_notification_provider_token_uk
+  ON notification_push_queue(notification_id, push_provider, push_token);
 
 CREATE OR REPLACE FUNCTION fn_upsert_my_push_device(
   p_push_token text,
@@ -198,8 +219,7 @@ $$;
 CREATE OR REPLACE FUNCTION fn_deactivate_my_push_device(
   p_push_token text,
   p_push_provider text DEFAULT NULL
-)
-RETURNS boolean
+) RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -311,51 +331,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-DROP TRIGGER IF EXISTS trg_enqueue_push_for_notification ON notifications;
-CREATE TRIGGER trg_enqueue_push_for_notification
-AFTER INSERT ON notifications
-FOR EACH ROW
-EXECUTE FUNCTION fn_enqueue_push_for_notification();
-
-ALTER TABLE user_push_devices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_push_queue ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS user_push_devices_select_policy ON user_push_devices;
-CREATE POLICY user_push_devices_select_policy ON user_push_devices
-FOR SELECT
-USING (
-  tenant_id = get_current_user_tenant_id()
-  AND user_id = get_current_user_app_user_id()
-);
-
-DROP POLICY IF EXISTS user_push_devices_insert_policy ON user_push_devices;
-CREATE POLICY user_push_devices_insert_policy ON user_push_devices
-FOR INSERT
-WITH CHECK (
-  tenant_id = get_current_user_tenant_id()
-  AND user_id = get_current_user_app_user_id()
-);
-
-DROP POLICY IF EXISTS user_push_devices_update_policy ON user_push_devices;
-CREATE POLICY user_push_devices_update_policy ON user_push_devices
-FOR UPDATE
-USING (
-  tenant_id = get_current_user_tenant_id()
-  AND user_id = get_current_user_app_user_id()
-)
-WITH CHECK (
-  tenant_id = get_current_user_tenant_id()
-  AND user_id = get_current_user_app_user_id()
-);
-
-DROP POLICY IF EXISTS notification_push_queue_select_policy ON notification_push_queue;
-CREATE POLICY notification_push_queue_select_policy ON notification_push_queue
-FOR SELECT
-USING (
-  tenant_id = get_current_user_tenant_id()
-  AND user_id = get_current_user_app_user_id()
-);
 
 GRANT EXECUTE ON FUNCTION fn_upsert_my_push_device(text, text, text, text, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_upsert_my_push_device(text, text, text, text, text) TO authenticated;
