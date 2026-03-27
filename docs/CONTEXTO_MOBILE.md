@@ -15,6 +15,96 @@ Regla de trabajo:
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
 
+## Actualizacion reciente (2026-03-27) — Rediseno arquitectura offline, bootstrap y estabilidad de render
+
+### Problema raiz resuelto: `offlineMode` como estado manual
+
+`offlineMode` era un `useState` manejado manualmente desde mas de 10 sitios en `App.js`. Esto causaba:
+- parpadeo de pantalla al cambiar entre online/offline
+- loops infinitos de render cuando `forceSessionToLogin` (que depende de `resetDashboard` y `resetNotifications`) era inestable
+- la pantalla de POS entraba en modo offline inesperadamente al arrancar
+
+Solucion definitiva aplicada:
+
+```js
+// Antes: const [offlineMode, setOfflineMode] = useState(false); + 10+ setOfflineMode(...)
+// Ahora:
+const offlineMode = useMemo(() => !session || !networkReachable, [session, networkReachable]);
+```
+
+`offlineMode` ahora es un valor derivado. Solo cambia cuando `session` o `networkReachable` cambian de verdad. Ningun setter manual. Ningun parpadeo.
+
+### `userExplicitlyLoggedOut` — nuevo flag de sesion
+
+Se agrego el estado `userExplicitlyLoggedOut` para distinguir dos situaciones con `session=null`:
+- el usuario cerro sesion intencionalmente → debe ver Login
+- la app arranyo sin sesion validada pero tiene cache → debe ver la app en modo offline
+
+Flujo:
+- `forceSessionToLogin` y `handleLogout` lo ponen en `true`
+- `hydrateProfile` exitoso y `handleUseOfflineMode` lo ponen en `false`
+
+Condicion de render actualizada:
+```js
+// Muestra Login si: no hay sesion Y (no hay cache O cerro sesion) Y no esta cargando desde cache
+if (!session && (!offlineAvailable || userExplicitlyLoggedOut) && !bootingFromCache) → Login
+```
+
+Esto permite que un usuario con cache offline entre directamente a la app sin internet en la proxima apertura, sin ver la pantalla de Login.
+
+### Bootstrap offline-first con `bootingFromCache`
+
+El bootstrap ahora tiene dos caminos:
+
+**Con cache previo (segunda apertura en adelante):**
+1. Lee `auth_cache` de SQLite (instantaneo, sin red)
+2. Establece `userProfile` y `tenant` desde cache
+3. Llama `setBootingFromCache(true)` + `setLoadingBoot(false)` — app visible inmediatamente
+4. En background con timeout de 6s: valida sesion con Supabase
+5. Si hay sesion → `setSession()` + `setBootingFromCache(false)` + `warmCriticalOfflineCaches`
+6. Si no hay red → `setBootingFromCache(false)` — app sigue mostrando datos de cache
+7. `hydrateProfile()` NUNCA se llama en este path (evita `loadingProfile=true` que rebloquea la pantalla)
+
+**Sin cache (primer login):**
+1. `supabase.auth.getSession()` con `Promise.race` + timeout de 6 segundos
+2. Si resuelve: flujo normal
+3. Si cuelga: despues de 6s muestra Login
+
+### Fix: loop infinito `Maximum update depth exceeded`
+
+Causa: `resetDashboard` (en `useDashboard.js`) y `reset` (en `useNotifications.js`) eran funciones anonimas recreadas en cada render. Esto hacia que `forceSessionToLogin` (que depende de ambas en su `useCallback`) fuera inestable, lo que re-ejecutaba el effect `[forceSessionToLogin]` en cada render. Ese effect suscribe `onAuthStateChange`, Supabase dispara `INITIAL_SESSION` → `setSession(newRef)` → re-render → ciclo infinito.
+
+Solucion: envolver ambas funciones en `useCallback([], [])`.
+
+### Fix: APK release — crash `ReferenceError: Property 'AppState' doesn't exist`
+
+`AppState` era usado en `App.js` pero no estaba importado en el bloque `import { ... } from 'react-native'`. El motor Hermes en release APK es estricto con variables no declaradas (a diferencia del bundler Metro en dev). Se agrego `AppState` al import.
+
+### Fix: `safeStep` — diagnostico de bootstrap en pantalla
+
+Se agrego el helper `safeStep(label, fn)` en bootstrap. Cada paso muestra su nombre en pantalla durante la carga (`initDB`, `getAuthCache`, `applyTheme`, `getSession`, etc.) y captura errores con el nombre del paso en el mensaje. Facilita diagnostico en APK de produccion sin necesidad de logcat.
+
+### Fix: `ExpoAudio.setAudioModeAsync` ClassCastException en Android
+
+El modulo nativo de Expo Go espera un enum entero para `interruptionMode`, pero el tipo JS de `expo-audio` pasa un string (`'mixWithOthers'`), causando `ClassCastException` en Android. Solucion: omitir `interruptionMode` (es opcional segun el tipo nativo).
+
+### Logout sin conexion
+
+`handleLogout` detecta `!networkReachable`. En ese caso hace `supabase.auth.signOut({ scope: 'local' })` (solo borra tokens locales, no llama al servidor) y muestra el mensaje: *"Sesion cerrada sin conexion. Necesitaras internet para volver a iniciar sesion."*
+
+### Effect eliminado: setOfflineMode manual por networkReachable
+
+El effect que antes hacia `setOfflineMode(!networkReachable)` cada vez que cambiaba la conectividad fue eliminado. Era redundante con el nuevo `useMemo` derivado y causaba re-runs de efectos secundarios.
+
+### Archivos modificados en esta sesion
+
+- `App.js` — bootstrap, offlineMode derivado, userExplicitlyLoggedOut, safeStep, handleLogout
+- `src/hooks/useDashboard.js` — resetDashboard en useCallback
+- `src/hooks/useNotifications.js` — reset en useCallback, import useCallback
+- `src/services/soundFeedback.service.js` — omitir interruptionMode
+
+---
+
 ## Actualizacion reciente (2026-03-26) — Offline robustez y mejoras transversales
 
 Se realizo una pasada transversal de robustez offline con los siguientes cambios:
