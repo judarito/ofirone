@@ -94,6 +94,9 @@ export async function initOfflineDatabase() {
       cached_at TEXT NOT NULL
     );
   `);
+
+  // Reset any ops stuck in PROCESSING state from a previous crash/kill
+  await resetStuckProcessingOps();
 }
 
 export async function saveAuthCache({ authUserId, userProfile, tenant }) {
@@ -451,6 +454,37 @@ export async function updatePendingOpPayload(opId, payload) {
     `,
     [JSON.stringify(payload || {}), now, opId],
   );
+}
+
+export async function getAllQueuedOps({ tenantId = null, limit = 100 } = {}) {
+  const db = await getDb();
+  const rows = await db.getAllAsync(
+    `
+      SELECT
+        op_id, op_type, tenant_id, user_id, payload, status,
+        retry_count, last_error, created_at, updated_at
+      FROM pending_ops
+      WHERE status IN ('PENDING', 'FAILED')
+        AND (? IS NULL OR tenant_id = ?)
+      ORDER BY created_at ASC
+      LIMIT ?
+    `,
+    [tenantId, tenantId, limit],
+  );
+
+  return (rows || []).map((row) => ({
+    opId: row.op_id,
+    opType: row.op_type,
+    tenantId: row.tenant_id,
+    userId: row.user_id,
+    payload: JSON.parse(row.payload || '{}'),
+    status: row.status,
+    retryCount: Number(row.retry_count || 0),
+    lastError: row.last_error || null,
+    isNoRetry: String(row.last_error || '').startsWith('NO_RETRY:'),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
 }
 
 export async function clearOfflineOperationalData() {

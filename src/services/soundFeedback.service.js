@@ -24,7 +24,8 @@ export async function preloadUiSounds() {
       await setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: false,
-        interruptionMode: 'mixWithOthers',
+        // interruptionMode omitido: el módulo nativo de Expo Go espera enum entero
+        // pero el tipo JS envía string, causando ClassCastException en Android.
       });
       players = buildPlayers();
       initialized = true;

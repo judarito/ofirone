@@ -63,7 +63,7 @@ export default function BatchesScreen({ tenant, offlineMode, pageSize = 20 }) {
   useEffect(() => {
     const load = async () => {
       if (!tenant?.tenant_id) return;
-      const result = await listLocations(tenant.tenant_id);
+      const result = await listLocations(tenant.tenant_id, { offlineMode });
       if (result.success) setLocations(result.data || []);
     };
     load();

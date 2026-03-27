@@ -99,6 +99,7 @@ export default function InventoryScreen({ tenant, offlineMode, pageSize = 20, fo
         isComponent: nextFilters?.tab === 'components',
         limit: nextPageSize,
         offset,
+        offlineMode,
       });
     },
   });
@@ -106,7 +107,7 @@ export default function InventoryScreen({ tenant, offlineMode, pageSize = 20, fo
   useEffect(() => {
     const load = async () => {
       if (!tenant?.tenant_id) return;
-      const result = await listLocations(tenant.tenant_id);
+      const result = await listLocations(tenant.tenant_id, { offlineMode });
       if (result.success) {
         setLocations(result.data || []);
       }

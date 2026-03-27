@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -27,6 +28,7 @@ import {
   warmPosCatalog,
   warmCustomersCatalog,
 } from '../services/pos.service';
+import { listProductCoverImageUrls } from '../services/productsCatalog.service';
 import { analyzeInvoiceWithImage, matchInvoiceLinesToCatalog } from '../services/invoiceAgent.service';
 import {
   cancelVoskTranscription,
@@ -47,6 +49,7 @@ import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.servic
 import { playCartAddSound } from '../services/soundFeedback.service';
 
 const OCR_MAX_BYTES = 980 * 1024;
+const POS_RESULT_IMAGE_SIGNED_URL_TTL = 60 * 30;
 const QUICK_CASH_DENOMINATIONS = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
 
 let NativeDateTimePicker = null;
@@ -82,6 +85,10 @@ function favoritesCacheKey(tenantId, userId) {
 
 function draftsCacheKey(tenantId, userId) {
   return `pos-ticket-drafts:${tenantId}:${userId}`;
+}
+
+function activeCartCacheKey(tenantId, userId) {
+  return `pos-active-cart:${tenantId}:${userId}`;
 }
 
 function normalizeLookupText(value) {
@@ -454,6 +461,7 @@ export default function PointOfSaleScreen({
   const [search, setSearch] = useState('');
   const [searchingProducts, setSearchingProducts] = useState(false);
   const [results, setResults] = useState([]);
+  const [resultImageUrls, setResultImageUrls] = useState({});
   const [favoriteVariants, setFavoriteVariants] = useState([]);
   const [ticketDrafts, setTicketDrafts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -492,6 +500,9 @@ export default function PointOfSaleScreen({
   const [aiWorkingLabel, setAiWorkingLabel] = useState('');
   const [floatingNotice, setFloatingNotice] = useState(null);
   const floatingNoticeTimerRef = useRef(null);
+  const resultImageUrlsRef = useRef({});
+  const autosaveTimerRef = useRef(null);
+  const activeCartRestoredRef = useRef(false);
 
   const currency = tenant?.currency_code || 'COP';
   const roundingMethod = tenantSettings?.rounding_method || 'normal';
@@ -554,6 +565,7 @@ export default function PointOfSaleScreen({
   const remaining = useMemo(() => Math.max(0, totals.total - paidTotal), [totals.total, paidTotal]);
   const change = useMemo(() => Math.max(0, paidTotal - totals.total), [totals.total, paidTotal]);
   const quickCashOptions = useMemo(() => buildQuickCashOptions(totals.total), [totals.total]);
+  const visibleResults = useMemo(() => results.slice(0, 8), [results]);
   const quickCashSelectedAmount = useMemo(() => {
     const cashPayment = payments.find((payment) => isCashMethodCode(payment.method)) || payments[0];
     return Number(cashPayment?.amount || 0);
@@ -646,6 +658,26 @@ export default function PointOfSaleScreen({
     if (!content) return;
     setMessage('');
     showFloatingNotice(content, 'error', ttlMs);
+  };
+
+  const mergeResultImageUrls = (entries) => {
+    const pairs = Object.entries(entries || {});
+    if (!pairs.length) return;
+
+    let changed = false;
+    const next = { ...resultImageUrlsRef.current };
+    pairs.forEach(([productId, url]) => {
+      if (next[productId] === url) return;
+      next[productId] = url;
+      changed = true;
+    });
+
+    if (!changed) return;
+
+    resultImageUrlsRef.current = next;
+    startTransition(() => {
+      setResultImageUrls(next);
+    });
   };
 
   useEffect(() => {
@@ -751,6 +783,60 @@ export default function PointOfSaleScreen({
   }, [searchCustomer, tenant?.tenant_id, offlineMode]);
 
   useEffect(() => {
+    resultImageUrlsRef.current = {};
+    setResultImageUrls({});
+  }, [tenant?.tenant_id]);
+
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    if (!tenantId || offlineMode) return;
+
+    const targetProductIds = Array.from(new Set([
+      ...visibleResults.map((item) => item.product?.product_id),
+      ...cart.map((line) => line.productId),
+    ].filter(Boolean)));
+
+    if (!targetProductIds.length) return;
+
+    const missingProductIds = targetProductIds.filter(
+      (productId) => !(productId in resultImageUrlsRef.current),
+    );
+
+    if (!missingProductIds.length) return;
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      const coverResult = await listProductCoverImageUrls({
+        tenantId,
+        productIds: missingProductIds,
+        expiresIn: POS_RESULT_IMAGE_SIGNED_URL_TTL,
+      });
+
+      const resolvedEntries = {};
+      missingProductIds.forEach((productId) => {
+        resolvedEntries[productId] = coverResult.success &&
+          Object.prototype.hasOwnProperty.call(coverResult.data || {}, productId)
+          ? coverResult.data[productId]
+          : null;
+      });
+
+      if (!active) return;
+      mergeResultImageUrls(resolvedEntries);
+
+      Object.values(resolvedEntries)
+        .filter((url) => typeof url === 'string' && url)
+        .forEach((url) => {
+          Image.prefetch(url).catch(() => {});
+        });
+    }, 80);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [visibleResults, cart, tenant?.tenant_id, offlineMode]);
+
+  useEffect(() => {
     let active = true;
     const loadLocalState = async () => {
       const tenantId = tenant?.tenant_id;
@@ -786,6 +872,62 @@ export default function PointOfSaleScreen({
     if (!tenantId || !userId) return;
     saveSimpleCache(draftsCacheKey(tenantId, userId), ticketDrafts);
   }, [ticketDrafts, tenant?.tenant_id, userProfile?.user_id]);
+
+  // Restore active cart from autosave on mount (only once, only if cart is empty)
+  useEffect(() => {
+    let active = true;
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (!tenantId || !userId) return;
+
+    getSimpleCache(activeCartCacheKey(tenantId, userId)).then((saved) => {
+      if (!active || !saved?.cart?.length || activeCartRestoredRef.current) return;
+      activeCartRestoredRef.current = true;
+      setCart(saved.cart || []);
+      setSelectedCustomer(saved.customer || null);
+      setSearchCustomer(saved.search_customer || '');
+      setSaleNote(saved.sale_note || '');
+      setSaleDateTime(saved.sale_datetime || '');
+      setSaleDateTimeTouched(saved.sale_datetime_touched === true);
+      setPayments(
+        Array.isArray(saved.payments) && saved.payments.length > 0
+          ? saved.payments
+          : [{ method: '', amount: 0, reference: '' }],
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [tenant?.tenant_id, userProfile?.user_id]);
+
+  // Autosave active cart to local cache (debounced 2s) whenever cart changes
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (!tenantId || !userId || !activeCartRestoredRef.current) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      if (!cart.length) {
+        saveSimpleCache(activeCartCacheKey(tenantId, userId), null);
+      } else {
+        saveSimpleCache(activeCartCacheKey(tenantId, userId), {
+          cart,
+          customer: selectedCustomer,
+          search_customer: searchCustomer,
+          sale_note: saleNote,
+          sale_datetime: saleDateTime,
+          sale_datetime_touched: saleDateTimeTouched,
+          payments,
+          savedAt: new Date().toISOString(),
+        });
+      }
+    }, 2000);
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [cart, selectedCustomer, searchCustomer, saleNote, saleDateTime, saleDateTimeTouched, payments, tenant?.tenant_id, userProfile?.user_id]);
 
   useEffect(() => {
     if (!tenant?.tenant_id) return;
@@ -904,6 +1046,7 @@ export default function PointOfSaleScreen({
 
       if (existingIndex >= 0) {
         let line = { ...next[existingIndex] };
+        line.productId = line.productId || variant.product?.product_id || null;
         line.quantity += qtyToAdd;
         if (explicitUnitPrice > 0) line.unit_price = explicitUnitPrice;
         line = normalizeCartLineDiscount(line);
@@ -919,6 +1062,7 @@ export default function PointOfSaleScreen({
       } else {
         const line = {
           variant_id: variant.variant_id,
+          productId: variant.product?.product_id || null,
           sku: variant.sku,
           productName: variant.product?.name || '',
           variantName: variant.variant_name || '',
@@ -1725,6 +1869,12 @@ export default function PointOfSaleScreen({
     setSaleDatePickerOpen(false);
     setSaleDatePickerMode('date');
     setPayments([{ method: paymentMethods[0]?.code || '', amount: 0, reference: '' }]);
+    // Clear autosaved cart so it doesn't restore an empty/completed sale
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (tenantId && userId) {
+      saveSimpleCache(activeCartCacheKey(tenantId, userId), null);
+    }
   };
 
   const handleProcessSale = async () => {
@@ -1744,7 +1894,7 @@ export default function PointOfSaleScreen({
       showValidationError('Debe abrir una caja antes de vender.');
       return;
     }
-    if (sessionExpired) {
+    if (sessionExpired && !offlineMode) {
       showValidationError(
         `La sesión de caja lleva ${sessionAgeHours}h abierta y superó el límite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
       );
@@ -2218,28 +2368,59 @@ export default function PointOfSaleScreen({
           </View>
         ) : null}
         {searchingProducts ? <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Buscando...</Text> : null}
-        {results.slice(0, 8).map((item) => (
-          <View key={item.variant_id} style={[styles.resultRow, isLightTheme && styles.resultRowLight]}>
-            <Pressable onPress={() => addToCart(item)} style={styles.resultInfoCol}>
-              <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
-                {item.product?.name} {item.variant_name ? `- ${item.variant_name}` : ''}
-              </Text>
-              <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
-                {item.sku} · {formatMoney(item.price)} · Stock: {item.stock_available ?? '-'}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => toggleFavoriteVariant(item)}
-              style={[styles.favoriteBtn, isFavoriteVariant(item.variant_id) && styles.favoriteBtnActive]}
-            >
-              <Ionicons
-                name={isFavoriteVariant(item.variant_id) ? 'star' : 'star-outline'}
-                size={14}
-                color={isFavoriteVariant(item.variant_id) ? '#fef08a' : '#cbd5e1'}
-              />
-            </Pressable>
-          </View>
-        ))}
+        {visibleResults.map((item) => {
+          const productId = item.product?.product_id || null;
+          const hasResolvedImage = productId
+            ? Object.prototype.hasOwnProperty.call(resultImageUrls, productId)
+            : true;
+          const coverImageUrl = productId ? resultImageUrls[productId] : null;
+          const showThumbnailLoader = !offlineMode && productId && !hasResolvedImage;
+          const hasCoverImage = typeof coverImageUrl === 'string' && coverImageUrl.length > 0;
+
+          return (
+            <View key={item.variant_id} style={[styles.resultRow, isLightTheme && styles.resultRowLight]}>
+              <Pressable onPress={() => addToCart(item)} style={styles.resultInfoCol}>
+                <View style={styles.resultContentRow}>
+                  <View style={[styles.resultThumb, isLightTheme && styles.resultThumbLight]}>
+                    {hasCoverImage ? (
+                      <Image
+                        source={{ uri: coverImageUrl }}
+                        style={styles.resultThumbImage}
+                        resizeMode="cover"
+                      />
+                    ) : showThumbnailLoader ? (
+                      <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+                    ) : (
+                      <Ionicons
+                        name="image-outline"
+                        size={16}
+                        color={isLightTheme ? '#64748b' : '#94a3b8'}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.resultTextCol}>
+                    <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
+                      {item.product?.name} {item.variant_name ? `- ${item.variant_name}` : ''}
+                    </Text>
+                    <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                      {item.sku} · {formatMoney(item.price)} · Stock: {item.stock_available ?? '-'}
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => toggleFavoriteVariant(item)}
+                style={[styles.favoriteBtn, isFavoriteVariant(item.variant_id) && styles.favoriteBtnActive]}
+              >
+                <Ionicons
+                  name={isFavoriteVariant(item.variant_id) ? 'star' : 'star-outline'}
+                  size={14}
+                  color={isFavoriteVariant(item.variant_id) ? '#fef08a' : '#cbd5e1'}
+                />
+              </Pressable>
+            </View>
+          );
+        })}
       </View>
 
       <View style={[styles.panel, isLightTheme && styles.panelLight]}>
@@ -2335,72 +2516,100 @@ export default function PointOfSaleScreen({
           <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Carrito</Text>
         </View>
         {cart.length === 0 ? <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Agrega productos para iniciar.</Text> : null}
-        {cart.map((line, index) => (
-          <View key={line.variant_id} style={[styles.lineCard, isLightTheme && styles.lineCardLight]}>
-            <View style={styles.lineTop}>
-              <Text style={[styles.lineTitle, isLightTheme && styles.lineTitleLight]}>{line.productName}</Text>
-              <Pressable onPress={() => removeLine(index)}>
-                <Ionicons name="trash-outline" size={16} style={styles.removeBtnIcon} />
-              </Pressable>
-            </View>
-            <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>{line.variantName || 'Predeterminado'} · {line.sku}</Text>
-            <View style={styles.lineControls}>
-              <TextInput
-                value={String(line.quantity)}
-                onChangeText={(v) => updateLineQuantity(index, v)}
-                keyboardType="numeric"
-                style={[styles.qtyInput, isLightTheme && styles.qtyInputLight]}
-              />
-              <Text style={[styles.linePrice, isLightTheme && styles.linePriceLight]}>{formatMoney(line.unit_price)}</Text>
-              {canManageDiscounts ? (
-                <View style={styles.discountBox}>
-                  <View style={styles.discountField}>
-                    <Text style={[styles.discountLabel, isLightTheme && styles.discountLabelLight]}>
-                      Dcto. {line.discount_line_type === 'PERCENT' ? '(max. 100%)' : `(max. ${formatMoney(line.quantity * line.unit_price)})`}
-                    </Text>
-                    <View style={styles.discountEditorRow}>
-                      <View style={styles.discountTypeRow}>
-                        <Pressable
-                          onPress={() => toggleLineDiscountType(index, 'AMOUNT')}
-                          style={[
-                            styles.discountTypeBtn,
-                            isLightTheme && styles.discountTypeBtnLight,
-                            line.discount_line_type === 'AMOUNT' && styles.discountTypeBtnActive,
-                          ]}
-                        >
-                          <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>$</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => toggleLineDiscountType(index, 'PERCENT')}
-                          style={[
-                            styles.discountTypeBtn,
-                            isLightTheme && styles.discountTypeBtnLight,
-                            line.discount_line_type === 'PERCENT' && styles.discountTypeBtnActive,
-                          ]}
-                        >
-                          <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>%</Text>
-                        </Pressable>
-                      </View>
-                      <TextInput
-                        value={String(line.discount_line || 0)}
-                        onChangeText={(v) => updateLineDiscount(index, v)}
-                        keyboardType="numeric"
-                        style={[
-                          styles.discountInput,
-                          line.discount_line_type === 'PERCENT'
-                            ? styles.discountInputPercent
-                            : styles.discountInputAmount,
-                          isLightTheme && styles.discountInputLight,
-                        ]}
+        {cart.map((line, index) => {
+          const hasResolvedImage = line.productId
+            ? Object.prototype.hasOwnProperty.call(resultImageUrls, line.productId)
+            : true;
+          const coverImageUrl = line.productId ? resultImageUrls[line.productId] : null;
+          const showThumbnailLoader = !offlineMode && line.productId && !hasResolvedImage;
+          const hasCoverImage = typeof coverImageUrl === 'string' && coverImageUrl.length > 0;
+
+          return (
+            <View key={line.variant_id} style={[styles.lineCard, isLightTheme && styles.lineCardLight]}>
+              <View style={styles.lineTop}>
+                <View style={styles.lineHeaderInfo}>
+                  <View style={[styles.resultThumb, styles.lineThumb, isLightTheme && styles.resultThumbLight]}>
+                    {hasCoverImage ? (
+                      <Image
+                        source={{ uri: coverImageUrl }}
+                        style={styles.resultThumbImage}
+                        resizeMode="cover"
                       />
+                    ) : showThumbnailLoader ? (
+                      <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+                    ) : (
+                      <Ionicons
+                        name="image-outline"
+                        size={16}
+                        color={isLightTheme ? '#64748b' : '#94a3b8'}
+                      />
+                    )}
+                  </View>
+                  <Text style={[styles.lineTitle, isLightTheme && styles.lineTitleLight]}>{line.productName}</Text>
+                </View>
+                <Pressable onPress={() => removeLine(index)}>
+                  <Ionicons name="trash-outline" size={16} style={styles.removeBtnIcon} />
+                </Pressable>
+              </View>
+              <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>{line.variantName || 'Predeterminado'} · {line.sku}</Text>
+              <View style={styles.lineControls}>
+                <TextInput
+                  value={String(line.quantity)}
+                  onChangeText={(v) => updateLineQuantity(index, v)}
+                  keyboardType="numeric"
+                  style={[styles.qtyInput, isLightTheme && styles.qtyInputLight]}
+                />
+                <Text style={[styles.linePrice, isLightTheme && styles.linePriceLight]}>{formatMoney(line.unit_price)}</Text>
+                {canManageDiscounts ? (
+                  <View style={styles.discountBox}>
+                    <View style={styles.discountField}>
+                      <Text style={[styles.discountLabel, isLightTheme && styles.discountLabelLight]}>
+                        Dcto. {line.discount_line_type === 'PERCENT' ? '(max. 100%)' : `(max. ${formatMoney(line.quantity * line.unit_price)})`}
+                      </Text>
+                      <View style={styles.discountEditorRow}>
+                        <View style={styles.discountTypeRow}>
+                          <Pressable
+                            onPress={() => toggleLineDiscountType(index, 'AMOUNT')}
+                            style={[
+                              styles.discountTypeBtn,
+                              isLightTheme && styles.discountTypeBtnLight,
+                              line.discount_line_type === 'AMOUNT' && styles.discountTypeBtnActive,
+                            ]}
+                          >
+                            <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>$</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => toggleLineDiscountType(index, 'PERCENT')}
+                            style={[
+                              styles.discountTypeBtn,
+                              isLightTheme && styles.discountTypeBtnLight,
+                              line.discount_line_type === 'PERCENT' && styles.discountTypeBtnActive,
+                            ]}
+                          >
+                            <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>%</Text>
+                          </Pressable>
+                        </View>
+                        <TextInput
+                          value={String(line.discount_line || 0)}
+                          onChangeText={(v) => updateLineDiscount(index, v)}
+                          keyboardType="numeric"
+                          style={[
+                            styles.discountInput,
+                            line.discount_line_type === 'PERCENT'
+                              ? styles.discountInputPercent
+                              : styles.discountInputAmount,
+                            isLightTheme && styles.discountInputLight,
+                          ]}
+                        />
+                      </View>
                     </View>
                   </View>
-                </View>
-              ) : null}
+                ) : null}
+              </View>
+              <Text style={[styles.lineTotal, isLightTheme && styles.lineTotalLight]}>Total línea: {formatMoney(line.line_total)}</Text>
             </View>
-            <Text style={[styles.lineTotal, isLightTheme && styles.lineTotalLight]}>Total línea: {formatMoney(line.line_total)}</Text>
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       <View style={[styles.panel, isLightTheme && styles.panelLight]}>
@@ -2585,20 +2794,22 @@ export default function PointOfSaleScreen({
       ) : null}
 
       {sessionExpired ? (
-        <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={[styles.panel, isLightTheme && styles.panelLight, offlineMode && styles.panelWarnOffline]}>
           <Text style={styles.warnText}>
-            Sesión vencida: la caja lleva {sessionAgeHours}h abierta y el límite del tenant es {cashSessionMaxHours}h.
+            {offlineMode
+              ? `Sesión vencida (${sessionAgeHours}h). Sin red no puedes abrir una nueva caja — la venta se guardará offline y el servidor validará al sincronizar.`
+              : `Sesión vencida: la caja lleva ${sessionAgeHours}h abierta y el límite del tenant es ${cashSessionMaxHours}h.`}
           </Text>
         </View>
       ) : null}
 
       <Pressable
         onPress={handleProcessSale}
-        disabled={processing || cart.length === 0 || remaining > 0 || sessionExpired}
+        disabled={processing || cart.length === 0 || remaining > 0}
         style={[
           styles.chargeBtn,
           { marginTop: 8 + Math.max(8, androidBottomInset * 0.35) },
-          (processing || cart.length === 0 || remaining > 0 || sessionExpired) && styles.btnDisabled,
+          (processing || cart.length === 0 || remaining > 0) && styles.btnDisabled,
         ]}
       >
         <View style={styles.btnContentRow}>
@@ -2707,6 +2918,10 @@ const styles = StyleSheet.create({
   panelLight: {
     backgroundColor: '#ffffff',
     borderColor: '#dbe4ef',
+  },
+  panelWarnOffline: {
+    borderColor: '#92400e',
+    backgroundColor: '#1c1208',
   },
   btnContentRow: {
     flexDirection: 'row',
@@ -3046,6 +3261,34 @@ const styles = StyleSheet.create({
   resultInfoCol: {
     flex: 1,
   },
+  resultContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultThumb: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  resultThumbLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#eff6ff',
+  },
+  resultThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  resultTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   favoriteBtn: {
     marginLeft: 8,
     width: 28,
@@ -3167,12 +3410,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  lineHeaderInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    paddingRight: 8,
+  },
+  lineThumb: {
+    width: 44,
+    height: 44,
+    marginRight: 12,
+    flexShrink: 0,
+  },
   lineTitle: {
     color: '#f8fafc',
     fontSize: 14,
     fontWeight: '600',
     flex: 1,
-    paddingRight: 8,
   },
   lineTitleLight: {
     color: '#0f172a',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getLatestPageCache, getPageCache, savePageCache } from '../services/offlineCache.service';
+import { getLatestPageCache, getPageCache, isCacheStale, savePageCache } from '../services/offlineCache.service';
 
 export function usePaginatedList({
   tenantId,
@@ -87,10 +87,13 @@ export function usePaginatedList({
         if (cached) {
           setItems(cached.items || []);
           setTotal(Number(cached.total || 0));
+          const stale = isCacheStale(cached.cachedAt);
           setCacheInfo({
             source: exactCached ? 'cache' : 'cache-latest',
             cachedAt: cached.cachedAt || null,
+            isStale: stale,
           });
+          if (stale) setError('Datos desactualizados (más de 24h). Reconéctate para actualizar.');
           if (isRefresh) setRefreshing(false);
           else setLoading(false);
           return;
@@ -131,10 +134,16 @@ export function usePaginatedList({
         if (fallback) {
           setItems(fallback.items || []);
           setTotal(Number(fallback.total || 0));
-          setError(result?.error || 'Sin conexión. Mostrando cache local.');
+          const stale = isCacheStale(fallback.cachedAt);
+          setError(
+            stale
+              ? 'Sin conexión. Cache desactualizado (más de 24h).'
+              : (result?.error || 'Sin conexión. Mostrando cache local.'),
+          );
           setCacheInfo({
             source: exactFallback ? 'cache' : 'cache-latest',
             cachedAt: fallback.cachedAt || null,
+            isStale: stale,
           });
         } else {
           setItems([]);

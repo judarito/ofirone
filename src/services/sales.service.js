@@ -425,7 +425,7 @@ export async function getSaleById(tenantId, saleId) {
             discount_amount,
             tax_amount,
             line_total,
-            variant:variant_id(sku, variant_name, product:product_id(name))
+            variant:variant_id(sku, variant_name, product:product_id(product_id, name))
           ),
           sale_payments(
             sale_payment_id,

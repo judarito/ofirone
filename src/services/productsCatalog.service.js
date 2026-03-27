@@ -2,6 +2,9 @@ import { supabase } from '../lib/supabase';
 
 const PRODUCT_MEDIA_BUCKET = 'productmedia';
 const PRODUCT_MEDIA_SIGNED_URL_TTL = 60 * 60 * 24 * 7;
+const PRODUCT_MEDIA_SHORT_SIGNED_URL_TTL = 60 * 60;
+const PRODUCT_COVER_MEMORY_CACHE_LIMIT = 500;
+const productCoverUrlMemoryCache = new Map();
 
 const cols = `
   product_id,
@@ -89,6 +92,120 @@ async function attachProductMediaSummary(tenantId, products) {
       cover_image_url: cover ? signedMap.get(cover.media_id) || null : null,
     };
   });
+}
+
+function buildProductCoverCacheKey(tenantId, productId) {
+  return `${tenantId}:${productId}`;
+}
+
+function getCachedProductCoverUrl(tenantId, productId) {
+  const key = buildProductCoverCacheKey(tenantId, productId);
+  const entry = productCoverUrlMemoryCache.get(key);
+  if (!entry) return { hit: false, url: null };
+  if (Number(entry.expiresAt || 0) <= Date.now()) {
+    productCoverUrlMemoryCache.delete(key);
+    return { hit: false, url: null };
+  }
+  return { hit: true, url: entry.url || null };
+}
+
+function setCachedProductCoverUrl(tenantId, productId, url, expiresIn = PRODUCT_MEDIA_SHORT_SIGNED_URL_TTL) {
+  const safeTtl = Math.max(60, Number(expiresIn || PRODUCT_MEDIA_SHORT_SIGNED_URL_TTL));
+  const key = buildProductCoverCacheKey(tenantId, productId);
+  if (productCoverUrlMemoryCache.has(key)) {
+    productCoverUrlMemoryCache.delete(key);
+  }
+  productCoverUrlMemoryCache.set(key, {
+    url: url || null,
+    expiresAt: Date.now() + (safeTtl * 1000),
+  });
+  if (productCoverUrlMemoryCache.size > PRODUCT_COVER_MEMORY_CACHE_LIMIT) {
+    const oldestKey = productCoverUrlMemoryCache.keys().next().value;
+    if (oldestKey) {
+      productCoverUrlMemoryCache.delete(oldestKey);
+    }
+  }
+}
+
+export async function listProductCoverImageUrls({
+  tenantId,
+  productIds = [],
+  expiresIn = PRODUCT_MEDIA_SHORT_SIGNED_URL_TTL,
+} = {}) {
+  const uniqueProductIds = Array.from(new Set((productIds || []).filter(Boolean)));
+  if (!tenantId || !uniqueProductIds.length) {
+    return { success: true, data: {} };
+  }
+
+  const coverMap = {};
+  const pendingProductIds = [];
+
+  uniqueProductIds.forEach((productId) => {
+    const cached = getCachedProductCoverUrl(tenantId, productId);
+    if (cached.hit) {
+      coverMap[productId] = cached.url;
+      return;
+    }
+    pendingProductIds.push(productId);
+  });
+
+  if (!pendingProductIds.length) {
+    return { success: true, data: coverMap };
+  }
+
+  try {
+    const { data: mediaRows, error } = await supabase
+      .from('product_media')
+      .select('media_id, product_id, storage_path, is_cover, sort_order, created_at')
+      .eq('tenant_id', tenantId)
+      .in('product_id', pendingProductIds)
+      .order('is_cover', { ascending: false })
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      const relationMissing = String(error?.message || '').toLowerCase().includes('product_media');
+      if (relationMissing) {
+        pendingProductIds.forEach((productId) => {
+          coverMap[productId] = null;
+          setCachedProductCoverUrl(tenantId, productId, null, expiresIn);
+        });
+        return { success: true, data: coverMap };
+      }
+      throw error;
+    }
+
+    const grouped = new Map();
+    for (const row of mediaRows || []) {
+      if (grouped.has(row.product_id)) continue;
+      grouped.set(row.product_id, row);
+    }
+
+    const signResults = await Promise.all(
+      pendingProductIds.map(async (productId) => {
+        const coverRow = grouped.get(productId);
+        if (!coverRow?.storage_path) {
+          return [productId, null];
+        }
+
+        const { data: signedData, error: signError } = await supabase
+          .storage
+          .from(PRODUCT_MEDIA_BUCKET)
+          .createSignedUrl(coverRow.storage_path, expiresIn);
+
+        return [productId, signError ? null : signedData?.signedUrl || null];
+      }),
+    );
+
+    signResults.forEach(([productId, signedUrl]) => {
+      coverMap[productId] = signedUrl;
+      setCachedProductCoverUrl(tenantId, productId, signedUrl, expiresIn);
+    });
+
+    return { success: true, data: coverMap };
+  } catch (error) {
+    return { success: false, error: error.message, data: coverMap };
+  }
 }
 
 export async function listProducts({

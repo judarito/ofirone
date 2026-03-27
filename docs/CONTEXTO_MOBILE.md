@@ -15,7 +15,57 @@ Regla de trabajo:
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
 
-## Actualizacion reciente
+## Actualizacion reciente (2026-03-26) — Offline robustez y mejoras transversales
+
+Se realizo una pasada transversal de robustez offline con los siguientes cambios:
+
+**App.js — limpieza y calentamiento de cache**
+- Se eliminaron ~1544 lineas de StyleSheet que eran codigo muerto (estilos de componentes ya extraidos a sus propios archivos). El archivo bajo de ~3100 a ~1630 lineas.
+- `warmCriticalOfflineCaches` ahora se ejecuta en 4 momentos: login, recuperacion de red, sync exitoso y cada 5 minutos mientras haya red. Incluye calentamiento de `listLocations` y `listStockBalances` (pagina 1) para que sedes e inventario esten disponibles offline.
+- Se agrego import de `listLocations` y `listStockBalances` desde `inventoryCatalog.service`.
+
+**`sync.service.js` — dispatcher generalizado con mapa de handlers**
+- Se reemplazo el if/else hardcodeado por un mapa `OP_HANDLERS = { CREATE_SALE: processCreateSale, ... }`.
+- Tipos de operacion desconocidos quedan marcados como `NO_RETRY` automaticamente.
+- Agregar soporte para nuevos tipos (`CREATE_RETURN`, `CREATE_CARTERA_PAYMENT`, etc.) solo requiere agregar una entrada al mapa.
+
+**`useSync.js` — desacople de offlineMode vs networkReachable**
+- El loop de sync ahora usa `networkReachable` (conectividad real) en lugar de `offlineMode` (estado UI).
+- Permite que el sync corra aunque el usuario haya activado modo offline manual, si hay red real disponible.
+
+**`offlineCache.service.js` — deteccion de cache vencido**
+- Se agrego y exporta `isCacheStale(cachedAt)`: devuelve `true` si el cache tiene mas de 24 horas.
+
+**`usePaginatedList.js` — advertencia de datos desactualizados**
+- Al servir datos desde cache, verifica si tiene mas de 24 horas. Si es asi, muestra mensaje al usuario indicando que los datos estan desactualizados.
+
+**`database.native.js` — ops atascadas y cola completa**
+- `resetStuckProcessingOps()` se llama al inicializar SQLite. Regresa a PENDING las ops que quedaron en PROCESSING por crash de la app.
+- `getAllQueuedOps({ tenantId, limit })` devuelve todas las ops pendientes incluyendo las bloqueadas (NO_RETRY), con campo `isNoRetry` para la UI.
+
+**`SyncQueueModal.js` — nuevo componente**
+- Bottom sheet que muestra la cola de operaciones pendientes.
+- Por cada op: tipo legible (Venta, Pago cartera, etc.), tiempo relativo, reintentos, error, botones Reintentar y Descartar.
+- Contador de pendientes vs bloqueadas. Boton "Sync ahora" deshabilitado sin red.
+
+**`AppBar.js` — chip de conexion interactivo**
+- El chip de estado de red ahora es un `Pressable`. Si hay ops pendientes, tocarlo abre el `SyncQueueModal`.
+
+**`PointOfSaleScreen.js` — autosave de carrito + fix sesion expirada offline**
+- Autosave con debounce 2s: el carrito activo se guarda en cache local. Al volver, si el carrito esta vacio, se restaura el borrador automaticamente.
+- Sesion expirada offline: antes bloqueaba el boton Cobrar incluso sin red. Ahora en modo offline muestra advertencia y deja continuar; la venta se encola y el servidor valida al sincronizar.
+
+**`inventoryCatalog.service.js` — cache para sedes e inventario**
+- `listLocations`: guarda en SimpleCache al traer online, sirve cache en modo offline, usa cache como fallback ante error de red.
+- `listStockBalances`: usa PageCache con namespace `inventory-stock` y filtros `{ locationId, isComponent }`. Mismo patron: guarda online, sirve offline, fallback ante error.
+
+**7 pantallas — propagacion de offlineMode a listLocations/listStockBalances**
+- `SalesHistoryScreen`, `InventoryScreen`, `BatchesScreen`, `ProductionOrdersScreen`, `PurchasesScreen`, `CashRegistersScreen`, `CashAssignmentsScreen` ahora pasan `{ offlineMode }` a `listLocations`.
+- `InventoryScreen` tambien pasa `offlineMode` a `listStockBalances`.
+
+---
+
+## Actualizacion anterior
 
 - Se inicio una pasada transversal de ortografia y consistencia visual de textos en la app mobile.
 - Se centralizaron textos reutilizables en `src/constants/uiText.js` para componentes compartidos, autenticacion y etiquetas comunes.
@@ -215,19 +265,27 @@ La app ya tiene una estrategia offline real, no solo mensajes de error.
 
 Puntos importantes:
 
-- operaciones pendientes se encolan localmente
+- operaciones pendientes se encolan localmente en `pending_ops` (SQLite)
 - existe sincronizacion diferida con reintentos y backoff exponencial
 - hay lectura desde cache cuando la red o el backend fallan
-- el conteo de pendientes se expone en la experiencia de usuario
+- el conteo de pendientes se expone en la experiencia de usuario via badge en AppBar
+- al arrancar, `resetStuckProcessingOps` limpia ops atascadas en PROCESSING por crash previo
+- el dispatcher de sync usa un mapa `OP_HANDLERS` extensible; agregar un nuevo tipo solo requiere una entrada en el mapa
+- el calentamiento de cache corre en login, recuperacion de red, sync exitoso y cada 5 minutos; cubre: sesion de caja, metodos de pago, catalogo de clientes, cajas activas, catalogo POS, productos, sesiones de caja, ventas, sedes e inventario (pagina 1)
+- `isCacheStale(cachedAt)` detecta cache de mas de 24 horas; `usePaginatedList` avisa al usuario si los datos mostrados son viejos
+- el loop de sync usa `networkReachable` (conectividad real), no `offlineMode` (estado UI); un usuario en modo offline manual puede sincronizar si hay red
+- la cola de operaciones pendientes es visible e interactuable desde `SyncQueueModal` (accesible tocando el chip de conexion en AppBar)
+- el carrito del POS se autosalva con debounce de 2s; al volver se restaura si estaba vacio
+- sesion de caja expirada en modo offline: permite continuar la venta y encolarla; el servidor valida al sincronizar
 
-Limitacion actual visible:
-
-- el flujo de sync diferido esta claramente centrado en `CREATE_SALE`
-- otras operaciones aun no muestran el mismo nivel de soporte offline
-
-Archivo clave:
+Archivos clave:
 
 - `src/services/sync.service.js`
+- `src/hooks/useSync.js`
+- `src/services/offlineCache.service.js`
+- `src/hooks/usePaginatedList.js`
+- `src/storage/sqlite/database.native.js`
+- `src/components/SyncQueueModal.js`
 
 ## 7. Modulos funcionales actuales
 

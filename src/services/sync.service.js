@@ -25,7 +25,6 @@ function isNonRetriableSyncError(message) {
     text.includes('stock insuficiente') ||
     text.includes('insufficient stock') ||
     (text.includes('disponible:') && text.includes('requerido:')) ||
-    text.includes('tipo de operacion no soportado') ||
     text.includes('sp_create_sale_idempotent') ||
     text.includes('does not exist')
   );
@@ -51,17 +50,30 @@ function shouldDeferRetry(op, nowMs) {
   return nowMs - referenceMs < computeRetryDelayMs(retries);
 }
 
+// ─── Operation handlers ───────────────────────────────────────────────────────
+// Register a handler here to add support for a new op_type.
+// Each handler receives the full op object and must throw on failure.
+
 async function processCreateSale(op) {
   const payload = op.payload || {};
   const result = await createSale(op.tenantId, {
     ...payload,
     operation_id: op.opId,
   });
-
   if (!result.success) {
     throw new Error(result.error || 'No fue posible sincronizar venta offline');
   }
 }
+
+const OP_HANDLERS = {
+  CREATE_SALE: processCreateSale,
+  // Future handlers:
+  // CREATE_CARTERA_PAYMENT: processCarteraPayment,
+  // CREATE_SUPPLIER_PAYMENT: processSupplierPayment,
+  // CREATE_RETURN: processReturn,
+};
+
+// ─── Main sync function ───────────────────────────────────────────────────────
 
 export async function syncPendingOperations({ limit = 20, tenantId = null, userId = null } = {}) {
   await resetStuckProcessingOps();
@@ -87,18 +99,17 @@ export async function syncPendingOperations({ limit = 20, tenantId = null, userI
       continue;
     }
 
+    const handler = OP_HANDLERS[op.opType];
+    if (!handler) {
+      await markPendingOpFailed(op.opId, `NO_RETRY:Tipo de operacion no soportado: ${op.opType}`);
+      failed += 1;
+      continue;
+    }
+
     try {
       await markPendingOpProcessing(op.opId);
-
-      if (op.opType === 'CREATE_SALE') {
-        await processCreateSale(op);
-        await markPendingOpDone(op.opId);
-      } else {
-        await markPendingOpFailed(op.opId, `NO_RETRY:Tipo de operacion no soportado: ${op.opType}`);
-        failed += 1;
-        continue;
-      }
-
+      await handler(op);
+      await markPendingOpDone(op.opId);
       processed += 1;
     } catch (error) {
       const baseMessage = error?.message || 'Error de sincronizacion';

@@ -110,7 +110,7 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
       if (!tenant?.tenant_id) return;
       const [usersRes, locationsRes, registersRes] = await Promise.all([
         listUsers(tenant.tenant_id),
-        listLocations(tenant.tenant_id),
+        listLocations(tenant.tenant_id, { offlineMode }),
         listActiveCashRegisters(tenant.tenant_id),
       ]);
       if (usersRes.success) setUsers(usersRes.data || []);

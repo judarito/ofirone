@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -40,6 +41,7 @@ import {
 } from '../services/sales.service';
 import { syncPendingOperations } from '../services/sync.service';
 import { getPendingOpsCount } from '../storage/sqlite/database';
+import { listProductCoverImageUrls } from '../services/productsCatalog.service';
 
 const STATUS_FILTERS = ['', 'COMPLETED', 'VOIDED', 'PARTIAL_RETURN', 'PENDING_SYNC', 'FAILED_SYNC'];
 const DATE_FILTERS = [
@@ -156,6 +158,7 @@ export default function SalesHistoryScreen({
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [detailImageUrls, setDetailImageUrls] = useState({});
 
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [returnSale, setReturnSale] = useState(null);
@@ -273,7 +276,7 @@ export default function SalesHistoryScreen({
   useEffect(() => {
     const load = async () => {
       if (!tenant?.tenant_id) return;
-      const result = await listLocations(tenant.tenant_id);
+      const result = await listLocations(tenant.tenant_id, { offlineMode });
       if (result.success) setLocations(result.data || []);
     };
     load();
@@ -374,6 +377,53 @@ export default function SalesHistoryScreen({
     setDetail(result.data);
     setLoadingDetail(false);
   };
+
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    const productIds = Array.from(new Set(
+      (detail?.sale_lines || [])
+        .map((line) => line.variant?.product?.product_id)
+        .filter(Boolean),
+    ));
+
+    if (!tenantId || !detail?.sale_id || !productIds.length) {
+      setDetailImageUrls({});
+      return;
+    }
+
+    let active = true;
+    setDetailImageUrls({});
+
+    const timer = setTimeout(async () => {
+      const coverResult = await listProductCoverImageUrls({
+        tenantId,
+        productIds,
+        expiresIn: 60 * 30,
+      });
+
+      const next = {};
+      productIds.forEach((productId) => {
+        next[productId] = coverResult.success &&
+          Object.prototype.hasOwnProperty.call(coverResult.data || {}, productId)
+          ? coverResult.data[productId]
+          : null;
+      });
+
+      if (!active) return;
+      setDetailImageUrls(next);
+
+      Object.values(next)
+        .filter((url) => typeof url === 'string' && url)
+        .forEach((url) => {
+          Image.prefetch(url).catch(() => {});
+        });
+    }, 60);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [detail?.sale_id, detail?.sale_lines, tenant?.tenant_id]);
 
   const getLineMaxReturnQty = (line) => {
     const sold = Number(line.quantity) || 0;
@@ -1287,14 +1337,45 @@ export default function SalesHistoryScreen({
             ) : null}
 
             <Text style={groupTitleStyles}>Líneas</Text>
-            {(detail?.sale_lines || []).map((line) => (
-              <View key={line.sale_line_id} style={detailRowStyles}>
-                <Text style={modalMetaLineStyles}>
-                  {line.variant?.product?.name || line.variant?.variant_name || 'Producto'} x {line.quantity}
-                </Text>
-                <Text style={modalMetaLineStyles}>{formatMoney(line.line_total || 0)}</Text>
-              </View>
-            ))}
+            {(detail?.sale_lines || []).map((line) => {
+              const productId = line.variant?.product?.product_id || null;
+              const hasResolvedImage = productId
+                ? Object.prototype.hasOwnProperty.call(detailImageUrls, productId)
+                : true;
+              const coverImageUrl = productId ? detailImageUrls[productId] : null;
+              const showThumbnailLoader = productId && !hasResolvedImage;
+              const hasCoverImage = typeof coverImageUrl === 'string' && coverImageUrl.length > 0;
+
+              return (
+                <View key={line.sale_line_id} style={detailRowStyles}>
+                  <View style={styles.detailLineInfo}>
+                    <View style={[styles.detailThumb, isLightTheme && styles.detailThumbLight]}>
+                      {hasCoverImage ? (
+                        <Image
+                          source={{ uri: coverImageUrl }}
+                          style={styles.detailThumbImage}
+                          resizeMode="cover"
+                        />
+                      ) : showThumbnailLoader ? (
+                        <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+                      ) : (
+                        <Ionicons
+                          name="image-outline"
+                          size={16}
+                          color={isLightTheme ? '#64748b' : '#94a3b8'}
+                        />
+                      )}
+                    </View>
+                    <View style={styles.detailLineTextWrap}>
+                      <Text style={modalMetaLineStyles}>
+                        {line.variant?.product?.name || line.variant?.variant_name || 'Producto'} x {line.quantity}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[modalMetaLineStyles, styles.detailAmountText]}>{formatMoney(line.line_total || 0)}</Text>
+                </View>
+              );
+            })}
 
             <Text style={groupTitleStyles}>Pagos</Text>
             {(detail?.sale_payments || []).map((payment) => (
@@ -1790,12 +1871,46 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
     paddingVertical: 6,
   },
   detailRowLight: { borderBottomColor: '#e2e8f0' },
+  detailLineInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  detailThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  detailThumbLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#eff6ff',
+  },
+  detailThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  detailLineTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  detailAmountText: {
+    marginLeft: 8,
+  },
   returnLineCard: {
     borderWidth: 1,
     borderColor: '#1e293b',

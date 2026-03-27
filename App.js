@@ -1,17 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import {
-  BackHandler,
   AppState,
+  BackHandler,
   Appearance,
   ActivityIndicator,
-  Image,
-  Modal,
   Platform,
   Pressable,
   StatusBar as RNStatusBar,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -46,8 +42,6 @@ import {
 } from './src/navigation/mobileScreenConfig';
 import { APP_THEME_COLORS, HOME_BAR_THEME_COLORS, SCREEN_ACCENT_COLORS } from './src/theme/colors';
 import { fetchUserMenus, isFreshCache } from './src/services/menu.service';
-import { getDashboardSummary } from './src/services/reports.service';
-import { syncPendingOperations } from './src/services/sync.service';
 import {
   getCachedUserThemePreference,
   getTenantSettings,
@@ -57,15 +51,8 @@ import { savePageCache } from './src/services/offlineCache.service';
 import { listProducts } from './src/services/productsCatalog.service';
 import { getSales } from './src/services/sales.service';
 import { listCashSessions, listActiveCashRegisters } from './src/services/cashMenu.service';
+import { listLocations, listStockBalances } from './src/services/inventoryCatalog.service';
 import { warmEmbeddedModelInBackground } from './src/services/commandEngine';
-import {
-  getUnreadNotificationsCount,
-  listMyNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-  subscribeMyNotifications,
-  unsubscribeNotifications,
-} from './src/services/notifications.service';
 import {
   configurePushNotifications,
   registerPushTokenForCurrentUser,
@@ -110,6 +97,15 @@ import LocationsScreen from './src/screens/LocationsScreen';
 import PricingRulesScreen from './src/screens/PricingRulesScreen';
 import UsersScreen from './src/screens/UsersScreen';
 import RolesMenusScreen from './src/screens/RolesMenusScreen';
+import { useConnectivity } from './src/hooks/useConnectivity';
+import { useNotifications } from './src/hooks/useNotifications';
+import { useSync } from './src/hooks/useSync';
+import { useDashboard } from './src/hooks/useDashboard';
+import { AppBar } from './src/components/AppBar';
+import { MenuDrawer } from './src/components/MenuDrawer';
+import { NotificationsModal } from './src/components/NotificationsModal';
+import { SyncQueueModal } from './src/components/SyncQueueModal';
+import { HomeScreen } from './src/screens/HomeScreen';
 
 function isJwtSessionError(error) {
   if (!error) return false;
@@ -408,8 +404,16 @@ function AppContent() {
 
   const [session, setSession] = useState(null);
   const [loadingBoot, setLoadingBoot] = useState(true);
+  const [bootStep, setBootStep] = useState('iniciando...');
+  // true mientras bootstrap muestra datos de caché antes de confirmar la sesión de red.
+  // Evita mostrar Login cuando session=null pero tenemos datos locales válidos.
+  const [bootingFromCache, setBootingFromCache] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
-  const [offlineMode, setOfflineMode] = useState(false);
+  // offlineMode es DERIVADO — nunca es estado manual.
+  // true cuando no hay sesión activa O cuando no hay red.
+  // Esto elimina el parpadeo: offlineMode solo cambia cuando session o networkReachable cambian.
+  // (Se define después de declarar session y networkReachable más abajo)
+  const [userExplicitlyLoggedOut, setUserExplicitlyLoggedOut] = useState(false);
   const [offlineAvailable, setOfflineAvailable] = useState(false);
   const [cachedAt, setCachedAt] = useState('');
   const [pendingOpsCount, setPendingOpsCount] = useState(0);
@@ -418,17 +422,13 @@ function AppContent() {
   const [menuCachedAt, setMenuCachedAt] = useState('');
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [syncQueueOpen, setSyncQueueOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({});
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [tenant, setTenant] = useState(null);
-  const [kpis, setKpis] = useState(null);
-  const [dailySeries, setDailySeries] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
-  const [paymentMethodsSeries, setPaymentMethodsSeries] = useState([]);
-  const [loadingKpis, setLoadingKpis] = useState(false);
   const [tenantSettings, setTenantSettings] = useState({});
   const [lastMenuAction, setLastMenuAction] = useState('');
   const [currentScreen, setCurrentScreen] = useState('Home');
@@ -436,13 +436,32 @@ function AppContent() {
   const [reportsInitialTab, setReportsInitialTab] = useState('sales');
   const [themePreference, setThemePreference] = useState('dark');
   const [themeMode, setThemeMode] = useState('dark');
-  const [networkReachable, setNetworkReachable] = useState(true);
   const [error, setError] = useState('');
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const connectivityFailuresRef = useRef(0);
+
+  // Hooks extraídos
+  const { networkReachable } = useConnectivity();
+
+  // offlineMode DERIVADO: true si no hay sesión válida o no hay red.
+  // Al ser useMemo (no state), no dispara re-renders por sí mismo —
+  // solo se recalcula cuando session o networkReachable cambian de verdad.
+  const offlineMode = useMemo(
+    () => !session || !networkReachable,
+    [session, networkReachable],
+  );
+
+  const { kpis, dailySeries, topProducts, paymentMethodsSeries, loadingKpis, loadDashboard, resetDashboard } = useDashboard();
+  const {
+    notificationsOpen,
+    setNotificationsOpen,
+    notifications,
+    unreadNotifications,
+    loadingNotifications,
+    refreshNotifications,
+    handleOpenNotifications,
+    handleMarkNotificationRead,
+    handleMarkAllNotificationsRead,
+    reset: resetNotifications,
+  } = useNotifications({ session, offlineMode, tenant, userProfile });
 
   useEffect(() => {
     preloadUiSounds();
@@ -522,14 +541,11 @@ function AppContent() {
 
   const forceSessionToLogin = useCallback((reason = APP_TEXT.sessionExpired) => {
     setError(reason);
-    setOfflineMode(false);
+    setUserExplicitlyLoggedOut(true);
     setSession(null);
     setUserProfile(null);
     setTenant(null);
-    setKpis(null);
-    setDailySeries([]);
-    setTopProducts([]);
-    setPaymentMethodsSeries([]);
+    resetDashboard();
     setTenantSettings({});
     setRawMenuTree([]);
     setMenuTree([]);
@@ -537,12 +553,10 @@ function AppContent() {
     setExpandedSections({});
     setMenuOpen(false);
     setLastMenuAction('');
-    setNotificationsOpen(false);
-    setNotifications([]);
-    setUnreadNotifications(0);
+    resetNotifications();
     resetToHome();
     setReportsInitialTab('sales');
-  }, [resetToHome]);
+  }, [resetToHome, resetDashboard, resetNotifications]);
 
   const applyThemeFromLocalCache = async (cachedAuth = null) => {
     const cached = cachedAuth || (await getAuthCache());
@@ -577,16 +591,26 @@ function AppContent() {
     configurePushNotifications();
     let mounted = true;
 
+    const safeStep = async (label, fn) => {
+      setBootStep(label);
+      try {
+        return await fn();
+      } catch (e) {
+        const msg = `[${label}] ${e?.message ?? String(e)}`;
+        setBootStep(msg);
+        throw new Error(msg);
+      }
+    };
+
     const bootstrap = async () => {
       try {
-        await initOfflineDatabase();
+        await safeStep('initDB', () => initOfflineDatabase());
 
-        const cached = await getAuthCache();
-        const cachedMenu = await getMenuCache();
-        const pendingCount = await getPendingOpsCount();
-        if (mounted) {
-          setPendingOpsCount(pendingCount);
-        }
+        const cached = await safeStep('getAuthCache', () => getAuthCache());
+        const cachedMenu = await safeStep('getMenuCache', () => getMenuCache());
+        const pendingCount = await safeStep('getPendingOps', () => getPendingOpsCount());
+
+        if (mounted) setPendingOpsCount(pendingCount);
         if (cached && mounted) {
           setOfflineAvailable(true);
           setCachedAt(cached.cachedAt);
@@ -596,9 +620,58 @@ function AppContent() {
           setMenuTree(annotateMenuTreeWithSupport(cachedMenu.menuTree));
           setMenuCachedAt(cachedMenu.cachedAt);
         }
-        await applyThemeFromLocalCache(cached);
 
-        const { data, error: sessionError } = await supabase.auth.getSession();
+        await safeStep('applyTheme', () => applyThemeFromLocalCache(cached));
+
+        // Inicio instantáneo desde caché: si hay datos de perfil y tenant guardados,
+        // mostrar la app inmediatamente y confirmar la sesión en background.
+        setBootStep('checkCache');
+        const hasCachedProfile = cached?.userProfile && cached?.tenant;
+        if (hasCachedProfile && mounted) {
+          setUserProfile(cached.userProfile);
+          setTenant(cached.tenant);
+          // bootingFromCache=true evita que "!session && !offlineMode" muestre Login
+          // sin tocar offlineMode, así no se disparan los effects que lo escuchan.
+          setBootingFromCache(true);
+          setLoadingBoot(false);
+
+          // Confirmar sesión en background con timeout — sin llamar hydrateProfile()
+          // (hydrateProfile pone loadingProfile=true y puede colgar la UI de nuevo).
+          Promise.race([
+            supabase.auth.getSession(),
+            new Promise((resolve) =>
+              setTimeout(() => resolve({ data: { session: null }, error: null }), 6000),
+            ),
+          ])
+            .then(({ data: sessionData }) => {
+              if (!mounted) return;
+              const activeSession = sessionData?.session ?? null;
+              setSession(activeSession);
+              setBootingFromCache(false);
+              if (activeSession) {
+                warmCriticalOfflineCaches(
+                  cached.tenant?.tenant_id,
+                  cached.userProfile?.user_id,
+                );
+              }
+            })
+            .catch(() => {
+              if (mounted) setBootingFromCache(false);
+            });
+          return;
+        }
+
+        // Sin caché: getSession() con timeout de seguridad de 6 segundos
+        const sessionResult = await safeStep('getSession', () =>
+          Promise.race([
+            supabase.auth.getSession(),
+            new Promise((resolve) =>
+              setTimeout(() => resolve({ data: { session: null }, error: null }), 6000),
+            ),
+          ]),
+        );
+        const { data, error: sessionError } = sessionResult;
+
         if (!mounted) return;
         if (sessionError) {
           setError(sessionError.message);
@@ -608,7 +681,7 @@ function AppContent() {
         const activeSession = data?.session ?? null;
         setSession(activeSession);
         if (activeSession?.user?.id) {
-          await hydrateProfile(activeSession.user.id);
+          await safeStep('hydrateProfile', () => hydrateProfile(activeSession.user.id));
           return;
         }
 
@@ -684,76 +757,8 @@ function AppContent() {
     };
   }, [session, offlineMode, tenant?.tenant_id, userProfile?.user_id, navigateToScreen]);
 
-  useEffect(() => {
-    let active = true;
-    let timer = null;
 
-    const commitReachability = (nextReachable) => {
-      if (!active) return;
-
-      if (nextReachable) {
-        connectivityFailuresRef.current = 0;
-        setNetworkReachable(true);
-        return;
-      }
-
-      connectivityFailuresRef.current += 1;
-      if (connectivityFailuresRef.current >= CONNECTIVITY_FAILURES_BEFORE_OFFLINE) {
-        setNetworkReachable(false);
-      }
-    };
-
-    const checkConnectivity = async () => {
-      const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-      if (!baseUrl) {
-        commitReachability(true);
-        return;
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONNECTIVITY_TIMEOUT_MS);
-      try {
-        // Usa un health endpoint publico en vez del root de PostgREST para
-        // evitar depender del acceso anonimo al esquema OpenAPI.
-        const response = await fetch(`${baseUrl}/auth/v1/health`, {
-          method: 'GET',
-          headers: anonKey
-            ? {
-                apikey: anonKey,
-              }
-            : undefined,
-          signal: controller.signal,
-        });
-        commitReachability(response.status < 500);
-      } catch (_e) {
-        commitReachability(false);
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-
-    checkConnectivity();
-    timer = setInterval(checkConnectivity, CONNECTIVITY_CHECK_INTERVAL_MS);
-
-    const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        checkConnectivity();
-      }
-    });
-
-    return () => {
-      active = false;
-      if (timer) clearInterval(timer);
-      appStateSub.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!session) return;
-    const shouldBeOffline = !networkReachable;
-    setOfflineMode(shouldBeOffline);
-  }, [session, networkReachable]);
+  // [eliminado] Effect de setOfflineMode manual — offlineMode ahora es useMemo derivado.
 
   useEffect(() => {
     if (!session || offlineMode) return undefined;
@@ -987,37 +992,6 @@ function AppContent() {
     }
   };
 
-  const loadDashboard = useCallback(async (tenantId) => {
-    if (!tenantId) {
-      setKpis(null);
-      setDailySeries([]);
-      setTopProducts([]);
-      setPaymentMethodsSeries([]);
-      return;
-    }
-    setLoadingKpis(true);
-    try {
-      const result = await getDashboardSummary(tenantId);
-      if (result.success) {
-        setKpis(result.kpis);
-        setDailySeries(result.dailySeries || []);
-        setTopProducts(result.topProducts || []);
-        setPaymentMethodsSeries(result.paymentMethods || []);
-        return;
-      }
-      setKpis(null);
-      setDailySeries([]);
-      setTopProducts([]);
-      setPaymentMethodsSeries([]);
-    } catch (_e) {
-      setKpis(null);
-      setDailySeries([]);
-      setTopProducts([]);
-      setPaymentMethodsSeries([]);
-    } finally {
-      setLoadingKpis(false);
-    }
-  }, []);
 
   const refreshPendingOpsCount = async ({
     tenantId = tenant?.tenant_id || null,
@@ -1083,7 +1057,9 @@ function AppContent() {
         warmPosCatalog(tenantId, null),
       ]);
 
-      const [productsSale, productsComponents, cashSessions, salesHistory] = await Promise.all([
+      await listLocations(tenantId);
+
+      const [productsSale, productsComponents, cashSessions, salesHistory, stockProducts, stockComponents] = await Promise.all([
         listProducts({
           tenantId,
           search: '',
@@ -1110,6 +1086,8 @@ function AppContent() {
           from_date: null,
           to_date: null,
         }),
+        listStockBalances({ tenantId, locationId: null, isComponent: false, limit: defaultPageSize, offset: 0 }),
+        listStockBalances({ tenantId, locationId: null, isComponent: true, limit: defaultPageSize, offset: 0 }),
       ]);
 
       if (productsSale.success) {
@@ -1308,7 +1286,7 @@ function AppContent() {
 
       setUserProfile(enriched);
       setTenant(tenantData);
-      setOfflineMode(false);
+      setUserExplicitlyLoggedOut(false);
 
       await saveAuthCache({
         authUserId,
@@ -1340,11 +1318,12 @@ function AppContent() {
         userId: enriched?.user_id,
       });
       await loadDashboard(tenantData?.tenant_id);
-      await warmCriticalOfflineCaches(tenantData?.tenant_id, enriched?.user_id);
+      // Fire-and-forget: el calentamiento de cache es best-effort y no debe bloquear el arranque
+      warmCriticalOfflineCaches(tenantData?.tenant_id, enriched?.user_id);
     } catch (e) {
       setUserProfile(null);
       setTenant(null);
-      setKpis(null);
+      resetDashboard();
       setTenantSettings({});
       setRawMenuTree([]);
       setMenuTree([]);
@@ -1380,40 +1359,33 @@ function AppContent() {
     }
   };
 
-  useEffect(() => {
-    let timer = null;
-    let active = true;
+  useSync({
+    session,
+    offlineMode,
+    networkReachable,
+    tenant,
+    userProfile,
+    defaultPageSize,
+    onPendingOpsChange: setPendingOpsCount,
+    onSyncSuccess: async (tenantId, userId) => {
+      await loadDashboard(tenantId);
+      await warmCriticalOfflineCaches(tenantId, userId);
+    },
+    onNetworkRecovery: warmCriticalOfflineCaches,
+  });
 
-    const runSync = async () => {
-      if (!active || offlineMode || !session || !userProfile?.user_id || !tenant?.tenant_id) return;
-      const syncResult = await syncPendingOperations({
-        limit: 20,
-        tenantId: tenant?.tenant_id || null,
-        userId: null,
-      });
-      await refreshPendingOpsCount({
-        tenantId: tenant?.tenant_id || null,
-        userId: null,
-      });
-      if (syncResult?.processed > 0) {
-        await loadDashboard(tenant.tenant_id);
-        await warmCriticalOfflineCaches(tenant.tenant_id, userProfile.user_id);
-      }
-    };
-
-    runSync();
-    timer = setInterval(runSync, 20000);
-
-    return () => {
-      active = false;
-      if (timer) clearInterval(timer);
-    };
-  }, [offlineMode, session, userProfile?.user_id, tenant?.tenant_id]);
-
+  // Periodic cache warm every 5 minutes while online and logged in.
+  // Ensures offline data stays fresh without relying solely on sync events.
   useEffect(() => {
     if (!session || !networkReachable || !tenant?.tenant_id || !userProfile?.user_id) return;
-    warmCriticalOfflineCaches(tenant.tenant_id, userProfile.user_id);
-  }, [session, networkReachable, tenant?.tenant_id, userProfile?.user_id, defaultPageSize]);
+
+    const WARM_INTERVAL_MS = 5 * 60 * 1000;
+    const timer = setInterval(() => {
+      warmCriticalOfflineCaches(tenant.tenant_id, userProfile.user_id);
+    }, WARM_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [session, networkReachable, tenant?.tenant_id, userProfile?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (localLlmMode === 'endpoint') return;
@@ -1431,128 +1403,43 @@ function AppContent() {
     userProfile?.user_id,
   ]);
 
-  const refreshNotifications = async () => {
-    if (!session || offlineMode) return;
-    const [listResult, unreadResult] = await Promise.all([
-      listMyNotifications({ limit: 40, offset: 0, onlyUnread: false }),
-      getUnreadNotificationsCount(),
-    ]);
-    if (listResult.success) setNotifications(listResult.data || []);
-    if (unreadResult.success) setUnreadNotifications(Number(unreadResult.data || 0));
-  };
-
-  const handleOpenNotifications = async () => {
-    setNotificationsOpen(true);
-    setLoadingNotifications(true);
-    try {
-      await refreshNotifications();
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
-
-  const handleMarkNotificationRead = async (notificationId) => {
-    if (!notificationId) return;
-    const result = await markNotificationRead(notificationId);
-    if (!result.success) return;
-    setNotifications((prev) =>
-      prev.map((item) =>
-        item.notification_id === notificationId
-          ? { ...item, is_read: true, read_at: item.read_at || new Date().toISOString() }
-          : item,
-      ),
-    );
-    setUnreadNotifications((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    const result = await markAllNotificationsRead();
-    if (!result.success) return;
-    const nowIso = new Date().toISOString();
-    setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true, read_at: item.read_at || nowIso })));
-    setUnreadNotifications(0);
-  };
-
-  useEffect(() => {
-    if (!session || offlineMode || !tenant?.tenant_id || !userProfile?.user_id) return undefined;
-    let active = true;
-
-    refreshNotifications();
-
-    const channel = subscribeMyNotifications({
-      tenantId: tenant.tenant_id,
-      userId: userProfile.user_id,
-      onInsert: (row) => {
-        if (!active) return;
-        setNotifications((prev) => [row, ...prev.filter((x) => x.notification_id !== row.notification_id)].slice(0, 80));
-        if (!row?.is_read) setUnreadNotifications((prev) => prev + 1);
-      },
-      onUpdate: (nextRow) => {
-        if (!active) return;
-        setNotifications((prev) => {
-          const prevRow = prev.find((x) => x.notification_id === nextRow.notification_id);
-          if (prevRow) {
-            if (!prevRow.is_read && nextRow.is_read) {
-              setUnreadNotifications((count) => Math.max(0, count - 1));
-            } else if (prevRow.is_read && !nextRow.is_read) {
-              setUnreadNotifications((count) => count + 1);
-            }
-          }
-          return prev.map((x) => (x.notification_id === nextRow.notification_id ? { ...x, ...nextRow } : x));
-        });
-      },
-    });
-
-    return () => {
-      active = false;
-      unsubscribeNotifications(channel);
-    };
-  }, [session, offlineMode, tenant?.tenant_id, userProfile?.user_id]);
 
   const handleLogout = async () => {
     setError('');
-    if (offlineMode && !session) {
-      setOfflineMode(false);
+
+    // Sin red: cerrar sesión localmente y advertir que necesitará conexión para volver a entrar.
+    if (!networkReachable) {
+      await supabase.auth.signOut({ scope: 'local' });
       setSession(null);
       setUserProfile(null);
       setTenant(null);
-      setKpis(null);
-      setDailySeries([]);
-      setTopProducts([]);
-      setPaymentMethodsSeries([]);
+      resetDashboard();
       setTenantSettings({});
       setRawMenuTree([]);
-      resetToHome();
-      setReportsInitialTab('sales');
       setMenuTree([]);
       setMenuCachedAt('');
       setExpandedSections({});
       setMenuOpen(false);
       setLastMenuAction('');
-      setNotificationsOpen(false);
-      setNotifications([]);
-      setUnreadNotifications(0);
+      resetNotifications();
+      resetToHome();
+      setReportsInitialTab('sales');
+      setUserExplicitlyLoggedOut(true);
+      setError('Sesión cerrada sin conexión. Necesitarás internet para volver a iniciar sesión.');
       await applyThemeFromLocalCache();
       return;
     }
 
-    if (offlineMode && session) {
-      await supabase.auth.signOut({ scope: 'local' });
-    } else {
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) {
-        setError(signOutError.message);
-        return;
-      }
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setError(signOutError.message);
+      return;
     }
 
     setSession(null);
     setUserProfile(null);
     setTenant(null);
-    setKpis(null);
-    setDailySeries([]);
-    setTopProducts([]);
-    setPaymentMethodsSeries([]);
+    resetDashboard();
     setRawMenuTree([]);
     resetToHome();
     setReportsInitialTab('sales');
@@ -1561,9 +1448,8 @@ function AppContent() {
     setExpandedSections({});
     setMenuOpen(false);
     setLastMenuAction('');
-    setNotificationsOpen(false);
-    setNotifications([]);
-    setUnreadNotifications(0);
+    resetNotifications();
+    setUserExplicitlyLoggedOut(true);
     await applyThemeFromLocalCache();
   };
 
@@ -1581,10 +1467,7 @@ function AppContent() {
       forceOffline: true,
       userId: cached?.userProfile?.user_id,
     });
-    setKpis(null);
-    setDailySeries([]);
-    setTopProducts([]);
-    setPaymentMethodsSeries([]);
+    resetDashboard();
     resetToHome();
     setCachedAt(cached.cachedAt);
     if (cachedMenu?.menuTree) {
@@ -1598,10 +1481,9 @@ function AppContent() {
     }
     setExpandedSections({});
     setLastMenuAction('');
-    setOfflineMode(true);
-    setNotificationsOpen(false);
-    setNotifications([]);
-    setUnreadNotifications(0);
+    // offlineMode es derivado — setUserExplicitlyLoggedOut(false) permite mostrar la app
+    setUserExplicitlyLoggedOut(false);
+    resetNotifications();
     const pendingCount = await getPendingOpsCount({
       tenantId: cached?.tenant?.tenant_id || null,
       userId: null,
@@ -1626,9 +1508,7 @@ function AppContent() {
     setExpandedSections({});
     setMenuOpen(false);
     setLastMenuAction('');
-    setNotificationsOpen(false);
-    setNotifications([]);
-    setUnreadNotifications(0);
+    resetNotifications();
     setPendingOpsCount(0);
   };
 
@@ -1638,6 +1518,7 @@ function AppContent() {
         <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.centered}>
           <ActivityIndicator size="large" color={SCREEN_ACCENT_COLORS.Sales} />
           <Text style={styles.loadingText}>Inicializando app offline-first...</Text>
+          <Text style={[styles.loadingText, { fontSize: 11, marginTop: 4, opacity: 0.5 }]}>{bootStep}</Text>
           <StatusBar style="auto" />
         </SafeAreaView>
       </ThemeModeProvider>
@@ -1647,7 +1528,8 @@ function AppContent() {
   const isLightTheme = themeMode === 'light';
   const appContentBottomInset = safeAreaBottomInset;
 
-  if (!session && !offlineMode) {
+  // Mostrar login si: no hay sesión activa Y (no hay caché offline O el usuario cerró sesión) Y no estamos cargando desde caché
+  if (!session && (!offlineAvailable || userExplicitlyLoggedOut) && !bootingFromCache) {
     return (
       <ThemeModeProvider mode={themeMode}>
         <LoginScreen
@@ -1678,328 +1560,57 @@ function AppContent() {
         pointerEvents="none"
         style={[styles.brandGlowBottom, isLightTheme ? styles.brandGlowBottomLight : null]}
       />
-      <View
-        style={[
-          styles.appBar,
-          isLightTheme ? styles.appBarLight : null,
-          {
-            paddingTop: safeAreaTopInset,
-            height: 68 + safeAreaTopInset,
-          },
-        ]}
-      >
-        <View style={styles.appBarLeft}>
-          <Pressable onPress={() => setMenuOpen(true)} style={[styles.menuTrigger, isLightTheme ? styles.menuTriggerLight : null]}>
-            <Ionicons name="menu" size={18} style={[styles.menuTriggerText, isLightTheme ? styles.menuTriggerTextLight : null]} />
-          </Pressable>
-          <View style={styles.appBrandLogoWrap}>
-            <Image source={require('./assets/ofirone-mark-web.png')} style={styles.appBrandLogo} resizeMode="contain" />
-          </View>
-          <View style={styles.appBrandTextWrap}>
-            <Text numberOfLines={1} style={styles.brandWordmark}>
-              <Text style={[styles.brandWordmarkOfir, isLightTheme ? styles.brandWordmarkOfirLight : null]}>Ofir</Text>
-              <Text style={[styles.brandWordmarkOne, isLightTheme ? styles.brandWordmarkOneLight : null]}>One</Text>
-            </Text>
-            <Text numberOfLines={1} style={[styles.appBarTitle, isLightTheme ? styles.appBarTitleLight : null]}>
-              {getMobileAppBarTitle(currentScreen)}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.appBarRight}>
-          <Pressable
-            onPress={handleOpenNotifications}
-            style={[styles.notificationsBtn, isLightTheme ? styles.notificationsBtnLight : null]}
-          >
-            <Ionicons name="notifications-outline" size={17} style={[styles.notificationsBtnText, isLightTheme ? styles.notificationsBtnTextLight : null]} />
-            {unreadNotifications > 0 ? (
-              <View style={styles.notificationsBadge}>
-                <Text style={styles.notificationsBadgeText}>
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-          <View style={[styles.connectionChip, offlineMode ? styles.connectionChipOffline : styles.connectionChipOnline]}>
-            <Ionicons
-              name={offlineMode ? 'cloud-offline-outline' : 'cloud-done-outline'}
-              size={16}
-              style={[styles.connectionIcon, offlineMode ? styles.connectionIconOffline : styles.connectionIconOnline]}
-            />
-            {offlineMode && pendingOpsCount > 0 ? (
-              <View style={styles.connectionBadge}>
-                <Text style={styles.connectionBadgeText}>{pendingOpsCount > 99 ? '99+' : pendingOpsCount}</Text>
-              </View>
-            ) : null}
-          </View>
-          {currentScreen !== 'Home' ? (
-            <Pressable
-              onPress={goBack}
-              hitSlop={8}
-              style={[styles.appBarBackBtn, isLightTheme ? styles.appBarBackBtnLight : null]}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={18}
-                style={[styles.appBarBackIcon, isLightTheme ? styles.appBarBackIconLight : null]}
-              />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
+      <AppBar
+        isLightTheme={isLightTheme}
+        currentScreen={currentScreen}
+        safeAreaTopInset={safeAreaTopInset}
+        onMenuOpen={() => setMenuOpen(true)}
+        onOpenNotifications={handleOpenNotifications}
+        unreadNotifications={unreadNotifications}
+        offlineMode={offlineMode}
+        pendingOpsCount={pendingOpsCount}
+        onGoBack={goBack}
+        onOpenSyncQueue={() => setSyncQueueOpen(true)}
+      />
 
-      <Modal visible={menuOpen} transparent animationType="slide" onRequestClose={() => setMenuOpen(false)}>
-        <View style={styles.menuOverlay}>
-          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
-          <View style={[styles.menuDrawer, isLightTheme ? null : styles.menuDrawerDark]}>
-            <View style={[styles.menuHeader, isLightTheme ? null : styles.menuHeaderDark]}>
-              <View style={styles.menuHeaderBrand}>
-                <Image source={require('./assets/ofirone-mark-web.png')} style={styles.menuHeaderLogo} resizeMode="contain" />
-                <Text style={styles.menuHeaderWordmark}>
-                  <Text style={[styles.brandWordmarkOfir, isLightTheme ? styles.brandWordmarkOfirLight : null]}>Ofir</Text>
-                  <Text style={[styles.brandWordmarkOne, isLightTheme ? styles.brandWordmarkOneLight : null]}>One</Text>
-                </Text>
-              </View>
-              <Pressable onPress={() => setMenuOpen(false)} style={[styles.menuCloseBtn, isLightTheme ? null : styles.menuCloseBtnDark]}>
-                <Text style={[styles.menuCloseText, isLightTheme ? null : styles.menuCloseTextDark]}>{COMMON_TEXT.close}</Text>
-              </Pressable>
-            </View>
-            <Text style={[styles.menuUser, isLightTheme ? null : styles.menuUserDark]}>{userProfile?.full_name || userEmail || APP_TEXT.userFallback}</Text>
-            <Text style={[styles.menuTenant, isLightTheme ? null : styles.menuTenantDark]}>{tenant?.tenant_name || APP_TEXT.tenantFallback}</Text>
-            <Pressable
-              onPress={() => handleLocalThemeChange(isLightTheme ? 'dark' : 'light')}
-              style={[styles.themeSwitchCard, isLightTheme && styles.themeSwitchCardLight]}
-            >
-              <View style={styles.themeSwitchTextWrap}>
-                <Text style={[styles.themeSwitchTitle, isLightTheme && styles.themeSwitchTitleLight]}>Tema</Text>
-                <Text style={[styles.themeSwitchSubtitle, isLightTheme && styles.themeSwitchSubtitleLight]}>
-                  {isLightTheme ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
-                </Text>
-              </View>
-              <View style={styles.themeSwitchControlWrap}>
-                <Ionicons
-                  name={isLightTheme ? 'sunny-outline' : 'moon-outline'}
-                  size={18}
-                  color={isLightTheme ? '#0f172a' : '#e2e8f0'}
-                />
-                <Text style={[styles.themeSwitchMode, isLightTheme && styles.themeSwitchModeLight]}>
-                  {isLightTheme ? 'Claro' : 'Oscuro'}
-                </Text>
-              </View>
-            </Pressable>
+      <MenuDrawer
+        visible={menuOpen}
+        isLightTheme={isLightTheme}
+        menuTree={menuTree}
+        expandedSections={expandedSections}
+        userProfile={userProfile}
+        userEmail={userEmail}
+        tenant={tenant}
+        appContentBottomInset={appContentBottomInset}
+        onClose={() => setMenuOpen(false)}
+        onLogout={handleLogout}
+        onThemeToggle={() => handleLocalThemeChange(isLightTheme ? 'dark' : 'light')}
+        onMenuAction={handleMenuAction}
+        onToggleSection={toggleSection}
+        canAccessScreenByMenu={canAccessScreenByMenu}
+        resolveMenuAccent={resolveMenuAccent}
+        resolveMenuIcon={resolveMenuIcon}
+      />
 
-            <ScrollView contentContainerStyle={[styles.menuContent, { paddingBottom: 30 + appContentBottomInset }]}>
-              {(menuTree || []).length === 0 ? (
-                <Text style={[styles.menuEmptyText, isLightTheme ? null : styles.menuEmptyTextDark]}>{APP_TEXT.noMenuAvailable}</Text>
-              ) : null}
-              {(menuTree || []).map((section) => {
-                const code = section.code || section.title;
-                const hasChildren = Boolean(section.children?.length);
-                const isExpanded = Boolean(expandedSections[code]);
-                const sectionRoleAllowed = section.targetScreen
-                  ? canAccessScreenByMenu(section.targetScreen, section.route)
-                  : true;
-                const hasEnabledChild = hasChildren
-                  ? (section.children || []).some((child) => {
-                      const childUnsupported = !child.supportedOnMobile && !child.action;
-                      if (childUnsupported) return false;
-                      if (!child.targetScreen) return true;
-                      return canAccessScreenByMenu(child.targetScreen, child.route);
-                    })
-                  : false;
-                const sectionDisabled = hasChildren
-                  ? !sectionRoleAllowed && !hasEnabledChild
-                  : !sectionRoleAllowed;
-
-                return (
-                  <View key={code} style={styles.menuSection}>
-                    <Pressable
-                      disabled={sectionDisabled}
-                      style={[
-                        styles.menuSectionBtn,
-                        isLightTheme ? null : styles.menuSectionBtnDark,
-                        sectionDisabled ? styles.menuSectionBtnDisabled : null,
-                      ]}
-                      onPress={() => {
-                        if (hasChildren) {
-                          toggleSection(code);
-                          return;
-                        }
-                        handleMenuAction(section);
-                      }}
-                    >
-                      <View style={styles.menuSectionLeft}>
-                        <View
-                          style={[
-                            styles.menuIconBadge,
-                            sectionDisabled ? styles.menuIconBadgeDisabled : null,
-                            {
-                              backgroundColor: `${resolveMenuAccent(section)}22`,
-                              borderColor: `${resolveMenuAccent(section)}66`,
-                            },
-                          ]}
-                        >
-                          <Ionicons name={resolveMenuIcon(section)} size={14} color={resolveMenuAccent(section)} />
-                        </View>
-                        <Text
-                          style={[
-                            styles.menuSectionText,
-                            isLightTheme ? null : styles.menuSectionTextDark,
-                            sectionDisabled ? styles.menuSectionTextDisabled : null,
-                          ]}
-                        >
-                          {section.label || section.title}
-                        </Text>
-                      </View>
-                      {hasChildren && !sectionDisabled ? (
-                        <Text style={[styles.menuChevron, isLightTheme ? null : styles.menuChevronDark]}>{isExpanded ? '−' : '+'}</Text>
-                      ) : sectionDisabled ? (
-                        <Ionicons name="lock-closed-outline" size={13} style={styles.menuLockedIcon} />
-                      ) : null}
-                    </Pressable>
-
-                    {hasChildren && isExpanded ? (
-                      <View style={styles.menuChildren}>
-                        {section.children.map((child) => {
-                          const childUnsupported = !child.supportedOnMobile && !child.action;
-                          const childRoleBlocked = Boolean(child.targetScreen) &&
-                            !canAccessScreenByMenu(child.targetScreen, child.route);
-                          const childDisabled = childUnsupported || childRoleBlocked;
-
-                          return (
-                            <Pressable
-                              key={child.code || child.title}
-                              disabled={childDisabled}
-                              onPress={() => handleMenuAction(child)}
-                              style={[
-                                styles.menuChildBtn,
-                                isLightTheme ? null : styles.menuChildBtnDark,
-                                childDisabled && styles.menuChildBtnDisabled,
-                              ]}
-                            >
-                              <View
-                                style={[
-                                  styles.menuIconBadge,
-                                  styles.menuChildIconBadge,
-                                  childDisabled ? styles.menuIconBadgeDisabled : null,
-                                  {
-                                    backgroundColor: `${resolveMenuAccent(child)}20`,
-                                    borderColor: `${resolveMenuAccent(child)}55`,
-                                  },
-                                ]}
-                              >
-                                <Ionicons name={resolveMenuIcon(child)} size={13} color={resolveMenuAccent(child)} />
-                              </View>
-                              <Text
-                                style={[
-                                  styles.menuChildText,
-                                  isLightTheme ? null : styles.menuChildTextDark,
-                                  childDisabled && styles.menuChildTextDisabled,
-                                ]}
-                              >
-                                {child.label || child.title}
-                              </Text>
-                              {childDisabled ? (
-                                <Ionicons name="lock-closed-outline" size={13} style={styles.menuLockedIcon} />
-                              ) : (
-                                <Ionicons
-                                  name="chevron-forward"
-                                  size={14}
-                                  style={[styles.menuChildChevron, isLightTheme ? styles.menuChildChevronLight : null]}
-                                />
-                              )}
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </ScrollView>
-            <View
-              style={[
-                styles.menuFooter,
-                isLightTheme ? null : styles.menuFooterDark,
-                { paddingBottom: 10 + appContentBottomInset },
-              ]}
-            >
-              <Pressable onPress={handleLogout} style={[styles.menuLogoutBtn, isLightTheme ? null : styles.menuLogoutBtnDark]}>
-                <Text style={styles.menuLogoutText}>{APP_TEXT.closeSession}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
+      <NotificationsModal
         visible={notificationsOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setNotificationsOpen(false)}
-      >
-        <View style={styles.menuOverlay}>
-          <Pressable style={styles.menuBackdrop} onPress={() => setNotificationsOpen(false)} />
-          <View style={[styles.notificationsModal, isLightTheme ? styles.notificationsModalLight : null]}>
-            <View style={styles.notificationsHeader}>
-              <Text style={[styles.notificationsTitle, isLightTheme ? styles.notificationsTitleLight : null]}>
-                {APP_TEXT.notifications}
-              </Text>
-              <View style={styles.notificationsHeaderActions}>
-                <Pressable onPress={handleMarkAllNotificationsRead} style={styles.notificationsMarkAllBtn}>
-                  <Text style={styles.notificationsMarkAllText}>{APP_TEXT.markAll}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setNotificationsOpen(false)}
-                  style={[styles.notificationsCloseBtn, isLightTheme ? styles.notificationsCloseBtnLight : null]}
-                >
-                  <Text style={[styles.notificationsCloseText, isLightTheme ? styles.notificationsCloseTextLight : null]}>
-                    {COMMON_TEXT.close}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+        isLightTheme={isLightTheme}
+        notifications={notifications}
+        loadingNotifications={loadingNotifications}
+        onClose={() => setNotificationsOpen(false)}
+        onMarkRead={handleMarkNotificationRead}
+        onMarkAllRead={handleMarkAllNotificationsRead}
+        formatDateTime={formatDateTime}
+      />
 
-            <ScrollView contentContainerStyle={styles.notificationsList}>
-              {loadingNotifications ? (
-                <Text style={[styles.notificationsEmpty, isLightTheme ? styles.notificationsEmptyLight : null]}>
-                  {COMMON_TEXT.loading}
-                </Text>
-              ) : notifications.length === 0 ? (
-                <Text style={[styles.notificationsEmpty, isLightTheme ? styles.notificationsEmptyLight : null]}>
-                  {APP_TEXT.noNotifications}
-                </Text>
-              ) : (
-                notifications.map((item) => (
-                  <Pressable
-                    key={item.notification_id}
-                    onPress={() => handleMarkNotificationRead(item.notification_id)}
-                    style={[
-                      styles.notificationItem,
-                      isLightTheme ? styles.notificationItemLight : null,
-                      !item.is_read ? styles.notificationItemUnread : null,
-                    ]}
-                  >
-                    <View style={styles.notificationTopRow}>
-                      <Text style={[styles.notificationSeverity, isLightTheme ? styles.notificationSeverityLight : null]}>
-                        {item.severity}
-                      </Text>
-                      <Text style={[styles.notificationDate, isLightTheme ? styles.notificationDateLight : null]}>
-                        {formatDateTime(item.created_at)}
-                      </Text>
-                    </View>
-                    <Text style={[styles.notificationTitle, isLightTheme ? styles.notificationTitleLight : null]}>
-                      {item.title}
-                    </Text>
-                    <Text style={[styles.notificationMessage, isLightTheme ? styles.notificationMessageLight : null]}>
-                      {item.message}
-                    </Text>
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <SyncQueueModal
+        visible={syncQueueOpen}
+        isLightTheme={isLightTheme}
+        tenantId={tenant?.tenant_id}
+        offlineMode={offlineMode}
+        onClose={() => setSyncQueueOpen(false)}
+        onQueueChange={() => getPendingOpsCount({ tenantId: tenant?.tenant_id, userId: null }).then(setPendingOpsCount)}
+      />
 
       <View
         style={[
@@ -2008,204 +1619,22 @@ function AppContent() {
         ]}
       >
       {currentScreen === 'Home' ? (
-        <View style={styles.homeScreenContainer}>
-          <ScrollView
-            contentContainerStyle={[
-              styles.homeScrollDark,
-              styles.homeScrollWithDock,
-              isLightTheme && styles.homeScrollLight,
-              { paddingBottom: 110 + Math.min(appContentBottomInset, 20) },
-            ]}
-          >
-            <View style={styles.homeWrap}>
-            <View style={[styles.mobileMetricMainCard, isLightTheme && styles.mobileMetricMainCardLight]}>
-              <View style={styles.mobileMetricMainLeft}>
-                <Image source={require('./assets/ofirone-mark-web.png')} style={styles.mobileMetricMainLogo} resizeMode="contain" />
-                <View style={styles.mobileMetricMainTextWrap}>
-                  <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>{APP_TEXT.todaySales}</Text>
-                  <Text style={[styles.mobileMetricMainAmount, isLightTheme && styles.mobileMetricMainAmountLight]}>
-                    {loadingKpis ? '...' : formatMoney(kpis?.today?.total || 0)}
-                  </Text>
-                </View>
-              </View>
-              <Text style={todayVsPrev >= 0 ? styles.mobileTrendUp : styles.mobileTrendDown}>
-                {loadingKpis ? '...' : `${todayVsPrev >= 0 ? '↗' : '↘'} ${Math.abs(todayVsPrev || 0).toFixed(0)}%`}
-              </Text>
-            </View>
-
-            <View style={[styles.mobileMetricCard, isLightTheme && styles.mobileMetricCardLight]}>
-              <View style={styles.mobileMetricRow}>
-                <View style={[styles.mobileMetricIconWrap, isLightTheme && styles.mobileMetricIconWrapLight]}>
-                  <Ionicons name="briefcase-outline" size={18} style={styles.mobileMetricIconGold} />
-                </View>
-                <View style={styles.mobileMetricTextWrap}>
-                  <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>{APP_TEXT.thisMonth}</Text>
-                  <Text style={[styles.mobileMetricAmount, isLightTheme && styles.mobileMetricAmountLight]}>
-                    {loadingKpis ? '...' : formatMoney(kpis?.month?.total || 0)}
-                  </Text>
-                </View>
-                <Text style={monthVsPrev >= 0 ? styles.mobileTrendUp : styles.mobileTrendDown}>
-                  {loadingKpis ? '...' : `${monthVsPrev >= 0 ? '↗' : '↘'} ${Math.abs(monthVsPrev || 0).toFixed(0)}%`}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.mobileMetricCard, styles.mobileMetricThinCard, isLightTheme && styles.mobileMetricCardLight]}>
-              <View style={styles.mobileMetricRow}>
-                <View style={[styles.mobileMetricIconWrap, isLightTheme && styles.mobileMetricIconWrapLight]}>
-                  <Ionicons name="bar-chart-outline" size={18} style={styles.mobileMetricIconBlue} />
-                </View>
-                <Text style={[styles.mobileMetricTitle, isLightTheme && styles.mobileMetricTitleLight]}>{APP_TEXT.thisYear}</Text>
-                <Text style={[styles.mobileMetricAmount, isLightTheme && styles.mobileMetricAmountLight]}>
-                  {loadingKpis ? '...' : formatMoney(kpis?.year?.total || 0)}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => navigateToScreen('PointOfSale', { routeHint: '/pos' })}
-              style={[styles.quickSaleBtn, isLightTheme && styles.quickSaleBtnLight]}
-            >
-              <View style={styles.quickSaleContent}>
-                <View style={[styles.quickSaleIconWrap, isLightTheme && styles.quickSaleIconWrapLight]}>
-                  <Ionicons
-                    name="storefront-outline"
-                    size={20}
-                    style={[styles.quickSaleIcon, isLightTheme && styles.quickSaleIconLight]}
-                  />
-                </View>
-                <View style={styles.quickSaleTextWrap}>
-                  <Text style={[styles.quickSaleBtnText, isLightTheme && styles.quickSaleBtnTextLight]}>
-                    {APP_TEXT.newSale}
-                  </Text>
-                  <Text style={[styles.quickSaleHint, isLightTheme && styles.quickSaleHintLight]}>
-                    {APP_TEXT.newSaleHint}
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  style={[styles.quickSaleChevron, isLightTheme && styles.quickSaleChevronLight]}
-                />
-              </View>
-            </Pressable>
-
-            <View style={[styles.homeMiniChartCard, isLightTheme && styles.homeMiniChartCardLight]}>
-              <Text style={[styles.homeMiniChartTitle, isLightTheme && styles.homeMiniChartTitleLight]}>
-                Ventas últimos 7 días
-              </Text>
-              {loadingKpis ? (
-                <Text style={[styles.homeMiniChartEmpty, isLightTheme && styles.homeMiniChartEmptyLight]}>{COMMON_TEXT.loading}</Text>
-              ) : homeLast7Series.length === 0 ? (
-                <Text style={[styles.homeMiniChartEmpty, isLightTheme && styles.homeMiniChartEmptyLight]}>{COMMON_TEXT.noData}</Text>
-              ) : (
-                <View style={styles.homeMiniBarsWrap}>
-                  {homeLast7Series.map((entry, idx) => {
-                    const dayDate = new Date(entry?.date || '');
-                    const dayLabel = Number.isNaN(dayDate.getTime())
-                      ? '-'
-                      : ['D', 'L', 'M', 'M', 'J', 'V', 'S'][dayDate.getDay()];
-                    const barHeight = Math.max(10, Math.round((Number(entry?.total || 0) / homeMaxDaily) * 100));
-                    return (
-                      <View key={`${entry?.date || idx}-${idx}`} style={styles.homeMiniBarCol}>
-                        <View style={[styles.homeMiniBarTrack, isLightTheme && styles.homeMiniBarTrackLight]}>
-                          <View
-                            style={[
-                              styles.homeMiniBarFill,
-                              {
-                                height: `${barHeight}%`,
-                                backgroundColor: HOME_BAR_COLORS[idx % HOME_BAR_COLORS.length],
-                              },
-                            ]}
-                          />
-                        </View>
-                        <Text style={[styles.homeMiniBarDay, isLightTheme && styles.homeMiniBarDayLight]}>{dayLabel}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-            {homePrimaryActions.length > 0 ? (
-              <View style={[styles.mobileModulesCard, isLightTheme && styles.mobileModulesCardLight]}>
-                {homePrimaryActions.map((item) => (
-                  <Pressable
-                    key={item.code}
-                    onPress={() => navigateToScreen(item.targetScreen, { routeHint: item.route })}
-                    style={[styles.mobileModuleItem, isLightTheme && styles.mobileModuleItemLight]}
-                  >
-                    <View
-                      style={[
-                        styles.mobileModuleIconWrap,
-                        {
-                          backgroundColor: `${resolveMenuAccent(item)}24`,
-                          borderColor: `${resolveMenuAccent(item)}70`,
-                        },
-                      ]}
-                    >
-                      <Ionicons name={resolveMenuIcon(item)} size={20} color={resolveMenuAccent(item)} />
-                    </View>
-                    <Text numberOfLines={1} style={[styles.mobileModuleLabel, isLightTheme && styles.mobileModuleLabelLight]}>
-                      {HOME_ACTION_LABELS[item.targetScreen] || item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-
-            <Pressable
-              onPress={() => navigateToScreen('AIInsights')}
-              style={[styles.aiInsightsShortcut, isLightTheme && styles.aiInsightsShortcutLight]}
-            >
-              <View style={[styles.aiInsightsShortcutIconWrap, isLightTheme && styles.aiInsightsShortcutIconWrapLight]}>
-                <Ionicons name="sparkles-outline" size={20} style={[styles.aiInsightsShortcutIcon, isLightTheme && styles.aiInsightsShortcutIconLight]} />
-              </View>
-              <View style={styles.aiInsightsShortcutTextWrap}>
-                <Text style={[styles.aiInsightsShortcutTitle, isLightTheme && styles.aiInsightsShortcutTitleLight]}>
-                  {APP_TEXT.aiCenter}
-                </Text>
-                <Text style={[styles.aiInsightsShortcutSub, isLightTheme && styles.aiInsightsShortcutSubLight]}>
-                  {APP_TEXT.aiCenterSummary}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                style={[styles.aiInsightsShortcutChevron, isLightTheme && styles.aiInsightsShortcutChevronLight]}
-              />
-            </Pressable>
-
-            {lastMenuAction ? <Text style={styles.successText}>{lastMenuAction}</Text> : null}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            </View>
-          </ScrollView>
-
-          <View
-            style={[
-              styles.mobileBottomDock,
-              styles.mobileBottomDockFixed,
-              isLightTheme && styles.mobileBottomDockLight,
-              { bottom: 10 + Math.min(appContentBottomInset, 18) },
-            ]}
-          >
-            <Pressable style={styles.mobileDockSideBtn} onPress={() => navigateToScreen('AIInsights', { routeHint: '/ai-insights' })}>
-              <Ionicons name="sparkles" size={20} style={[styles.mobileDockSideIcon, isLightTheme && styles.mobileDockSideIconLight]} />
-              <Text style={[styles.mobileDockSideText, isLightTheme && styles.mobileDockSideTextLight]}>IA</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.mobileDockMainBtn, isLightTheme && styles.mobileDockMainBtnLight]}
-              onPress={() => navigateToScreen('PointOfSale', { routeHint: '/pos' })}
-            >
-              <Ionicons name="add" size={34} style={styles.mobileDockMainIcon} />
-            </Pressable>
-
-            <Pressable style={styles.mobileDockSideBtn} onPress={() => navigateToScreen('Sales', { routeHint: '/sales' })}>
-              <Ionicons name="receipt" size={20} style={[styles.mobileDockSideIcon, isLightTheme && styles.mobileDockSideIconLight]} />
-              <Text style={[styles.mobileDockSideText, isLightTheme && styles.mobileDockSideTextLight]}>Ventas</Text>
-            </Pressable>
-          </View>
-        </View>
+        <HomeScreen
+          isLightTheme={isLightTheme}
+          kpis={kpis}
+          loadingKpis={loadingKpis}
+          homeLast7Series={homeLast7Series}
+          homeMaxDaily={homeMaxDaily}
+          homePrimaryActions={homePrimaryActions}
+          homeBarColors={HOME_BAR_COLORS}
+          appContentBottomInset={appContentBottomInset}
+          lastMenuAction={lastMenuAction}
+          error={error}
+          formatMoney={formatMoney}
+          navigateToScreen={navigateToScreen}
+          resolveMenuAccent={resolveMenuAccent}
+          resolveMenuIcon={resolveMenuIcon}
+        />
       ) : (
         <ActiveModuleScreen
           currentScreen={currentScreen}
@@ -2280,565 +1709,8 @@ const styles = StyleSheet.create({
     backgroundColor: APP_THEME_COLORS.shared.brandGlowBottomLight,
     opacity: 0.12,
   },
-  appBar: {
-    height: 56,
-    backgroundColor: APP_THEME_COLORS.dark.appBarBackground,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: APP_THEME_COLORS.dark.appBarBorder,
-  },
-  appBarLight: {
-    backgroundColor: APP_THEME_COLORS.light.appBarBackground,
-    borderBottomColor: APP_THEME_COLORS.light.appBarBorder,
-  },
-  appBarLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  moduleShell: {
     flex: 1,
-    minWidth: 0,
-  },
-  appBrandLogoWrap: {
-    width: 46,
-    height: 46,
-    marginLeft: 8,
-    marginTop: -6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  appBrandLogo: {
-    width: 42,
-    height: 42,
-    transform: [{ translateY: -2 }],
-  },
-  appBrandTextWrap: {
-    marginLeft: 8,
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-  },
-  brandWordmark: {
-    fontSize: 26,
-    lineHeight: 26,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-  },
-  brandWordmarkOfir: {
-    color: APP_THEME_COLORS.dark.brandOfir,
-  },
-  brandWordmarkOfirLight: {
-    color: APP_THEME_COLORS.light.brandOfir,
-  },
-  brandWordmarkOne: {
-    color: APP_THEME_COLORS.dark.brandOne,
-  },
-  brandWordmarkOneLight: {
-    color: APP_THEME_COLORS.light.brandOne,
-  },
-  appBarTitle: {
-    color: APP_THEME_COLORS.dark.appBarTitle,
-    fontWeight: '700',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginTop: 0,
-  },
-  appBarTitleLight: {
-    color: APP_THEME_COLORS.light.appBarTitle,
-  },
-  appBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  notificationsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: APP_THEME_COLORS.dark.iconButtonBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: APP_THEME_COLORS.dark.iconButtonBackground,
-    position: 'relative',
-  },
-  notificationsBtnLight: {
-    backgroundColor: APP_THEME_COLORS.light.iconButtonBackground,
-    borderColor: APP_THEME_COLORS.light.iconButtonBorder,
-  },
-  notificationsBtnText: {
-    color: APP_THEME_COLORS.dark.iconButtonIcon,
-  },
-  notificationsBtnTextLight: {
-    color: APP_THEME_COLORS.light.iconButtonIcon,
-  },
-  notificationsBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: APP_THEME_COLORS.shared.notificationBadgeBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationsBadgeText: {
-    color: APP_THEME_COLORS.shared.notificationBadgeText,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  appBarBackBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: APP_THEME_COLORS.dark.backButtonBorder,
-    backgroundColor: APP_THEME_COLORS.dark.backButtonBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  appBarBackBtnLight: {
-    borderColor: APP_THEME_COLORS.light.backButtonBorder,
-    backgroundColor: APP_THEME_COLORS.light.backButtonBackground,
-  },
-  appBarBackIcon: {
-    color: APP_THEME_COLORS.dark.backButtonIcon,
-    marginLeft: -1,
-  },
-  appBarBackIconLight: {
-    color: APP_THEME_COLORS.light.backButtonIcon,
-  },
-  connectionChip: {
-    width: 36,
-    height: 36,
-    borderWidth: 1,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  connectionChipOnline: {
-    borderColor: APP_THEME_COLORS.shared.connectionOnlineBorder,
-    backgroundColor: APP_THEME_COLORS.shared.connectionOnlineBackground,
-  },
-  connectionChipOffline: {
-    borderColor: APP_THEME_COLORS.shared.connectionOfflineBorder,
-    backgroundColor: APP_THEME_COLORS.shared.connectionOfflineBackground,
-  },
-  connectionIcon: {
-    lineHeight: 16,
-  },
-  connectionIconOnline: { color: APP_THEME_COLORS.shared.connectionOnlineText },
-  connectionIconOffline: { color: APP_THEME_COLORS.shared.connectionOfflineText },
-  connectionBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  connectionBadgeText: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  menuTrigger: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    backgroundColor: APP_THEME_COLORS.dark.menuTriggerBackground,
-    borderWidth: 1,
-    borderColor: APP_THEME_COLORS.dark.menuTriggerBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuTriggerLight: {
-    backgroundColor: APP_THEME_COLORS.light.menuTriggerBackground,
-    borderColor: APP_THEME_COLORS.light.menuTriggerBorder,
-  },
-  menuTriggerText: {
-    color: APP_THEME_COLORS.dark.menuTriggerIcon,
-  },
-  menuTriggerTextLight: {
-    color: APP_THEME_COLORS.light.menuTriggerIcon,
-  },
-  menuOverlay: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  menuBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(2, 6, 23, 0.5)',
-  },
-  menuDrawer: {
-    width: '82%',
-    maxWidth: 360,
-    backgroundColor: '#f8fbff',
-    borderLeftWidth: 1,
-    borderLeftColor: '#cddcf1',
-    paddingBottom: 14,
-  },
-  menuDrawerDark: {
-    backgroundColor: '#0c1528',
-    borderLeftColor: '#213755',
-  },
-  notificationsModal: {
-    width: '92%',
-    maxHeight: '78%',
-    backgroundColor: '#0f172a',
-    borderColor: '#334155',
-    borderWidth: 1,
-    borderRadius: 14,
-    alignSelf: 'center',
-    marginTop: 80,
-    paddingBottom: 12,
-  },
-  notificationsModalLight: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#cbd5e1',
-  },
-  notificationsHeader: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  notificationsHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  notificationsTitle: {
-    color: '#e2e8f0',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  notificationsTitleLight: {
-    color: '#0f172a',
-  },
-  notificationsMarkAllBtn: {
-    borderWidth: 1,
-    borderColor: '#1d4ed8',
-    borderRadius: 8,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-  },
-  notificationsMarkAllText: {
-    color: '#93c5fd',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  notificationsCloseBtn: {
-    borderWidth: 1,
-    borderColor: '#475569',
-    borderRadius: 8,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    backgroundColor: '#1e293b',
-  },
-  notificationsCloseBtnLight: {
-    borderColor: '#cbd5e1',
-    backgroundColor: '#ffffff',
-  },
-  notificationsCloseText: {
-    color: '#e2e8f0',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  notificationsCloseTextLight: {
-    color: '#334155',
-  },
-  notificationsList: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  notificationsEmpty: {
-    color: '#94a3b8',
-    textAlign: 'center',
-    paddingVertical: 16,
-  },
-  notificationsEmptyLight: {
-    color: '#475569',
-  },
-  notificationItem: {
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 10,
-    backgroundColor: '#111827',
-    padding: 10,
-    gap: 4,
-  },
-  notificationItemLight: {
-    borderColor: '#cbd5e1',
-    backgroundColor: '#ffffff',
-  },
-  notificationItemUnread: {
-    borderColor: '#2563eb',
-  },
-  notificationTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  notificationSeverity: {
-    color: '#93c5fd',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  notificationSeverityLight: {
-    color: '#1d4ed8',
-  },
-  notificationDate: {
-    color: '#94a3b8',
-    fontSize: 11,
-  },
-  notificationDateLight: {
-    color: '#64748b',
-  },
-  notificationTitle: {
-    color: '#e2e8f0',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  notificationTitleLight: {
-    color: '#0f172a',
-  },
-  notificationMessage: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  notificationMessageLight: {
-    color: '#334155',
-  },
-  menuHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  menuHeaderDark: {
-    borderBottomColor: '#1f2937',
-  },
-  menuHeaderTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  menuHeaderTitleDark: {
-    color: '#f8fafc',
-  },
-  menuHeaderBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  menuHeaderLogo: {
-    width: 42,
-    height: 42,
-  },
-  menuHeaderWordmark: {
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '900',
-  },
-  menuCloseBtn: {
-    borderWidth: 1,
-    borderColor: '#cfddf0',
-    borderRadius: 9,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#ffffff',
-  },
-  menuCloseBtnDark: {
-    borderColor: '#334d74',
-    backgroundColor: '#11203a',
-  },
-  menuCloseText: {
-    color: '#334155',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  menuCloseTextDark: {
-    color: '#cbd5e1',
-  },
-  menuUser: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    color: '#0f172a',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  menuUserDark: {
-    color: '#e2e8f0',
-  },
-  menuTenant: {
-    paddingHorizontal: 14,
-    color: '#5d7394',
-    fontSize: 11,
-    marginBottom: 8,
-  },
-  menuTenantDark: {
-    color: '#94a3b8',
-  },
-  menuContent: {
-    paddingHorizontal: 10,
-    paddingBottom: 30,
-  },
-  menuEmptyText: {
-    color: '#64748b',
-    fontSize: 13,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-  },
-  menuEmptyTextDark: {
-    color: '#94a3b8',
-  },
-  menuSection: {
-    marginBottom: 6,
-  },
-  menuSectionBtn: {
-    minHeight: 46,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f5f8ff',
-    borderWidth: 1,
-    borderColor: '#d9e4f4',
-  },
-  menuSectionBtnDark: {
-    backgroundColor: '#101a2e',
-    borderColor: '#253957',
-  },
-  menuSectionBtnDisabled: {
-    opacity: 0.52,
-  },
-  menuSectionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  menuIconBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIconBadgeDisabled: {
-    opacity: 0.65,
-  },
-  menuSectionText: {
-    color: '#0f172a',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  menuSectionTextDark: {
-    color: '#e2e8f0',
-  },
-  menuSectionTextDisabled: {
-    color: '#64748b',
-  },
-  menuChevron: {
-    color: '#334155',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  menuChevronDark: {
-    color: '#cbd5e1',
-  },
-  menuChildren: {
-    marginTop: 4,
-    marginLeft: 8,
-  },
-  menuChildBtn: {
-    minHeight: 38,
-    borderRadius: 9,
-    paddingHorizontal: 10,
-    backgroundColor: '#f0f5ff',
-    marginBottom: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#dbe7f7',
-  },
-  menuChildBtnDark: {
-    backgroundColor: '#172236',
-    borderColor: '#2a3f60',
-  },
-  menuChildIconBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-  },
-  menuChildBtnDisabled: {
-    opacity: 0.55,
-  },
-  menuChildText: {
-    color: '#1e293b',
-    fontSize: 12,
-    fontWeight: '500',
-    flex: 1,
-    marginLeft: 8,
-  },
-  menuChildTextDark: {
-    color: '#e2e8f0',
-  },
-  menuChildTextDisabled: {
-    color: '#64748b',
-  },
-  menuChildChevron: {
-    color: '#4b5f84',
-  },
-  menuChildChevronLight: {
-    color: '#607b9f',
-  },
-  menuLockedIcon: {
-    color: '#7c8fae',
-  },
-  menuFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  menuFooterDark: {
-    borderTopColor: '#1f2937',
-  },
-  menuLogoutBtn: {
-    minHeight: 42,
-    borderRadius: 10,
-    backgroundColor: '#dc2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuLogoutBtnDark: {
-    backgroundColor: '#b91c1c',
-  },
-  menuLogoutText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
   },
   centered: {
     flex: 1,
@@ -2850,977 +1722,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 15,
     color: '#334155',
-  },
-  homeWrap: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 30,
-  },
-  homeScreenContainer: {
-    flex: 1,
-  },
-  moduleShell: {
-    flex: 1,
-  },
-  homeScrollWithDock: {
-    paddingBottom: 124,
-  },
-  mobileMetricMainCard: {
-    marginBottom: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#111c33',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  mobileMetricMainCardLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  mobileMetricMainLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
-  },
-  mobileMetricMainLogo: {
-    width: 58,
-    height: 58,
-    marginRight: 10,
-  },
-  mobileMetricMainTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  mobileMetricTitle: {
-    color: '#e7efff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  mobileMetricTitleLight: {
-    color: '#223b64',
-  },
-  mobileMetricMainAmount: {
-    marginTop: 4,
-    color: '#f8fafc',
-    fontSize: 42,
-    lineHeight: 44,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-  },
-  mobileMetricMainAmountLight: {
-    color: '#1e2f4d',
-  },
-  mobileMetricCard: {
-    marginBottom: 10,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#111c33',
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-  },
-  mobileMetricCardLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  mobileMetricThinCard: {
-    paddingVertical: 10,
-  },
-  mobileMetricRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  mobileMetricIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0f172a',
-  },
-  mobileMetricIconWrapLight: {
-    backgroundColor: '#edf2fb',
-  },
-  mobileMetricIconGold: {
-    color: '#f6c84a',
-  },
-  mobileMetricIconBlue: {
-    color: '#5caeff',
-  },
-  mobileMetricTextWrap: {
-    flex: 1,
-  },
-  mobileMetricAmount: {
-    marginTop: 2,
-    color: '#f8fafc',
-    fontSize: 21,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-  },
-  mobileMetricAmountLight: {
-    color: '#1e2f4d',
-  },
-  mobileTrendUp: {
-    color: '#65db72',
-    fontWeight: '800',
-    fontSize: 17,
-  },
-  mobileTrendDown: {
-    color: '#f48a7d',
-    fontWeight: '800',
-    fontSize: 17,
-  },
-  homeMiniChartCard: {
-    marginBottom: 10,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#101a2f',
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-  },
-  homeMiniChartCardLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  homeMiniChartTitle: {
-    color: '#f0f4ff',
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 10,
-  },
-  homeMiniChartTitleLight: {
-    color: '#1f365c',
-  },
-  homeMiniChartEmpty: {
-    color: '#8ca2c8',
-    fontSize: 13,
-  },
-  homeMiniChartEmptyLight: {
-    color: '#64748b',
-  },
-  homeMiniBarsWrap: {
-    height: 116,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  homeMiniBarCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  homeMiniBarTrack: {
-    width: '100%',
-    height: 92,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2f456b',
-    backgroundColor: '#0e1627',
-    justifyContent: 'flex-end',
-    padding: 4,
-    overflow: 'hidden',
-  },
-  homeMiniBarTrackLight: {
-    borderColor: '#dbe5f2',
-    backgroundColor: '#eef3fb',
-  },
-  homeMiniBarFill: {
-    width: '100%',
-    borderRadius: 6,
-    minHeight: 6,
-  },
-  homeMiniBarDay: {
-    marginTop: 5,
-    color: '#d4def3',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  homeMiniBarDayLight: {
-    color: '#475569',
-  },
-  mobileModulesCard: {
-    marginBottom: 12,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#0f1a2f',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  mobileModulesCardLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  mobileModuleItem: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2d4264',
-    backgroundColor: '#131f35',
-    paddingHorizontal: 6,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mobileModuleItemLight: {
-    borderColor: '#dbe5f2',
-    backgroundColor: '#f6f9ff',
-  },
-  mobileModuleIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 7,
-  },
-  mobileModuleLabel: {
-    color: '#e0ebff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  mobileModuleLabelLight: {
-    color: '#2a466f',
-  },
-  aiInsightsShortcut: {
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#2a4670',
-    backgroundColor: '#111f37',
-    borderRadius: 14,
-    minHeight: 66,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  aiInsightsShortcutLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  aiInsightsShortcutIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#4f67a0',
-    backgroundColor: '#162744',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiInsightsShortcutIconWrapLight: {
-    borderColor: '#c9d8eb',
-    backgroundColor: '#f1f6ff',
-  },
-  aiInsightsShortcutIcon: {
-    color: '#8f7cff',
-  },
-  aiInsightsShortcutIconLight: {
-    color: '#5d58d8',
-  },
-  aiInsightsShortcutTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  aiInsightsShortcutTitle: {
-    color: '#e2e8f0',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  aiInsightsShortcutTitleLight: {
-    color: '#0f172a',
-  },
-  aiInsightsShortcutSub: {
-    color: '#9fb7dc',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  aiInsightsShortcutSubLight: {
-    color: '#47638b',
-  },
-  aiInsightsShortcutChevron: {
-    color: '#93c5fd',
-  },
-  aiInsightsShortcutChevronLight: {
-    color: '#235ea9',
-  },
-  mobileBottomDock: {
-    marginTop: 2,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#101b30',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  mobileBottomDockFixed: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 10,
-    zIndex: 8,
-  },
-  mobileBottomDockLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  mobileDockSideBtn: {
-    width: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  mobileDockSideIcon: {
-    color: '#60adff',
-  },
-  mobileDockSideIconLight: {
-    color: '#235ea9',
-  },
-  mobileDockSideText: {
-    color: '#ccd9f3',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  mobileDockSideTextLight: {
-    color: '#516a8f',
-  },
-  mobileDockMainBtn: {
-    width: 152,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 1,
-    borderColor: '#8ce37f',
-    backgroundColor: '#47be53',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#05280f',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  mobileDockMainBtnLight: {
-    borderColor: '#83d77a',
-    backgroundColor: '#4ec45b',
-  },
-  mobileDockMainIcon: {
-    color: '#f2fff1',
-    fontWeight: '700',
-  },
-  homeHeroCard: {
-    marginBottom: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1f3e68',
-    backgroundColor: '#0f1a30',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  homeHeroCardLight: {
-    borderColor: '#cfddf0',
-    backgroundColor: '#f8fbff',
-  },
-  quickGridCard: {
-    marginBottom: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#0f182b',
-    padding: 10,
-  },
-  quickGridCardLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  quickGridWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  quickGridItem: {
-    width: '31%',
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: '#2d4264',
-    backgroundColor: '#131f35',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickGridItemLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#f8fbff',
-  },
-  quickGridIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  quickGridLabel: {
-    color: '#dbeafe',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  quickGridLabelLight: {
-    color: '#2a466f',
-  },
-  homeTitleDark: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: '#f4f8ff',
-    letterSpacing: 0.2,
-  },
-  homeSubtitleDark: {
-    fontSize: 12,
-    color: '#9fb3d3',
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  homeSubtitleLight: {
-    color: '#475569',
-  },
-  homeScrollDark: {
-    paddingBottom: 24,
-  },
-  homeScrollLight: {
-    backgroundColor: '#f8fafc',
-  },
-  homeTitleLight: {
-    color: '#0f172a',
-  },
-  statusRowDark: {
-    marginBottom: 10,
-  },
-  statusTextDark: {
-    color: '#bad0f1',
-    fontSize: 12,
-  },
-  statusTextLight: {
-    color: '#334155',
-  },
-  themeSwitchCard: {
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    backgroundColor: '#0f1a30',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  themeSwitchCardLight: {
-    borderColor: '#d5e2f4',
-    backgroundColor: '#ffffff',
-  },
-  themeSwitchTextWrap: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  themeSwitchTitle: {
-    color: '#dbeafe',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  themeSwitchTitleLight: {
-    color: '#0f172a',
-  },
-  themeSwitchSubtitle: {
-    color: '#9fb3d3',
-    marginTop: 2,
-    fontSize: 11,
-  },
-  themeSwitchSubtitleLight: {
-    color: '#64748b',
-  },
-  themeSwitchControlWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  themeSwitchMode: {
-    color: '#e2e8f0',
-    fontWeight: '700',
-    fontSize: 12,
-    minWidth: 50,
-    textAlign: 'right',
-  },
-  themeSwitchModeLight: {
-    color: '#334155',
-  },
-  quickSaleBtn: {
-    marginBottom: 12,
-    backgroundColor: '#3cae4d',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#7fe06e',
-    shadowColor: '#020617',
-    shadowOpacity: 0.28,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  quickSaleBtnLight: {
-    backgroundColor: '#47b954',
-    borderColor: '#92dc84',
-    shadowColor: '#2f8a3a',
-    shadowOpacity: 0.18,
-  },
-  quickSaleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  quickSaleIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(2, 25, 8, 0.24)',
-  },
-  quickSaleIconWrapLight: {
-    backgroundColor: 'rgba(235, 255, 234, 0.5)',
-  },
-  quickSaleIcon: {
-    color: '#dbeafe',
-  },
-  quickSaleIconLight: {
-    color: '#eff6ff',
-  },
-  quickSaleTextWrap: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  quickSaleBtnText: {
-    color: '#f8fafc',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  quickSaleBtnTextLight: {
-    color: '#ffffff',
-  },
-  quickSaleHint: {
-    color: '#e9ffe8',
-    marginTop: 2,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  quickSaleHintLight: {
-    color: '#efffef',
-  },
-  quickSaleChevron: {
-    color: '#efffef',
-  },
-  quickSaleChevronLight: {
-    color: '#ffffff',
-  },
-  kpiCardDark: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  kpiBlue: {
-    backgroundColor: '#13203a',
-    borderColor: '#244a7a',
-  },
-  kpiBlueLight: {
-    backgroundColor: '#f2f7ff',
-    borderColor: '#d2e3fa',
-  },
-  kpiGreen: {
-    backgroundColor: '#132b1d',
-    borderColor: '#2f7045',
-  },
-  kpiGreenLight: {
-    backgroundColor: '#effcf4',
-    borderColor: '#bcebd0',
-  },
-  kpiPurple: {
-    backgroundColor: '#1f1c3a',
-    borderColor: '#4d4b95',
-  },
-  kpiPurpleLight: {
-    backgroundColor: '#f2f2ff',
-    borderColor: '#d5d5fb',
-  },
-  kpiTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  kpiLabelDark: {
-    color: '#94a3b8',
-    fontSize: 12,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-  },
-  kpiLabelLight: {
-    color: '#475569',
-  },
-  kpiIcon: {
-    color: '#cbd5e1',
-    fontSize: 14,
-  },
-  kpiAmountDark: {
-    fontSize: 34,
-    lineHeight: 38,
-    fontWeight: '800',
-    marginTop: 8,
-  },
-  kpiBlueText: {
-    color: '#38bdf8',
-  },
-  kpiGreenText: {
-    color: '#4ade80',
-  },
-  kpiPurpleText: {
-    color: '#d946ef',
-  },
-  kpiMetaDark: {
-    marginTop: 6,
-    color: '#cbd5e1',
-    fontSize: 13,
-  },
-  kpiMetaLight: {
-    color: '#334155',
-  },
-  sectionCardDark: {
-    marginTop: 4,
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: '#101b30',
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    padding: 11,
-  },
-  sectionCardLight: {
-    backgroundColor: '#ffffff',
-    borderColor: '#d5e2f4',
-  },
-  sectionTitleDark: {
-    color: '#e2e8f0',
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  sectionTitleLight: {
-    color: '#0f172a',
-  },
-  chartPlaceholder: {
-    height: 170,
-    borderRadius: 12,
-    backgroundColor: '#1a2742',
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  chartPlaceholderSmall: {
-    height: 150,
-    borderRadius: 12,
-    backgroundColor: '#1a2742',
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  chartPlaceholderLight: {
-    backgroundColor: '#f1f5f9',
-  },
-  chartPlaceholderText: {
-    color: '#94a3b8',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  chartPlaceholderTextLight: {
-    color: '#64748b',
-  },
-  listLineRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-  },
-  chartBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-    gap: 8,
-  },
-  chartTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#334155',
-    overflow: 'hidden',
-  },
-  chartTrackLight: {
-    backgroundColor: '#dbe4ef',
-  },
-  chartFillBlue: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#38bdf8',
-  },
-  chartFillTeal: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#14b8a6',
-  },
-  chartFillOrange: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#fb923c',
-  },
-  listLineLabel: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    marginRight: 8,
-  },
-  listLineLabelLight: {
-    color: '#475569',
-  },
-  listLineValue: {
-    color: '#93c5fd',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  listLineValueLight: {
-    color: '#1d4ed8',
-  },
-  panelDark: {
-    marginTop: 4,
-    borderRadius: 14,
-    backgroundColor: '#0e182d',
-    borderWidth: 1,
-    borderColor: '#223a5e',
-    padding: 12,
-  },
-  panelLight: {
-    backgroundColor: '#ffffff',
-    borderColor: '#d5e2f4',
-  },
-  panelTitleDark: {
-    color: '#e2e8f0',
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  panelTitleLight: {
-    color: '#0f172a',
-  },
-  panelLineDark: {
-    color: '#cbd5e1',
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  panelLineLight: {
-    color: '#334155',
-  },
-  panelLineMutedDark: {
-    marginTop: 2,
-    color: '#94a3b8',
-    fontSize: 12,
-  },
-  panelLineMutedLight: {
-    color: '#64748b',
-  },
-  homeCard: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  homeTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  homeSubtitle: {
-    fontSize: 14,
-    color: '#475569',
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  homeScroll: {
-    paddingBottom: 26,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  statusPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusPillSuccess: {
-    backgroundColor: '#dcfce7',
-  },
-  statusPillWarning: {
-    backgroundColor: '#fef3c7',
-  },
-  statusPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statusPillSuccessText: {
-    color: '#166534',
-  },
-  statusPillWarningText: {
-    color: '#92400e',
-  },
-  statusPillNeutral: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#e2e8f0',
-  },
-  statusPillNeutralText: {
-    color: '#334155',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  kpiCard: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-  },
-  kpiCardBlue: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#eff6ff',
-  },
-  kpiCardGreen: {
-    backgroundColor: '#ecfdf5',
-    borderColor: '#a7f3d0',
-  },
-  kpiCardOrange: {
-    backgroundColor: '#fff7ed',
-    borderColor: '#fed7aa',
-  },
-  kpiCardPurple: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#cbd5e1',
-  },
-  kpiLabel: {
-    color: '#475569',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  kpiValue: {
-    color: '#0f172a',
-    fontSize: 24,
-    fontWeight: '800',
-    lineHeight: 28,
-  },
-  panel: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  panelTitle: {
-    color: '#0f172a',
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  infoBlock: {
-    marginTop: 8,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  badge: {
-    backgroundColor: '#e0e7ff',
-    color: '#1e3a8a',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    overflow: 'hidden',
-    fontWeight: '600',
-  },
-  infoValue: {
-    color: '#0f172a',
-    fontSize: 15,
-  },
-  offlineMetaInline: {
-    marginTop: 8,
-    color: '#64748b',
-    fontSize: 12,
-  },
-  secondaryButtonDark: {
-    marginTop: 14,
-    borderWidth: 1,
-    borderColor: '#3a5e8d',
-    borderRadius: 12,
-    paddingVertical: 11,
-    backgroundColor: '#13213a',
-  },
-  secondaryButtonTextDark: {
-    textAlign: 'center',
-    color: '#f8fafc',
-    fontWeight: '700',
-  },
-  errorText: {
-    marginTop: 8,
-    color: '#f87171',
-    fontSize: 13,
-  },
-  successText: {
-    marginTop: 8,
-    color: '#4ade80',
-    fontSize: 13,
   },
 });

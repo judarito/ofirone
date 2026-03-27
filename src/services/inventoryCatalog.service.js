@@ -1,6 +1,16 @@
 import { supabase } from '../lib/supabase';
+import { getPageCache, getLatestPageCache, savePageCache, getSimpleCache, saveSimpleCache } from './offlineCache.service';
 
-export async function listLocations(tenantId) {
+const LOCATIONS_CACHE_KEY = (tenantId) => `locations:${tenantId}`;
+
+export async function listLocations(tenantId, { offlineMode = false } = {}) {
+  const cacheKey = LOCATIONS_CACHE_KEY(tenantId);
+
+  if (offlineMode) {
+    const cached = await getSimpleCache(cacheKey);
+    return { success: true, data: cached?.value || [], source: 'cache' };
+  }
+
   try {
     const { data, error } = await supabase
       .from('locations')
@@ -10,10 +20,28 @@ export async function listLocations(tenantId) {
       .order('name', { ascending: true });
 
     if (error) throw error;
-    return { success: true, data: data || [] };
+    const list = data || [];
+    await saveSimpleCache(cacheKey, list);
+    return { success: true, data: list };
   } catch (error) {
+    const cached = await getSimpleCache(cacheKey);
+    if (cached?.value?.length) {
+      return { success: true, data: cached.value, source: 'cache', warning: error.message };
+    }
     return { success: false, error: error.message, data: [] };
   }
+}
+
+const STOCK_BALANCES_NS = 'inventory-stock';
+
+function filterByComponent(data, isComponent) {
+  return (data || []).filter((item) => {
+    const effectiveIsComponent =
+      item.variant?.is_component !== null && item.variant?.is_component !== undefined
+        ? item.variant?.is_component
+        : item.variant?.product?.is_component || false;
+    return Boolean(effectiveIsComponent) === Boolean(isComponent);
+  });
 }
 
 export async function listStockBalances({
@@ -22,7 +50,21 @@ export async function listStockBalances({
   isComponent = false,
   limit = 20,
   offset = 0,
+  offlineMode = false,
 } = {}) {
+  const page = Math.floor(offset / limit) + 1;
+  const filters = { locationId: locationId || '', isComponent: Boolean(isComponent) };
+
+  if (offlineMode) {
+    const cached = await getPageCache({ namespace: STOCK_BALANCES_NS, tenantId, page, pageSize: limit, filters });
+    return {
+      success: true,
+      data: cached?.items || [],
+      total: cached?.total || 0,
+      source: 'cache',
+    };
+  }
+
   try {
     let query = supabase
       .from('stock_balances')
@@ -57,16 +99,24 @@ export async function listStockBalances({
     const { data, error, count } = await query;
     if (error) throw error;
 
-    const rows = (data || []).filter((item) => {
-      const effectiveIsComponent =
-        item.variant?.is_component !== null && item.variant?.is_component !== undefined
-          ? item.variant?.is_component
-          : item.variant?.product?.is_component || false;
-      return Boolean(effectiveIsComponent) === Boolean(isComponent);
+    const rows = filterByComponent(data, isComponent);
+
+    await savePageCache({
+      namespace: STOCK_BALANCES_NS,
+      tenantId,
+      page,
+      pageSize: limit,
+      filters,
+      items: rows,
+      total: Number(count || 0),
     });
 
     return { success: true, data: rows, total: Number(count || 0) };
   } catch (error) {
+    const cached = await getPageCache({ namespace: STOCK_BALANCES_NS, tenantId, page, pageSize: limit, filters });
+    if (cached?.items?.length) {
+      return { success: true, data: cached.items, total: cached.total || 0, source: 'cache', warning: error.message };
+    }
     return { success: false, error: error.message, data: [], total: 0 };
   }
 }

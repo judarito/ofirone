@@ -2,6 +2,15 @@ import { getSyncState, upsertSyncState } from '../storage/sqlite/database';
 
 const CACHE_PREFIX = 'cache';
 
+// Cache older than this is considered stale and triggers a UI warning
+export const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export function isCacheStale(cachedAt) {
+  if (!cachedAt) return true;
+  const age = Date.now() - new Date(cachedAt).getTime();
+  return !Number.isFinite(age) || age > CACHE_MAX_AGE_MS;
+}
+
 function safeSerialize(filters) {
   try {
     return JSON.stringify(filters || {});
@@ -36,13 +45,13 @@ export async function getPageCache({ namespace, tenantId, page, pageSize, filter
   const key = buildKey(namespace, tenantId, page, pageSize, filters);
   const row = await getSyncState(key);
   if (!row?.value) return null;
-  return row.value;
+  return { ...row.value, isStale: isCacheStale(row.value.cachedAt) };
 }
 
 export async function getLatestPageCache({ namespace, tenantId }) {
   const row = await getSyncState(buildLatestKey(namespace, tenantId));
   if (!row?.value) return null;
-  return row.value;
+  return { ...row.value, isStale: isCacheStale(row.value.cachedAt) };
 }
 
 export async function saveSimpleCache(namespace, value) {

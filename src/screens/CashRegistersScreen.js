@@ -74,7 +74,7 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
   useEffect(() => {
     const loadLookups = async () => {
       if (!tenant?.tenant_id) return;
-      const res = await listLocations(tenant.tenant_id);
+      const res = await listLocations(tenant.tenant_id, { offlineMode });
       if (res.success) setLocations(res.data || []);
     };
     loadLookups();
