@@ -244,31 +244,23 @@ export async function listPurchases({
 } = {}) {
   try {
     let query = supabase
-      .from('inventory_moves')
+      .from('purchases')
       .select(
         `
-          inventory_move_id,
+          purchase_id,
           tenant_id,
-          move_type,
           location_id,
-          variant_id,
-          quantity,
-          unit_cost,
+          supplier_id,
+          total,
           note,
           created_at,
           location:location_id(name),
-          variant:variant_id(
-            sku,
-            variant_name,
-            price,
-            product:product_id(name)
-          ),
+          supplier:supplier_id(legal_name,trade_name,document_number),
           created_by_user:created_by(full_name)
         `,
         { count: 'exact' },
       )
       .eq('tenant_id', tenantId)
-      .eq('move_type', 'PURCHASE_IN')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -279,20 +271,69 @@ export async function listPurchases({
     const { data, error, count } = await query;
     if (error) throw error;
 
-    const rows = (data || []).map((item) => ({
-      purchase_id: item.inventory_move_id,
-      sku: item.variant?.sku || '',
-      variant_name: item.variant?.variant_name || '',
-      product_name: item.variant?.product?.name || '',
-      location_name: item.location?.name || '',
-      quantity: Number(item.quantity || 0),
-      unit_cost: Number(item.unit_cost || 0),
-      line_total: Number(item.quantity || 0) * Number(item.unit_cost || 0),
-      purchased_at: item.created_at,
-      purchased_by_name: item.created_by_user?.full_name || '',
-      note: item.note,
-      current_price: Number(item.variant?.price || 0),
-    }));
+    const purchaseIds = (data || []).map((item) => item.purchase_id).filter(Boolean);
+    const linesByPurchase = new Map();
+
+    if (purchaseIds.length > 0) {
+      const { data: lineRows, error: lineError } = await supabase
+        .from('inventory_moves')
+        .select(`
+          source_id,
+          quantity,
+          unit_cost,
+          variant:variant_id(
+            sku,
+            variant_name,
+            product:product_id(name)
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('move_type', 'PURCHASE_IN')
+        .in('source_id', purchaseIds)
+        .order('created_at', { ascending: true });
+
+      if (lineError) throw lineError;
+
+      (lineRows || []).forEach((line) => {
+        const key = line.source_id;
+        if (!key) return;
+        if (!linesByPurchase.has(key)) {
+          linesByPurchase.set(key, []);
+        }
+        linesByPurchase.get(key).push(line);
+      });
+    }
+
+    const rows = (data || []).map((item) => {
+      const purchaseLines = linesByPurchase.get(item.purchase_id) || [];
+      const firstLine = purchaseLines[0] || null;
+      const firstProductName = firstLine?.variant?.product?.name || 'Compra';
+      const firstVariantName = firstLine?.variant?.variant_name
+        ? ` - ${firstLine.variant.variant_name}`
+        : '';
+      const itemsCount = purchaseLines.length;
+      const itemsSummary = itemsCount > 1
+        ? `${firstProductName}${firstVariantName} +${itemsCount - 1} item${itemsCount - 1 === 1 ? '' : 's'}`
+        : `${firstProductName}${firstVariantName}`;
+
+      return {
+        purchase_id: item.purchase_id,
+        source_purchase_id: item.purchase_id,
+        supplier_name: item.supplier?.trade_name || item.supplier?.legal_name || 'Sin proveedor',
+        supplier_document: item.supplier?.document_number || '',
+        items_count: itemsCount,
+        items_summary: itemsSummary,
+        qty_total: purchaseLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0),
+        sku: firstLine?.variant?.sku || '',
+        variant_name: firstLine?.variant?.variant_name || '',
+        product_name: firstLine?.variant?.product?.name || '',
+        location_name: item.location?.name || '',
+        total: Number(item.total || 0),
+        purchased_at: item.created_at,
+        purchased_by_name: item.created_by_user?.full_name || '',
+        note: item.note,
+      };
+    });
 
     return { success: true, data: rows, total: Number(count || 0) };
   } catch (error) {

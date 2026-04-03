@@ -1,7 +1,30 @@
 import { supabase } from '../lib/supabase';
+import { getSimpleCache, saveSimpleCache } from './offlineCache.service';
 
 function sumTotals(rows) {
   return (rows || []).reduce((acc, row) => acc + (parseFloat(row.total) || 0), 0);
+}
+
+function toNumber(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getReportLocationsCacheKey(tenantId) {
+  return `report-locations:${tenantId || 'na'}`;
+}
+
+function getStockAlertLevel(stockRow) {
+  const onHand = toNumber(stockRow?.on_hand);
+  const reserved = toNumber(stockRow?.reserved);
+  const minStock = toNumber(stockRow?.variant?.min_stock);
+  const available = onHand - reserved;
+
+  if (onHand <= 0) return 'OUT_OF_STOCK';
+  if (available <= 0) return 'NO_AVAILABLE';
+  if (minStock > 0 && onHand <= minStock) return 'LOW_STOCK';
+  if (minStock > 0 && available <= minStock) return 'LOW_AVAILABLE';
+  return 'OK';
 }
 
 export async function getDashboardSummary(tenantId, locationId = null) {
@@ -42,12 +65,21 @@ export async function getDashboardSummary(tenantId, locationId = null) {
 
     const last30Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29).toISOString();
 
-    const [rToday, rMonth, rPrevMonth, rYear, rLast30, rTopProducts, rPayments] = await Promise.all([
+    const [rToday, rMonth, rPrevMonth, rYear, rLast30] = await Promise.all([
       base(todayStart, todayEnd),
       base(monthStart, monthEnd),
       base(prevMonthStart, prevMonthEnd),
       base(yearStart, yearEnd),
       base(last30Start, yearEnd),
+    ]);
+
+    if (rToday.error) throw rToday.error;
+    if (rMonth.error) throw rMonth.error;
+    if (rPrevMonth.error) throw rPrevMonth.error;
+    if (rYear.error) throw rYear.error;
+    if (rLast30.error) throw rLast30.error;
+
+    const [rTopProductsSettled, rPaymentsSettled] = await Promise.allSettled([
       (() => {
         let query = supabase
           .from('sale_lines')
@@ -86,13 +118,15 @@ export async function getDashboardSummary(tenantId, locationId = null) {
       })(),
     ]);
 
-    if (rToday.error) throw rToday.error;
-    if (rMonth.error) throw rMonth.error;
-    if (rPrevMonth.error) throw rPrevMonth.error;
-    if (rYear.error) throw rYear.error;
-    if (rLast30.error) throw rLast30.error;
-    if (rTopProducts.error) throw rTopProducts.error;
-    if (rPayments.error) throw rPayments.error;
+    const rTopProducts =
+      rTopProductsSettled.status === 'fulfilled' && !rTopProductsSettled.value?.error
+        ? rTopProductsSettled.value
+        : { data: [], error: rTopProductsSettled.status === 'fulfilled' ? rTopProductsSettled.value?.error : rTopProductsSettled.reason };
+
+    const rPayments =
+      rPaymentsSettled.status === 'fulfilled' && !rPaymentsSettled.value?.error
+        ? rPaymentsSettled.value
+        : { data: [], error: rPaymentsSettled.status === 'fulfilled' ? rPaymentsSettled.value?.error : rPaymentsSettled.reason };
 
     const kpis = {
       today: { total: sumTotals(rToday.data), count: (rToday.data || []).length },
@@ -213,6 +247,8 @@ export async function listReportLocations(tenantId) {
     return { success: false, error: 'tenantId es requerido', data: [] };
   }
 
+  const cacheKey = getReportLocationsCacheKey(tenantId);
+
   try {
     const { data, error } = await supabase
       .from('locations')
@@ -222,8 +258,14 @@ export async function listReportLocations(tenantId) {
       .order('name', { ascending: true });
 
     if (error) throw error;
-    return { success: true, data: data || [] };
+    const rows = data || [];
+    await saveSimpleCache(cacheKey, rows);
+    return { success: true, data: rows };
   } catch (error) {
+    const cached = await getSimpleCache(cacheKey);
+    if (cached?.value) {
+      return { success: true, data: cached.value, source: 'cache', warning: error.message };
+    }
     return { success: false, error: error.message, data: [] };
   }
 }
@@ -239,7 +281,20 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
     const salesQuery = withLocationFilter(
       supabase
         .from('sales')
-        .select('sale_id,total,status,sold_at,cash_session_id,sold_by,location_id')
+        .select(
+          `
+            sale_id,
+            subtotal,
+            discount_total,
+            tax_total,
+            total,
+            status,
+            sold_at,
+            cash_session_id,
+            sold_by,
+            location_id
+          `,
+        )
         .eq('tenant_id', tenantId)
         .in('status', ['COMPLETED', 'PARTIAL_RETURN', 'RETURNED'])
         .gte('sold_at', range.fromIso)
@@ -275,7 +330,7 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
           difference,
           opened_at,
           closed_at,
-          cash_register:cash_register_id(name,location_id,location:location_id(name)),
+          cash_register:cash_register_id(cash_register_id,name,location_id,location:location_id(name,location_id)),
           opened_by_user:opened_by(full_name),
           closed_by_user:closed_by(full_name)
         `,
@@ -290,8 +345,18 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
         .select(
           `
             on_hand,
+            reserved,
             location_id,
-            variant:variant_id(min_stock,cost,is_component,product:product_id(name))
+            location:location_id(name),
+            variant:variant_id(
+              variant_id,
+              sku,
+              variant_name,
+              min_stock,
+              cost,
+              is_component,
+              product:product_id(product_id,name,category:category_id(name))
+            )
           `,
         )
         .eq('tenant_id', tenantId),
@@ -309,7 +374,14 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
         `
           quantity,
           line_total,
-          variant:variant_id(cost),
+          unit_cost,
+          variant:variant_id(
+            variant_id,
+            sku,
+            variant_name,
+            cost,
+            product:product_id(name,category:category_id(name))
+          ),
           sale:sale_id!inner(tenant_id,status,sold_at,location_id)
         `,
       )
@@ -324,7 +396,21 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
 
     const cashMovementsQuery = supabase
       .from('cash_movements')
-      .select('type,amount,category,created_at,cash_session_id')
+      .select(
+        `
+          cash_movement_id,
+          type,
+          amount,
+          category,
+          note,
+          created_at,
+          cash_session_id,
+          created_by_user:created_by(full_name),
+          session:cash_session_id(
+            cash_register:cash_register_id(name,location:location_id(name,location_id))
+          )
+        `,
+      )
       .eq('tenant_id', tenantId)
       .gte('created_at', range.fromIso)
       .lte('created_at', range.toIso);
@@ -350,7 +436,18 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
       locationId,
     );
 
-    const [salesRes, paymentsRes, sessionsRes, stocksRes, sellersRes, linesRes, movementsRes, productionRes] = await Promise.all([
+    const layawayQuery = (() => {
+      let query = supabase
+        .from('vw_layaway_report')
+        .select('layaway_id,customer_name,status,created_at,due_date,total,paid_total,balance,location_id')
+        .eq('tenant_id', tenantId)
+        .gte('created_at', range.fromIso)
+        .lte('created_at', range.toIso);
+      if (locationId) query = query.eq('location_id', locationId);
+      return query;
+    })();
+
+    const [salesRes, paymentsRes, sessionsRes, stocksRes, sellersRes, linesRes, movementsRes, productionRes, layawayRes] = await Promise.allSettled([
       salesQuery,
       filteredPaymentsQuery,
       sessionsQuery,
@@ -359,38 +456,63 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
       filteredSalesLinesQuery,
       cashMovementsQuery,
       productionOrdersQuery,
+      layawayQuery,
     ]);
 
-    if (salesRes.error) throw salesRes.error;
-    if (paymentsRes.error) throw paymentsRes.error;
-    if (sessionsRes.error) throw sessionsRes.error;
-    if (stocksRes.error) throw stocksRes.error;
-    if (sellersRes.error) throw sellersRes.error;
-    if (linesRes.error) throw linesRes.error;
-    if (movementsRes.error) throw movementsRes.error;
-    if (productionRes.error) throw productionRes.error;
+    const unwrap = (result) => {
+      if (result.status !== 'fulfilled') throw result.reason;
+      if (result.value?.error) throw result.value.error;
+      return result.value;
+    };
 
-    const sales = salesRes.data || [];
-    const sessionsRaw = sessionsRes.data || [];
+    const salesResult = unwrap(salesRes);
+    const paymentsResult = unwrap(paymentsRes);
+    const sessionsResult = unwrap(sessionsRes);
+    const stocksResult = unwrap(stocksRes);
+    const sellersResult = unwrap(sellersRes);
+    const linesResult = unwrap(linesRes);
+    const movementsResult = unwrap(movementsRes);
+    const productionResult = unwrap(productionRes);
+
+    const layawayResult =
+      layawayRes.status === 'fulfilled' && !layawayRes.value?.error
+        ? layawayRes.value
+        : { data: [] };
+
+    const sales = salesResult.data || [];
+    const sessionsRaw = sessionsResult.data || [];
     const sessions = locationId
-      ? sessionsRaw.filter((session) => session.cash_register?.location_id === locationId)
+      ? sessionsRaw.filter(
+          (session) =>
+            session.cash_register?.location_id === locationId ||
+            session.cash_register?.location?.location_id === locationId,
+        )
       : sessionsRaw;
-    const payments = paymentsRes.data || [];
-    const stocks = stocksRes.data || [];
-    const saleLines = linesRes.data || [];
-    const allCashMovements = movementsRes.data || [];
-    const productionOrders = productionRes.data || [];
-    const sellerMap = new Map((sellersRes.data || []).map((s) => [s.user_id, s.full_name]));
+    const payments = paymentsResult.data || [];
+    const stocks = stocksResult.data || [];
+    const saleLines = linesResult.data || [];
+    const allCashMovements = movementsResult.data || [];
+    const productionOrders = productionResult.data || [];
+    const layawayContracts = layawayResult.data || [];
+    const sellerMap = new Map((sellersResult.data || []).map((s) => [s.user_id, s.full_name]));
 
     const grossTotal = sales.reduce((sum, sale) => {
-      if (sale.status === 'RETURNED') return sum;
-      return sum + (parseFloat(sale.total) || 0);
+      if (sale.status === 'RETURNED' || sale.status === 'PARTIAL_RETURN') return sum;
+      return sum + toNumber(sale.total);
     }, 0);
     const returnsTotal = sales.reduce((sum, sale) => {
-      if (sale.status !== 'RETURNED') return sum;
-      return sum + (parseFloat(sale.total) || 0);
+      if (sale.status !== 'RETURNED' && sale.status !== 'PARTIAL_RETURN') return sum;
+      return sum + Math.abs(toNumber(sale.total));
     }, 0);
     const netTotal = grossTotal - returnsTotal;
+    const grossDiscount = sales.reduce((sum, sale) => {
+      if (sale.status === 'RETURNED' || sale.status === 'PARTIAL_RETURN') return sum;
+      return sum + toNumber(sale.discount_total);
+    }, 0);
+    const grossTax = sales.reduce((sum, sale) => {
+      if (sale.status === 'RETURNED' || sale.status === 'PARTIAL_RETURN') return sum;
+      return sum + toNumber(sale.tax_total);
+    }, 0);
 
     const salesByDayMap = {};
     sales.forEach((sale) => {
@@ -406,9 +528,12 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
         };
       }
       salesByDayMap[day].count += 1;
-      const amount = parseFloat(sale.total) || 0;
-      if (sale.status === 'RETURNED') salesByDayMap[day].returns_total += amount;
-      else salesByDayMap[day].gross_total += amount;
+      const amount = Math.abs(toNumber(sale.total));
+      if (sale.status === 'RETURNED' || sale.status === 'PARTIAL_RETURN') {
+        salesByDayMap[day].returns_total += amount;
+      } else {
+        salesByDayMap[day].gross_total += amount;
+      }
       salesByDayMap[day].net_total =
         salesByDayMap[day].gross_total - salesByDayMap[day].returns_total;
     });
@@ -416,13 +541,13 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
 
     const paymentMap = {};
     payments.forEach((payment) => {
-      const method = payment.payment_method?.name || payment.payment_method?.code || 'Otro';
-      if (!paymentMap[method]) paymentMap[method] = 0;
-      paymentMap[method] += parseFloat(payment.amount) || 0;
+      const code = payment.payment_method?.code || 'N/A';
+      const name = payment.payment_method?.name || payment.payment_method?.code || 'Otro';
+      if (!paymentMap[code]) paymentMap[code] = { code, name, count: 0, total: 0 };
+      paymentMap[code].count += 1;
+      paymentMap[code].total += toNumber(payment.amount);
     });
-    const salesByPaymentMethod = Object.entries(paymentMap)
-      .map(([method, total]) => ({ method, total }))
-      .sort((a, b) => b.total - a.total);
+    const salesByPaymentMethod = Object.values(paymentMap).sort((a, b) => b.total - a.total);
 
     const sellerStats = {};
     sales.forEach((sale) => {
@@ -436,38 +561,172 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
         };
       }
       sellerStats[sellerId].count += 1;
-      sellerStats[sellerId].total += parseFloat(sale.total) || 0;
+      sellerStats[sellerId].total += toNumber(sale.total);
     });
     const salesBySeller = Object.values(sellerStats).sort((a, b) => b.total - a.total);
 
+    const topProductsMap = {};
+    const categoriesMap = {};
+    saleLines.forEach((line) => {
+      const quantity = toNumber(line.quantity);
+      const lineRevenue = toNumber(line.line_total);
+      const unitCost = toNumber(line.unit_cost || line.variant?.cost);
+      const lineCost = unitCost * quantity;
+      const variantId = line.variant?.variant_id || line.variant_id || 'unknown';
+      const sku = line.variant?.sku || '';
+      const productName = line.variant?.product?.name || 'Producto';
+      const variantName = line.variant?.variant_name || '';
+      const categoryName = line.variant?.product?.category?.name || 'Sin categoría';
+
+      if (!topProductsMap[variantId]) {
+        topProductsMap[variantId] = {
+          variant_id: variantId,
+          sku,
+          product_name: productName,
+          variant_name: variantName,
+          total_qty: 0,
+          total_revenue: 0,
+          total_cost: 0,
+          profit: 0,
+        };
+      }
+      topProductsMap[variantId].total_qty += quantity;
+      topProductsMap[variantId].total_revenue += lineRevenue;
+      topProductsMap[variantId].total_cost += lineCost;
+      topProductsMap[variantId].profit =
+        topProductsMap[variantId].total_revenue - topProductsMap[variantId].total_cost;
+
+      if (!categoriesMap[categoryName]) {
+        categoriesMap[categoryName] = {
+          category: categoryName,
+          qty: 0,
+          revenue: 0,
+          cost: 0,
+          profit: 0,
+          margin: 0,
+        };
+      }
+      categoriesMap[categoryName].qty += quantity;
+      categoriesMap[categoryName].revenue += lineRevenue;
+      categoriesMap[categoryName].cost += lineCost;
+      categoriesMap[categoryName].profit =
+        categoriesMap[categoryName].revenue - categoriesMap[categoryName].cost;
+      categoriesMap[categoryName].margin =
+        categoriesMap[categoryName].revenue > 0
+          ? Number(
+              (
+                (categoriesMap[categoryName].profit / categoriesMap[categoryName].revenue) *
+                100
+              ).toFixed(1),
+            )
+          : 0;
+    });
+
+    const topProducts = Object.values(topProductsMap)
+      .sort((a, b) => b.total_qty - a.total_qty)
+      .slice(0, 20);
+    const salesByCategory = Object.values(categoriesMap).sort((a, b) => b.revenue - a.revenue);
+
     const salesBySession = {};
+    const sessionLookup = new Map();
+    sessions.forEach((session) => {
+      sessionLookup.set(session.cash_session_id, session);
+    });
     sales.forEach((sale) => {
       const key = sale.cash_session_id || 'na';
       if (!salesBySession[key]) salesBySession[key] = { count: 0, total: 0 };
       salesBySession[key].count += 1;
-      salesBySession[key].total += parseFloat(sale.total) || 0;
+      salesBySession[key].total += toNumber(sale.total);
     });
 
     const sessionsWithSales = sessions.map((session) => {
       const sessionSales = salesBySession[session.cash_session_id] || { count: 0, total: 0 };
+      const openingAmount = toNumber(session.opening_amount);
+      const closingAmount = toNumber(session.closing_amount_expected);
+      const declaredAmount = toNumber(session.closing_amount_counted);
+      const diffAmount = toNumber(session.difference);
+      const durationMinutes =
+        session.opened_at && session.closed_at
+          ? Math.round((new Date(session.closed_at).getTime() - new Date(session.opened_at).getTime()) / 60000)
+          : null;
+
       return {
         ...session,
+        register_name: session.cash_register?.name || 'Caja',
+        location: session.cash_register?.location?.name || '-',
+        opened_by: session.opened_by_user?.full_name || '',
+        closed_by: session.closed_by_user?.full_name || '',
+        opening_amount: openingAmount,
+        closing_amount: closingAmount,
+        declared_amount: declaredAmount,
         sales_count: sessionSales.count,
         sales_total: sessionSales.total,
+        avg_per_sale: sessionSales.count > 0 ? sessionSales.total / sessionSales.count : 0,
+        difference: diffAmount,
+        has_difference: Math.abs(diffAmount) > 0.01,
+        duration_minutes: durationMinutes,
       };
     });
     const sessionsWithDiff = sessionsWithSales.filter(
-      (session) => Math.abs(Number(session.difference || 0)) > 0.5,
+      (session) => session.has_difference,
     );
 
+    const salesByCashRegisterMap = {};
+    sales.forEach((sale) => {
+      const sessionInfo = sessionLookup.get(sale.cash_session_id);
+      const registerId = sessionInfo?.cash_register?.cash_register_id || 'sin_caja';
+      const registerName = sessionInfo?.cash_register?.name || 'Sin caja';
+      const registerLocation = sessionInfo?.cash_register?.location?.name || '-';
+
+      if (!salesByCashRegisterMap[registerId]) {
+        salesByCashRegisterMap[registerId] = {
+          cash_register_id: registerId,
+          name: registerName,
+          location: registerLocation,
+          count: 0,
+          total: 0,
+        };
+      }
+
+      salesByCashRegisterMap[registerId].count += 1;
+      salesByCashRegisterMap[registerId].total += toNumber(sale.total);
+    });
+    const salesByCashRegister = Object.values(salesByCashRegisterMap).sort((a, b) => b.total - a.total);
+
     const totalInventoryValue = stocks.reduce(
-      (sum, row) => sum + Number(row.on_hand || 0) * Number(row.variant?.cost || 0),
+      (sum, row) => sum + toNumber(row.on_hand) * toNumber(row.variant?.cost),
       0,
     );
     const lowStockRows = stocks.filter(
-      (row) => Number(row.variant?.min_stock || 0) > 0 && Number(row.on_hand || 0) <= Number(row.variant?.min_stock || 0),
+      (row) => toNumber(row.variant?.min_stock) > 0 && toNumber(row.on_hand) <= toNumber(row.variant?.min_stock),
     );
-    const outOfStockRows = stocks.filter((row) => Number(row.on_hand || 0) <= 0);
+    const outOfStockRows = stocks.filter((row) => toNumber(row.on_hand) <= 0);
+
+    const stockAlerts = stocks
+      .map((row) => {
+        const onHand = toNumber(row.on_hand);
+        const reserved = toNumber(row.reserved);
+        const available = onHand - reserved;
+        const minStock = toNumber(row.variant?.min_stock);
+        const alertLevel = getStockAlertLevel(row);
+
+        return {
+          location_id: row.location_id,
+          location_name: row.location?.name || '',
+          variant_id: row.variant?.variant_id || null,
+          sku: row.variant?.sku || '',
+          product_id: row.variant?.product?.product_id || null,
+          product_name: row.variant?.product?.name || 'Producto',
+          variant_name: row.variant?.variant_name || '',
+          on_hand: onHand,
+          available,
+          min_stock: minStock,
+          reserved,
+          alert_level: alertLevel,
+        };
+      })
+      .filter((row) => row.alert_level !== 'OK')
+      .sort((left, right) => left.available - right.available);
 
     const sessionIds = new Set((sessions || []).map((s) => s.cash_session_id));
     const cashMovements = locationId
@@ -476,22 +735,40 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
 
     let movementIncome = 0;
     let movementExpense = 0;
+    let movementIncomeCount = 0;
+    let movementExpenseCount = 0;
     cashMovements.forEach((move) => {
-      const amount = Number(move.amount || 0);
-      if (move.type === 'INCOME') movementIncome += amount;
-      else movementExpense += amount;
+      const amount = toNumber(move.amount);
+      if (move.type === 'INCOME') {
+        movementIncome += amount;
+        movementIncomeCount += 1;
+      } else {
+        movementExpense += amount;
+        movementExpenseCount += 1;
+      }
     });
 
     const estimatedCost = saleLines.reduce(
-      (sum, line) => sum + Number(line.quantity || 0) * Number(line.variant?.cost || 0),
+      (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_cost || line.variant?.cost),
       0,
     );
     const grossMargin = netTotal - estimatedCost;
 
+    const layawaySummary = {
+      total_contracts: layawayContracts.length,
+      active_contracts: layawayContracts.filter((item) => item.status === 'ACTIVE').length,
+      completed_contracts: layawayContracts.filter((item) => item.status === 'COMPLETED').length,
+      cancelled_contracts: layawayContracts.filter((item) => item.status === 'CANCELLED').length,
+      expired_contracts: layawayContracts.filter((item) => item.status === 'EXPIRED').length,
+      total_value: layawayContracts.reduce((sum, item) => sum + toNumber(item.total), 0),
+      total_paid: layawayContracts.reduce((sum, item) => sum + toNumber(item.paid_total), 0),
+      total_balance: layawayContracts.reduce((sum, item) => sum + toNumber(item.balance), 0),
+    };
+
     const productionSummary = {
       total_orders: productionOrders.length,
-      planned_qty: productionOrders.reduce((sum, o) => sum + Number(o.quantity_planned || 0), 0),
-      produced_qty: productionOrders.reduce((sum, o) => sum + Number(o.quantity_produced || 0), 0),
+      planned_qty: productionOrders.reduce((sum, o) => sum + toNumber(o.quantity_planned), 0),
+      produced_qty: productionOrders.reduce((sum, o) => sum + toNumber(o.quantity_produced), 0),
       completed_orders: productionOrders.filter((o) => o.status === 'COMPLETED').length,
       in_progress_orders: productionOrders.filter((o) => o.status === 'IN_PROGRESS').length,
       draft_orders: productionOrders.filter((o) => o.status === 'DRAFT').length,
@@ -510,19 +787,59 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
             gross_total: grossTotal,
             returns_total: returnsTotal,
             net_total: netTotal,
+            gross_discount: grossDiscount,
+            gross_tax: grossTax,
           },
           by_day: salesByDay,
+          top_products: topProducts,
+          by_category: salesByCategory,
           by_payment_method: salesByPaymentMethod,
           by_seller: salesBySeller,
+          cash_movements_summary: {
+            total_income: movementIncome,
+            total_expense: movementExpense,
+            count_income: movementIncomeCount,
+            count_expense: movementExpenseCount,
+            net: movementIncome - movementExpense,
+          },
+          cash_movements: cashMovements
+            .map((move) => ({
+              cash_movement_id: move.cash_movement_id,
+              type: move.type,
+              amount: toNumber(move.amount),
+              category: move.category || '',
+              note: move.note || '',
+              created_at: move.created_at,
+              created_by_name: move.created_by_user?.full_name || '',
+              register_name: move.session?.cash_register?.name || '-',
+              location_name: move.session?.cash_register?.location?.name || '-',
+            }))
+            .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+            .slice(0, 80),
+          layaway_summary: layawaySummary,
+          layaway_contracts: layawayContracts
+            .map((contract) => ({
+              layaway_id: contract.layaway_id,
+              customer_name: contract.customer_name || 'Cliente',
+              status: contract.status || 'ACTIVE',
+              created_at: contract.created_at,
+              due_date: contract.due_date,
+              total: toNumber(contract.total),
+              paid_total: toNumber(contract.paid_total),
+              balance: toNumber(contract.balance),
+            }))
+            .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+            .slice(0, 80),
+          stock_alerts: stockAlerts.slice(0, 120),
         },
         cash: {
           summary: {
             sessions_count: sessionsWithSales.length,
-            open_sessions: sessionsWithSales.filter((s) => s.status === 'OPEN').length,
             sessions_with_difference: sessionsWithDiff.length,
             transactions_count: sales.length,
-            sales_total: sales.reduce((sum, sale) => sum + (parseFloat(sale.total) || 0), 0),
+            sales_total: sales.reduce((sum, sale) => sum + toNumber(sale.total), 0),
           },
+          by_cash_register: salesByCashRegister,
           sessions: sessionsWithSales
             .sort((a, b) => String(b.opened_at || '').localeCompare(String(a.opened_at || '')))
             .slice(0, 80),
@@ -537,20 +854,21 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
             out_of_stock: outOfStockRows.length,
             inventory_value: totalInventoryValue,
           },
+          stock_alerts: stockAlerts.slice(0, 120),
           low_stock_items: lowStockRows
             .map((row) => ({
               product_name: row.variant?.product?.name || 'Producto',
-              on_hand: Number(row.on_hand || 0),
-              min_stock: Number(row.variant?.min_stock || 0),
-              cost: Number(row.variant?.cost || 0),
+              on_hand: toNumber(row.on_hand),
+              min_stock: toNumber(row.variant?.min_stock),
+              cost: toNumber(row.variant?.cost),
             }))
             .sort((a, b) => a.on_hand - b.on_hand)
             .slice(0, 60),
           out_of_stock_items: outOfStockRows
             .map((row) => ({
               product_name: row.variant?.product?.name || 'Producto',
-              on_hand: Number(row.on_hand || 0),
-              min_stock: Number(row.variant?.min_stock || 0),
+              on_hand: toNumber(row.on_hand),
+              min_stock: toNumber(row.variant?.min_stock),
             }))
             .slice(0, 60),
         },
@@ -565,10 +883,14 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
           },
           cash_movements: cashMovements
             .map((move) => ({
+              cash_movement_id: move.cash_movement_id,
               type: move.type,
-              amount: Number(move.amount || 0),
+              amount: toNumber(move.amount),
               category: move.category || '',
               created_at: move.created_at,
+              created_by_name: move.created_by_user?.full_name || '',
+              register_name: move.session?.cash_register?.name || '-',
+              location_name: move.session?.cash_register?.location?.name || '-',
             }))
             .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
             .slice(0, 80),
@@ -579,8 +901,8 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
             .map((order) => ({
               production_order_id: order.production_order_id,
               status: order.status,
-              quantity_planned: Number(order.quantity_planned || 0),
-              quantity_produced: Number(order.quantity_produced || 0),
+              quantity_planned: toNumber(order.quantity_planned),
+              quantity_produced: toNumber(order.quantity_produced),
               created_at: order.created_at,
               completed_at: order.completed_at,
               bom_name: order.bom?.bom_name || '',

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 const CONNECTIVITY_CHECK_INTERVAL_MS = 10000;
 const CONNECTIVITY_TIMEOUT_MS = 6000;
@@ -55,9 +56,16 @@ export function useConnectivity() {
     checkConnectivity();
     timer = setInterval(checkConnectivity, CONNECTIVITY_CHECK_INTERVAL_MS);
 
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkConnectivity();
+      }
+    });
+
     return () => {
       active = false;
       if (timer) clearInterval(timer);
+      appStateSub.remove();
     };
   }, []);
 

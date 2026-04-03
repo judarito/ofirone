@@ -213,7 +213,7 @@ export default function SalesHistoryScreen({
         location_id: nextFilters?.location_id || null,
         from_date: nextFilters?.from_date || null,
         to_date: nextFilters?.to_date || null,
-      });
+      }, userProfile?.user_id || null);
 
       const pendingRows = pendingResult?.success ? pendingResult.data || [] : [];
       if (!pendingRows.length) return serverResult;
@@ -230,7 +230,7 @@ export default function SalesHistoryScreen({
         location_id: nextFilters?.location_id || null,
         from_date: nextFilters?.from_date || null,
         to_date: nextFilters?.to_date || null,
-      });
+      }, userProfile?.user_id || null);
       const pendingRows = pendingResult?.success ? pendingResult.data || [] : [];
 
       const exactCache = await getPageCache({
@@ -681,7 +681,7 @@ export default function SalesHistoryScreen({
     if (!onPendingOpsChange) return;
     const next = await getPendingOpsCount({
       tenantId: tenant?.tenant_id || null,
-      userId: null,
+      userId: userProfile?.user_id || null,
     });
     onPendingOpsChange(next);
   };
@@ -726,11 +726,11 @@ export default function SalesHistoryScreen({
       await syncPendingOperations({
         limit: 20,
         tenantId: tenant?.tenant_id || null,
-        userId: null,
+        userId: userProfile?.user_id || null,
       });
     }
 
-    const stateAfter = await getPendingOfflineSaleByOperationId(operationId);
+    const stateAfter = await getPendingOfflineSaleByOperationId(operationId, userProfile?.user_id || null);
     if (stateAfter.success && stateAfter.data?.status === 'FAILED_SYNC') {
       setError(
         stateAfter.data.sync_error ||
@@ -770,7 +770,7 @@ export default function SalesHistoryScreen({
   const openEditPendingSale = async (sale) => {
     const operationId = sale?.operation_id;
     if (!operationId) return;
-    const result = await getPendingOfflineSaleByOperationId(operationId);
+    const result = await getPendingOfflineSaleByOperationId(operationId, userProfile?.user_id || null);
     if (!result.success) {
       setError(result.error || 'No fue posible cargar borrador offline');
       return;
@@ -885,11 +885,11 @@ export default function SalesHistoryScreen({
       await syncPendingOperations({
         limit: 20,
         tenantId: tenant?.tenant_id || null,
-        userId: null,
+        userId: userProfile?.user_id || null,
       });
     }
 
-    const stateAfter = await getPendingOfflineSaleByOperationId(editSale.operation_id);
+    const stateAfter = await getPendingOfflineSaleByOperationId(editSale.operation_id, userProfile?.user_id || null);
     if (stateAfter.success && stateAfter.data?.status === 'FAILED_SYNC') {
       setError(
         stateAfter.data.sync_error ||

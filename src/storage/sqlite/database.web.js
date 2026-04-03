@@ -145,7 +145,9 @@ async function updatePendingList(transform) {
 export async function markPendingOpProcessing(opId) {
   await updatePendingList((list) =>
     list.map((op) =>
-      op.opId === opId ? { ...op, status: 'PROCESSING', updatedAt: new Date().toISOString() } : op,
+      op.opId === opId && (op.status === 'PENDING' || op.status === 'FAILED')
+        ? { ...op, status: 'PROCESSING', updatedAt: new Date().toISOString() }
+        : op,
     ),
   );
 }
@@ -191,7 +193,7 @@ export async function resetStuckProcessingOps() {
   );
 }
 
-export async function getPendingSaleOps(tenantId, limit = 200) {
+export async function getPendingSaleOps(tenantId, limit = 200, userId = null) {
   const raw = await AsyncStorage.getItem(WEB_PENDING_OPS_KEY);
   const list = raw ? JSON.parse(raw) : [];
   return list
@@ -199,19 +201,21 @@ export async function getPendingSaleOps(tenantId, limit = 200) {
       (op) =>
         op.opType === 'CREATE_SALE' &&
         op.tenantId === tenantId &&
+        (!userId || op.userId === userId) &&
         (op.status === 'PENDING' || op.status === 'FAILED'),
     )
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, limit);
 }
 
-export async function getPendingSaleOpById(opId) {
+export async function getPendingSaleOpById(opId, userId = null) {
   const raw = await AsyncStorage.getItem(WEB_PENDING_OPS_KEY);
   const list = raw ? JSON.parse(raw) : [];
   const found = list.find(
     (op) =>
       op.opType === 'CREATE_SALE' &&
       op.opId === opId &&
+      (!userId || op.userId === userId) &&
       (op.status === 'PENDING' || op.status === 'FAILED'),
   );
   return found || null;
@@ -224,6 +228,7 @@ export async function retryPendingOp(opId) {
         ? {
             ...op,
             status: 'PENDING',
+            retryCount: 0,
             lastError: null,
             updatedAt: new Date().toISOString(),
           }
@@ -248,6 +253,24 @@ export async function updatePendingOpPayload(opId, payload) {
       : op,
     ),
   );
+}
+
+export async function getAllQueuedOps({ tenantId = null, userId = null, limit = 100 } = {}) {
+  const raw = await AsyncStorage.getItem(WEB_PENDING_OPS_KEY);
+  const list = raw ? JSON.parse(raw) : [];
+  return list
+    .filter(
+      (op) =>
+        (op.status === 'PENDING' || op.status === 'FAILED') &&
+        (!tenantId || op.tenantId === tenantId) &&
+        (!userId || op.userId === userId),
+    )
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(0, limit)
+    .map((op) => ({
+      ...op,
+      isNoRetry: String(op.lastError || '').startsWith('NO_RETRY:'),
+    }));
 }
 
 export async function clearOfflineOperationalData() {

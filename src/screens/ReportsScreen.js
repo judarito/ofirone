@@ -16,6 +16,32 @@ const TABS = [
   { key: 'production', label: 'Produccion' },
 ];
 
+const SALES_SUBTABS = [
+  { key: 'daily', label: 'Por Dia' },
+  { key: 'products', label: 'Top Productos' },
+  { key: 'categories', label: 'Por Categoria' },
+  { key: 'sellers', label: 'Por Vendedor' },
+  { key: 'payments', label: 'Por Metodo de Pago' },
+  { key: 'movements', label: 'Movimientos de Caja' },
+  { key: 'layaway', label: 'Plan Separe' },
+  { key: 'stock-alerts', label: 'Alertas de Stock' },
+];
+
+const CASH_SUBTABS = [
+  { key: 'by-register', label: 'Ventas por Caja' },
+  { key: 'by-cashier', label: 'Ventas por Cajero' },
+  { key: 'sessions', label: 'Sesiones' },
+  { key: 'differences', label: 'Sesiones con Diferencias' },
+];
+
+const STOCK_ALERT_FILTERS = [
+  { key: '', label: 'Todas' },
+  { key: 'OUT_OF_STOCK', label: 'Sin stock' },
+  { key: 'LOW_STOCK', label: 'Stock bajo' },
+  { key: 'NO_AVAILABLE', label: 'Sin disponible' },
+  { key: 'LOW_AVAILABLE', label: 'Disponible bajo' },
+];
+
 function formatInputDate(date) {
   return new Date(date).toISOString().slice(0, 10);
 }
@@ -45,6 +71,42 @@ function getEngineSourceLabel(source, originalSource = null) {
   return sourceMap[normalized] || normalized || 'desconocido';
 }
 
+function formatDateTimeLabel(value) {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleString('es-CO');
+}
+
+function formatDateLabel(value) {
+  if (!value) return '-';
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString('es-CO');
+}
+
+function getStockAlertLabel(level) {
+  const labels = {
+    OUT_OF_STOCK: 'Sin stock',
+    LOW_STOCK: 'Stock bajo',
+    NO_AVAILABLE: 'Sin disponible',
+    LOW_AVAILABLE: 'Disponible bajo',
+  };
+  return labels[level] || level || 'OK';
+}
+
+function getLayawayStatusLabel(status) {
+  const labels = {
+    ACTIVE: 'Activo',
+    COMPLETED: 'Completado',
+    CANCELLED: 'Cancelado',
+    EXPIRED: 'Vencido',
+  };
+  return labels[status] || status || '-';
+}
+
 export default function ReportsScreen({
   tenant,
   offlineMode,
@@ -62,6 +124,9 @@ export default function ReportsScreen({
   const [aiQueryText, setAiQueryText] = useState('');
   const [loadingAiQuery, setLoadingAiQuery] = useState(false);
   const [aiQuerySummary, setAiQuerySummary] = useState(null);
+  const [salesSubtab, setSalesSubtab] = useState('daily');
+  const [cashSubtab, setCashSubtab] = useState('by-register');
+  const [stockAlertLevelFilter, setStockAlertLevelFilter] = useState('');
   const [error, setError] = useState('');
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
@@ -208,6 +273,13 @@ export default function ReportsScreen({
   const inventory = snapshot?.inventory;
   const financial = snapshot?.financial;
   const production = snapshot?.production;
+  const salesStockAlerts = useMemo(
+    () =>
+      (sales?.stock_alerts || []).filter((item) =>
+        stockAlertLevelFilter ? item.alert_level === stockAlertLevelFilter : true,
+      ),
+    [sales?.stock_alerts, stockAlertLevelFilter],
+  );
   const sourceLabel =
     cacheInfo?.source === 'cache'
       ? 'Cache local'
@@ -217,6 +289,40 @@ export default function ReportsScreen({
   const selectedLocationName = (locations || []).find((loc) => loc.location_id === locationId)?.name || 'Todas las sedes';
   const reportFiltersSummary = `Vista: ${TABS.find((entry) => entry.key === tab)?.label || 'Ventas'} · ${fromDate} a ${toDate} · ${selectedLocationName}`;
   const reportFiltersActiveCount = locationId ? 1 : 0;
+
+  const renderSubtabs = (items, activeKey, onChange) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subTabScroll}>
+      <View style={styles.tabRow}>
+        {items.map((item) => {
+          const isActive = item.key === activeKey;
+          const badgeCount =
+            item.key === 'stock-alerts' ? Number(sales?.stock_alerts?.length || 0) : null;
+          return (
+            <Pressable
+              key={item.key}
+              style={[
+                styles.tabBtn,
+                isLightTheme && styles.tabBtnLight,
+                isActive && styles.tabBtnActive,
+              ]}
+              onPress={() => onChange(item.key)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  isLightTheme && styles.tabTextLight,
+                  isActive && styles.tabTextActive,
+                ]}
+              >
+                {item.label}
+                {badgeCount ? ` (${badgeCount})` : ''}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
@@ -395,123 +501,435 @@ export default function ReportsScreen({
         {tab === 'sales' ? (
           <View>
             <View style={styles.kpiRow}>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
+              <View style={[styles.kpiCard, styles.kpiCardBlue, isLightTheme && styles.kpiCardLight]}>
                 <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Ventas</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{sales?.summary?.total_sales || 0}</Text>
               </View>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
-                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Bruto</Text>
+              <View style={[styles.kpiCard, styles.kpiCardGreen, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Ventas Brutas</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{money(sales?.summary?.gross_total || 0)}</Text>
               </View>
             </View>
             <View style={styles.kpiRow}>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
+              <View style={[styles.kpiCard, styles.kpiCardRed, isLightTheme && styles.kpiCardLight]}>
                 <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Devoluciones</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{money(sales?.summary?.returns_total || 0)}</Text>
               </View>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
-                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Neto</Text>
+              <View style={[styles.kpiCard, styles.kpiCardTeal, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Ventas Netas</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{money(sales?.summary?.net_total || 0)}</Text>
               </View>
             </View>
-
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas por Dia</Text>
-              {(sales?.by_day || []).slice(0, 20).map((row) => (
-                <View key={row.date} style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{row.date}</Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>{row.count} · {money(row.net_total || 0)}</Text>
-                </View>
-              ))}
-              {(sales?.by_day || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
-              ) : null}
+            <View style={styles.kpiRow}>
+              <View style={[styles.kpiCard, styles.kpiCardOrange, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Descuentos</Text>
+                <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{money(sales?.summary?.gross_discount || 0)}</Text>
+              </View>
+              <View style={[styles.kpiCard, styles.kpiCardPurple, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Impuestos</Text>
+                <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{money(sales?.summary?.gross_tax || 0)}</Text>
+              </View>
             </View>
 
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Metodos de Pago</Text>
-              {(sales?.by_payment_method || []).slice(0, 10).map((row) => (
-                <View key={row.method} style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{row.method}</Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>{money(row.total || 0)}</Text>
-                </View>
-              ))}
-              {(sales?.by_payment_method || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
-              ) : null}
-            </View>
+            {renderSubtabs(SALES_SUBTABS, salesSubtab, setSalesSubtab)}
 
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas por Vendedor</Text>
-              {(sales?.by_seller || []).slice(0, 12).map((row) => (
-                <View key={row.user_id || row.name} style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{row.name}</Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>{row.count} · {money(row.total || 0)}</Text>
+            {salesSubtab === 'daily' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Por Dia</Text>
+                {(sales?.by_day || []).map((row) => (
+                  <View key={row.date} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{row.date}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>Ventas: {row.count}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>Bruto: {money(row.gross_total || 0)}</Text>
+                    <Text style={[styles.negativeText]}>Devoluciones: {money(row.returns_total || 0)}</Text>
+                    <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>Neto: {money(row.net_total || 0)}</Text>
+                  </View>
+                ))}
+                {(sales?.by_day || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {salesSubtab === 'products' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Top Productos</Text>
+                {(sales?.top_products || []).map((item, index) => (
+                  <View key={item.variant_id || `${item.sku}-${index}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <View style={styles.rankRow}>
+                      <View style={[styles.rankBadge, isLightTheme && styles.rankBadgeLight]}>
+                        <Text style={styles.rankBadgeText}>{index + 1}</Text>
+                      </View>
+                      <View style={styles.rankContent}>
+                        <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                          {item.product_name || 'Producto'}
+                          {item.variant_name ? ` · ${item.variant_name}` : ''}
+                        </Text>
+                        <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                          SKU: {item.sku || '-'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Cantidad: {Number(item.total_qty || 0).toLocaleString('es-CO')}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Ingresos: {money(item.total_revenue || 0)} · Costo: {money(item.total_cost || 0)}
+                    </Text>
+                    <Text style={[styles.lineValue, item.profit >= 0 ? styles.positiveText : styles.negativeText]}>
+                      Utilidad: {money(item.profit || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {(sales?.top_products || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {salesSubtab === 'categories' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Por Categoria</Text>
+                {(sales?.by_category || []).map((item) => (
+                  <View key={item.category} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{item.category}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Cantidad: {Number(item.qty || 0).toLocaleString('es-CO')}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Ingresos: {money(item.revenue || 0)} · Costo: {money(item.cost || 0)}
+                    </Text>
+                    <Text style={[styles.lineValue, item.profit >= 0 ? styles.positiveText : styles.negativeText]}>
+                      Utilidad: {money(item.profit || 0)} · Margen {Number(item.margin || 0).toLocaleString('es-CO')}%
+                    </Text>
+                  </View>
+                ))}
+                {(sales?.by_category || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {salesSubtab === 'sellers' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Por Vendedor</Text>
+                {(sales?.by_seller || []).map((row) => (
+                  <View key={row.user_id || row.name} style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{row.name}</Text>
+                    <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
+                      {row.count} · {money(row.total || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {(sales?.by_seller || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {salesSubtab === 'payments' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Por Metodo de Pago</Text>
+                {(sales?.by_payment_method || []).map((row) => (
+                  <View key={row.code || row.name} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{row.name || row.code || 'Otro'}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Transacciones: {Number(row.count || 0).toLocaleString('es-CO')}
+                    </Text>
+                    <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>{money(row.total || 0)}</Text>
+                  </View>
+                ))}
+                {(sales?.by_payment_method || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {salesSubtab === 'movements' ? (
+              <>
+                <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                  <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Resumen de Movimientos</Text>
+                  <View style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>Ingresos</Text>
+                    <Text style={[styles.lineValue, styles.positiveText]}>
+                      {sales?.cash_movements_summary?.count_income || 0} · {money(sales?.cash_movements_summary?.total_income || 0)}
+                    </Text>
+                  </View>
+                  <View style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>Gastos</Text>
+                    <Text style={[styles.lineValue, styles.negativeText]}>
+                      {sales?.cash_movements_summary?.count_expense || 0} · {money(sales?.cash_movements_summary?.total_expense || 0)}
+                    </Text>
+                  </View>
+                  <View style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>Neto</Text>
+                    <Text
+                      style={[
+                        styles.lineValue,
+                        Number(sales?.cash_movements_summary?.net || 0) >= 0 ? styles.positiveText : styles.negativeText,
+                      ]}
+                    >
+                      {money(sales?.cash_movements_summary?.net || 0)}
+                    </Text>
+                  </View>
                 </View>
-              ))}
-              {(sales?.by_seller || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
-              ) : null}
-            </View>
+
+                <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                  <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Detalle de Movimientos</Text>
+                  {(sales?.cash_movements || []).map((move) => (
+                    <View key={move.cash_movement_id || `${move.created_at}-${move.amount}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                      <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                        {move.type === 'INCOME' ? 'Ingreso' : 'Gasto'} · {move.category || 'Sin categoria'}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        {formatDateTimeLabel(move.created_at)}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        Caja: {move.register_name || '-'} · {move.location_name || '-'}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        Registrado por: {move.created_by_name || '-'}
+                      </Text>
+                      <Text style={[styles.lineValue, move.type === 'INCOME' ? styles.positiveText : styles.negativeText]}>
+                        {move.type === 'INCOME' ? '+' : '-'}{money(move.amount || 0)}
+                      </Text>
+                    </View>
+                  ))}
+                  {(sales?.cash_movements || []).length === 0 ? (
+                    <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin movimientos</Text>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {salesSubtab === 'layaway' ? (
+              <>
+                <View style={styles.kpiRow}>
+                  <View style={[styles.kpiCard, styles.kpiCardBlue, isLightTheme && styles.kpiCardLight]}>
+                    <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Contratos</Text>
+                    <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{sales?.layaway_summary?.total_contracts || 0}</Text>
+                  </View>
+                  <View style={[styles.kpiCard, styles.kpiCardGreen, isLightTheme && styles.kpiCardLight]}>
+                    <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Activos</Text>
+                    <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{sales?.layaway_summary?.active_contracts || 0}</Text>
+                  </View>
+                </View>
+                <View style={styles.kpiRow}>
+                  <View style={[styles.kpiCard, styles.kpiCardTeal, isLightTheme && styles.kpiCardLight]}>
+                    <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Completados</Text>
+                    <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{sales?.layaway_summary?.completed_contracts || 0}</Text>
+                  </View>
+                  <View style={[styles.kpiCard, styles.kpiCardRed, isLightTheme && styles.kpiCardLight]}>
+                    <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Cancelados</Text>
+                    <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{sales?.layaway_summary?.cancelled_contracts || 0}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                  <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Contratos</Text>
+                  {(sales?.layaway_contracts || []).map((contract) => (
+                    <View key={contract.layaway_id || `${contract.customer_name}-${contract.created_at}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                      <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{contract.customer_name || 'Cliente'}</Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        Estado: {getLayawayStatusLabel(contract.status)}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        Creacion: {formatDateLabel(contract.created_at)} · Vencimiento: {formatDateLabel(contract.due_date)}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        Total: {money(contract.total || 0)} · Abonado: {money(contract.paid_total || 0)}
+                      </Text>
+                      <Text style={[styles.lineValue, styles.negativeText]}>Saldo: {money(contract.balance || 0)}</Text>
+                    </View>
+                  ))}
+                  {(sales?.layaway_contracts || []).length === 0 ? (
+                    <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin contratos</Text>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {salesSubtab === 'stock-alerts' ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll}>
+                  <View style={styles.chipsRow}>
+                    {STOCK_ALERT_FILTERS.map((filter) => {
+                      const active = filter.key === stockAlertLevelFilter;
+                      return (
+                        <Pressable
+                          key={filter.key || 'all'}
+                          style={[
+                            styles.filterChip,
+                            isLightTheme && styles.filterChipLight,
+                            active && styles.filterChipActive,
+                          ]}
+                          onPress={() => setStockAlertLevelFilter(filter.key)}
+                        >
+                          <Text
+                            style={[
+                              styles.filterChipText,
+                              isLightTheme && styles.filterChipTextLight,
+                              active && styles.filterChipTextActive,
+                            ]}
+                          >
+                            {filter.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                  <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Alertas de Stock</Text>
+                  {salesStockAlerts.map((item) => (
+                    <View key={`${item.location_id}-${item.variant_id}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                      <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                        {getStockAlertLabel(item.alert_level)} · {item.product_name}
+                        {item.variant_name ? ` · ${item.variant_name}` : ''}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        SKU: {item.sku || '-'} · Sede: {item.location_name || '-'}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        Stock: {Number(item.on_hand || 0).toLocaleString('es-CO')} · Disponible: {Number(item.available || 0).toLocaleString('es-CO')} · Min: {Number(item.min_stock || 0).toLocaleString('es-CO')}
+                      </Text>
+                    </View>
+                  ))}
+                  {salesStockAlerts.length === 0 ? (
+                    <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay alertas de stock</Text>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
           </View>
         ) : null}
 
         {tab === 'cash' ? (
           <View>
             <View style={styles.kpiRow}>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
+              <View style={[styles.kpiCard, styles.kpiCardOrange, isLightTheme && styles.kpiCardLight]}>
                 <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Sesiones</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{cash?.summary?.sessions_count || 0}</Text>
               </View>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
-                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Abiertas</Text>
-                <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{cash?.summary?.open_sessions || 0}</Text>
-              </View>
-            </View>
-            <View style={styles.kpiRow}>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
+              <View style={[styles.kpiCard, styles.kpiCardBlue, isLightTheme && styles.kpiCardLight]}>
                 <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Transacciones</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{cash?.summary?.transactions_count || 0}</Text>
               </View>
-              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
-                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Con diferencia</Text>
+            </View>
+            <View style={styles.kpiRow}>
+              <View style={[styles.kpiCard, styles.kpiCardGreen, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Total Vendido</Text>
+                <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{money(cash?.summary?.sales_total || 0)}</Text>
+              </View>
+              <View style={[styles.kpiCard, styles.kpiCardTeal, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Sesiones con Diferencias</Text>
                 <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{cash?.summary?.sessions_with_difference || 0}</Text>
               </View>
             </View>
 
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Sesiones con Diferencia</Text>
-              {(cash?.sessions_with_difference || []).slice(0, 25).map((session) => (
-                <View key={session.cash_session_id} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
-                    {session.cash_register?.name || 'Caja'} · {session.cash_register?.location?.name || '-'}
-                  </Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
-                    Dif: {money(session.difference || 0)} · Ventas: {money(session.sales_total || 0)}
-                  </Text>
-                </View>
-              ))}
-              {(cash?.sessions_with_difference || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin diferencias</Text>
-              ) : null}
-            </View>
+            {renderSubtabs(CASH_SUBTABS, cashSubtab, setCashSubtab)}
 
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Sesiones Recientes</Text>
-              {(cash?.sessions || []).slice(0, 20).map((session) => (
-                <View key={session.cash_session_id} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
-                    {session.cash_register?.name || 'Caja'} · {session.status}
-                  </Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
-                    Ventas {session.sales_count || 0} · {money(session.sales_total || 0)}
-                  </Text>
-                </View>
-              ))}
-              {(cash?.sessions || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
-              ) : null}
-            </View>
+            {cashSubtab === 'by-register' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas por Caja Registradora</Text>
+                {(cash?.by_cash_register || []).map((item) => (
+                  <View key={item.cash_register_id || item.name} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{item.name || 'Sin caja'}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>{item.location || '-'}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Transacciones: {Number(item.count || 0).toLocaleString('es-CO')}
+                    </Text>
+                    <Text style={[styles.lineValue, styles.positiveText]}>
+                      Total: {money(item.total || 0)} · Promedio {money(Number(item.count || 0) > 0 ? Number(item.total || 0) / Number(item.count || 0) : 0)}
+                    </Text>
+                  </View>
+                ))}
+                {(cash?.by_cash_register || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {cashSubtab === 'by-cashier' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas por Cajero/Sesion</Text>
+                {(cash?.sessions || []).map((session) => (
+                  <View key={session.cash_session_id} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{session.opened_by || session.closed_by || 'Sin asignar'}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      {session.register_name || 'Caja'} · {session.location || '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Ventas: {session.sales_count || 0} · Total: {money(session.sales_total || 0)}
+                    </Text>
+                    <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
+                      Prom./Venta: {money(session.avg_per_sale || 0)} · Duracion: {session.duration_minutes !== null ? `${session.duration_minutes} min` : '-'}
+                    </Text>
+                  </View>
+                ))}
+                {(cash?.sessions || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin sesiones</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {cashSubtab === 'sessions' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Sesiones</Text>
+                {(cash?.sessions || []).map((session) => (
+                  <View key={session.cash_session_id} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                      {session.register_name || 'Caja'} · {session.status === 'OPEN' ? 'Abierta' : 'Cerrada'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>{session.location || '-'}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Apertura: {formatDateTimeLabel(session.opened_at)} · {session.opened_by || '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Cierre: {session.closed_at ? formatDateTimeLabel(session.closed_at) : '-'} · {session.closed_by || '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Monto apertura: {money(session.opening_amount || 0)} · Monto cierre: {money(session.closing_amount || 0)}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Declarado: {session.declared_amount > 0 ? money(session.declared_amount || 0) : '-'}
+                    </Text>
+                    <Text style={[styles.lineValue, styles.positiveText]}>
+                      Ventas: {money(session.sales_total || 0)} · # {session.sales_count || 0}
+                    </Text>
+                  </View>
+                ))}
+                {(cash?.sessions || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin sesiones</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {cashSubtab === 'differences' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Sesiones con Diferencias</Text>
+                {(cash?.sessions_with_difference || []).map((session) => (
+                  <View key={session.cash_session_id} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                      {session.register_name || 'Caja'} · {session.location || '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Cajero: {session.closed_by || session.opened_by || '-'} · Cierre: {session.closed_at ? formatDateLabel(session.closed_at) : '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Monto cierre: {money(session.closing_amount || 0)} · Declarado: {money(session.declared_amount || 0)}
+                    </Text>
+                    <Text style={[styles.lineValue, Number(session.difference || 0) >= 0 ? styles.positiveText : styles.negativeText]}>
+                      Diferencia: {Number(session.difference || 0) >= 0 ? '+' : ''}{money(session.difference || 0)} · Ventas {money(session.sales_total || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {(cash?.sessions_with_difference || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay sesiones con diferencias</Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -761,6 +1179,7 @@ const styles = StyleSheet.create({
   sourcePillServer: { borderColor: '#14532d', backgroundColor: '#052e16' },
   sourcePillCache: { borderColor: '#7c2d12', backgroundColor: '#431407' },
   sourcePillText: { color: '#e2e8f0', fontWeight: '700', fontSize: 11 },
+  subTabScroll: { marginBottom: 8 },
   tabRow: { flexDirection: 'row', gap: 8, marginBottom: 2, alignItems: 'center' },
   tabBtn: {
     borderRadius: 10,
@@ -842,6 +1261,12 @@ const styles = StyleSheet.create({
     padding: 12,
     elevation: 1,
   },
+  kpiCardBlue: { borderColor: '#1d4ed8', backgroundColor: '#142b52' },
+  kpiCardGreen: { borderColor: '#166534', backgroundColor: '#132f27' },
+  kpiCardRed: { borderColor: '#991b1b', backgroundColor: '#3a1f2c' },
+  kpiCardTeal: { borderColor: '#0f766e', backgroundColor: '#123447' },
+  kpiCardOrange: { borderColor: '#b45309', backgroundColor: '#342a26' },
+  kpiCardPurple: { borderColor: '#7e22ce', backgroundColor: '#271d49' },
   kpiCardLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
   kpiLabel: { color: '#cbd5e1', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   kpiLabelLight: { color: '#475569' },
@@ -885,6 +1310,24 @@ const styles = StyleSheet.create({
   lineLabelLight: { color: '#334155' },
   lineValue: { color: '#f8fafc', fontSize: 12, fontWeight: '700' },
   lineValueLight: { color: '#0f172a' },
+  subtleText: { color: '#94a3b8', fontSize: 12, marginTop: 3 },
+  subtleTextLight: { color: '#64748b' },
+  positiveText: { color: '#4ade80' },
+  negativeText: { color: '#f87171' },
+  rankRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  rankBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: '#1d4ed8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankBadgeLight: {
+    backgroundColor: '#dbeafe',
+  },
+  rankBadgeText: { color: '#eff6ff', fontSize: 11, fontWeight: '800' },
+  rankContent: { flex: 1 },
   emptyText: { color: '#94a3b8', fontSize: 12, marginTop: 6, textAlign: 'center' },
   emptyTextLight: { color: '#64748b' },
 });

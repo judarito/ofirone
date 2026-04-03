@@ -160,10 +160,10 @@ export async function getSales(tenantId, page = 1, pageSize = 20, filters = {}) 
   }
 }
 
-export async function getPendingOfflineSales(tenantId, filters = {}) {
+export async function getPendingOfflineSales(tenantId, filters = {}, userId = null) {
   if (!tenantId) return { success: true, data: [] };
   try {
-    const rows = await getPendingSaleOps(tenantId, 300);
+    const rows = await getPendingSaleOps(tenantId, 300, userId);
     const failedVariantIds = Array.from(
       new Set(
         rows
@@ -251,10 +251,10 @@ export async function discardPendingOfflineSale(operationId) {
   }
 }
 
-export async function getPendingOfflineSaleByOperationId(operationId) {
+export async function getPendingOfflineSaleByOperationId(operationId, userId = null) {
   if (!operationId) return { success: true, data: null };
   try {
-    const row = await getPendingSaleOpById(operationId);
+    const row = await getPendingSaleOpById(operationId, userId);
     if (!row) return { success: true, data: null };
     const payload = row.payload || {};
     const failedVariantIds = extractVariantIdsFromError(row?.lastError);

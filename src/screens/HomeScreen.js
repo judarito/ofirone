@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COMMON_TEXT, APP_TEXT } from '../constants/uiText';
 
@@ -26,15 +26,42 @@ export function HomeScreen({
   error,
   formatMoney,
   navigateToScreen,
+  onRefreshDashboard,
   resolveMenuAccent,
   resolveMenuIcon,
 }) {
   const todayVsPrev = Number(kpis?.today?.vs_prev || 0);
   const monthVsPrev = Number(kpis?.month?.vs_prev || 0);
+  const hasTodayData = kpis?.today && typeof kpis.today.total !== 'undefined';
+  const hasMonthData = kpis?.month && typeof kpis.month.total !== 'undefined';
+  const hasYearData = kpis?.year && typeof kpis.year.total !== 'undefined';
+
+  const renderKpiAmount = (hasData, total) => {
+    if (loadingKpis) return '...';
+    if (!hasData) return 'Sin datos';
+    return formatMoney(total || 0);
+  };
+
+  const renderTrend = (hasData, trendValue) => {
+    if (loadingKpis) return '...';
+    if (!hasData || trendValue === null || typeof trendValue === 'undefined') return '--';
+    return `${trendValue >= 0 ? '↗' : '↘'} ${Math.abs(Number(trendValue || 0)).toFixed(0)}%`;
+  };
 
   return (
     <View style={styles.homeScreenContainer}>
       <ScrollView
+        refreshControl={
+          onRefreshDashboard ? (
+            <RefreshControl
+              refreshing={loadingKpis}
+              onRefresh={onRefreshDashboard}
+              colors={[isLightTheme ? '#235ea9' : '#93c5fd']}
+              tintColor={isLightTheme ? '#235ea9' : '#93c5fd'}
+              progressBackgroundColor={isLightTheme ? '#eff6ff' : '#0f172a'}
+            />
+          ) : undefined
+        }
         contentContainerStyle={[
           styles.homeScrollDark,
           styles.homeScrollWithDock,
@@ -65,14 +92,12 @@ export function HomeScreen({
                     isLightTheme && styles.mobileMetricMainAmountLight,
                   ]}
                 >
-                  {loadingKpis ? '...' : formatMoney(kpis?.today?.total || 0)}
+                  {renderKpiAmount(hasTodayData, kpis?.today?.total)}
                 </Text>
               </View>
             </View>
             <Text style={todayVsPrev >= 0 ? styles.mobileTrendUp : styles.mobileTrendDown}>
-              {loadingKpis
-                ? '...'
-                : `${todayVsPrev >= 0 ? '↗' : '↘'} ${Math.abs(todayVsPrev || 0).toFixed(0)}%`}
+              {renderTrend(hasTodayData, kpis?.today?.vs_prev)}
             </Text>
           </View>
 
@@ -96,13 +121,11 @@ export function HomeScreen({
                 <Text
                   style={[styles.mobileMetricAmount, isLightTheme && styles.mobileMetricAmountLight]}
                 >
-                  {loadingKpis ? '...' : formatMoney(kpis?.month?.total || 0)}
+                  {renderKpiAmount(hasMonthData, kpis?.month?.total)}
                 </Text>
               </View>
               <Text style={monthVsPrev >= 0 ? styles.mobileTrendUp : styles.mobileTrendDown}>
-                {loadingKpis
-                  ? '...'
-                  : `${monthVsPrev >= 0 ? '↗' : '↘'} ${Math.abs(monthVsPrev || 0).toFixed(0)}%`}
+                {renderTrend(hasMonthData, kpis?.month?.vs_prev)}
               </Text>
             </View>
           </View>
@@ -132,7 +155,7 @@ export function HomeScreen({
               <Text
                 style={[styles.mobileMetricAmount, isLightTheme && styles.mobileMetricAmountLight]}
               >
-                {loadingKpis ? '...' : formatMoney(kpis?.year?.total || 0)}
+                {renderKpiAmount(hasYearData, kpis?.year?.total)}
               </Text>
             </View>
           </View>

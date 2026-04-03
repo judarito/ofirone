@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getLatestPageCache, getPageCache, isCacheStale, savePageCache } from '../services/offlineCache.service';
 
 export function usePaginatedList({
@@ -18,6 +18,12 @@ export function usePaginatedList({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [cacheInfo, setCacheInfo] = useState(null);
+  const mountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((total || 0) / (Number(pageSize) || 20))),
@@ -29,6 +35,19 @@ export function usePaginatedList({
       if (!tenantId || !fetchPage) return;
 
       const isRefresh = options?.refresh === true;
+      const requestId = requestSeqRef.current + 1;
+      requestSeqRef.current = requestId;
+      const isCurrentRequest = () => mountedRef.current && requestSeqRef.current === requestId;
+      const applyState = (callback) => {
+        if (!isCurrentRequest()) return false;
+        callback();
+        return true;
+      };
+      const finishLoading = () => applyState(() => {
+        if (isRefresh) setRefreshing(false);
+        else setLoading(false);
+      });
+
       if (isRefresh) {
         setRefreshing(true);
       } else {
@@ -48,12 +67,14 @@ export function usePaginatedList({
           if (offlineResult?.success) {
             const nextItems = offlineResult.data || [];
             const nextTotal = Number(offlineResult.total || 0);
-            setItems(nextItems);
-            setTotal(nextTotal);
-            setCacheInfo({
-              source: offlineResult.source || 'offline-local',
-              cachedAt: offlineResult.cachedAt || new Date().toISOString(),
-            });
+            if (!applyState(() => {
+              setItems(nextItems);
+              setTotal(nextTotal);
+              setCacheInfo({
+                source: offlineResult.source || 'offline-local',
+                cachedAt: offlineResult.cachedAt || new Date().toISOString(),
+              });
+            })) return;
             await savePageCache({
               namespace: cacheNamespace,
               tenantId,
@@ -63,8 +84,7 @@ export function usePaginatedList({
               items: nextItems,
               total: nextTotal,
             });
-            if (isRefresh) setRefreshing(false);
-            else setLoading(false);
+            finishLoading();
             return;
           }
         }
@@ -85,26 +105,28 @@ export function usePaginatedList({
           }));
 
         if (cached) {
-          setItems(cached.items || []);
-          setTotal(Number(cached.total || 0));
           const stale = isCacheStale(cached.cachedAt);
-          setCacheInfo({
-            source: exactCached ? 'cache' : 'cache-latest',
-            cachedAt: cached.cachedAt || null,
-            isStale: stale,
-          });
-          if (stale) setError('Datos desactualizados (más de 24h). Reconéctate para actualizar.');
-          if (isRefresh) setRefreshing(false);
-          else setLoading(false);
+          if (!applyState(() => {
+            setItems(cached.items || []);
+            setTotal(Number(cached.total || 0));
+            setCacheInfo({
+              source: exactCached ? 'cache' : 'cache-latest',
+              cachedAt: cached.cachedAt || null,
+              isStale: stale,
+            });
+            if (stale) setError('Datos desactualizados (más de 24h). Reconéctate para actualizar.');
+          })) return;
+          finishLoading();
           return;
         }
 
-        setItems([]);
-        setTotal(0);
-        setError('No hay cache local para este listado/filtro en modo offline.');
-        setCacheInfo({ source: 'cache-miss', cachedAt: null });
-        if (isRefresh) setRefreshing(false);
-        else setLoading(false);
+        if (!applyState(() => {
+          setItems([]);
+          setTotal(0);
+          setError('No hay cache local para este listado/filtro en modo offline.');
+          setCacheInfo({ source: 'cache-miss', cachedAt: null });
+        })) return;
+        finishLoading();
         return;
       }
 
@@ -132,36 +154,41 @@ export function usePaginatedList({
           }));
 
         if (fallback) {
-          setItems(fallback.items || []);
-          setTotal(Number(fallback.total || 0));
           const stale = isCacheStale(fallback.cachedAt);
-          setError(
-            stale
-              ? 'Sin conexión. Cache desactualizado (más de 24h).'
-              : (result?.error || 'Sin conexión. Mostrando cache local.'),
-          );
-          setCacheInfo({
-            source: exactFallback ? 'cache' : 'cache-latest',
-            cachedAt: fallback.cachedAt || null,
-            isStale: stale,
-          });
+          if (!applyState(() => {
+            setItems(fallback.items || []);
+            setTotal(Number(fallback.total || 0));
+            setError(
+              stale
+                ? 'Sin conexión. Cache desactualizado (más de 24h).'
+                : (result?.error || 'Sin conexión. Mostrando cache local.'),
+            );
+            setCacheInfo({
+              source: exactFallback ? 'cache' : 'cache-latest',
+              cachedAt: fallback.cachedAt || null,
+              isStale: stale,
+            });
+          })) return;
         } else {
-          setItems([]);
-          setTotal(0);
-          setError(result?.error || 'No fue posible cargar listado.');
-          setCacheInfo({ source: 'none', cachedAt: null });
+          if (!applyState(() => {
+            setItems([]);
+            setTotal(0);
+            setError(result?.error || 'No fue posible cargar listado.');
+            setCacheInfo({ source: 'none', cachedAt: null });
+          })) return;
         }
 
-        if (isRefresh) setRefreshing(false);
-        else setLoading(false);
+        finishLoading();
         return;
       }
 
       const nextItems = result.data || [];
       const nextTotal = Number(result.total || 0);
-      setItems(nextItems);
-      setTotal(nextTotal);
-      setCacheInfo({ source: 'server', cachedAt: new Date().toISOString() });
+      if (!applyState(() => {
+        setItems(nextItems);
+        setTotal(nextTotal);
+        setCacheInfo({ source: 'server', cachedAt: new Date().toISOString() });
+      })) return;
 
       await savePageCache({
         namespace: cacheNamespace,
@@ -173,8 +200,7 @@ export function usePaginatedList({
         total: nextTotal,
       });
 
-      if (isRefresh) setRefreshing(false);
-      else setLoading(false);
+      finishLoading();
     },
     [cacheNamespace, fetchOfflinePage, fetchPage, filters, offlineMode, page, pageSize, tenantId],
   );

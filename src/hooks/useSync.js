@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { syncPendingOperations } from '../services/sync.service';
-import { getPendingOpsCount } from '../storage/sqlite/database.native';
+import { getPendingOpsCount } from '../storage/sqlite/database';
 
 /**
  * Gestiona el loop de sincronización de operaciones pendientes (cada 20s)
@@ -8,26 +8,24 @@ import { getPendingOpsCount } from '../storage/sqlite/database.native';
  *
  * @param {object} params
  * @param {object} params.session - Sesión activa de Supabase
- * @param {boolean} params.offlineMode - Si la app está en modo offline
  * @param {boolean} params.networkReachable - Si hay red disponible
  * @param {object} params.tenant - Tenant activo
  * @param {object} params.userProfile - Perfil del usuario
- * @param {number} params.defaultPageSize - Tamaño de página por defecto
  * @param {function} params.onPendingOpsChange - Callback para actualizar el conteo de ops pendientes
  * @param {function} params.onSyncSuccess - Callback al sincronizar con éxito (recibe tenantId, userId)
  * @param {function} params.onNetworkRecovery - Callback al recuperar red (recibe tenantId, userId)
  */
 export function useSync({
   session,
-  offlineMode,
   networkReachable,
   tenant,
   userProfile,
-  defaultPageSize,
   onPendingOpsChange,
   onSyncSuccess,
   onNetworkRecovery,
 }) {
+  const previousReachableRef = useRef(networkReachable);
+
   useEffect(() => {
     let timer = null;
     let active = true;
@@ -40,11 +38,11 @@ export function useSync({
       const syncResult = await syncPendingOperations({
         limit: 20,
         tenantId: tenant.tenant_id,
-        userId: null,
+        userId: userProfile.user_id,
       });
       const pendingCount = await getPendingOpsCount({
         tenantId: tenant.tenant_id,
-        userId: null,
+        userId: userProfile.user_id,
       });
       onPendingOpsChange?.(pendingCount);
       if (syncResult?.processed > 0) {
@@ -59,10 +57,15 @@ export function useSync({
       active = false;
       if (timer) clearInterval(timer);
     };
-  }, [networkReachable, session, userProfile?.user_id, tenant?.tenant_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [networkReachable, onPendingOpsChange, onSyncSuccess, session, userProfile?.user_id, tenant?.tenant_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    const wasReachable = previousReachableRef.current;
+    previousReachableRef.current = networkReachable;
+
     if (!session || !networkReachable || !tenant?.tenant_id || !userProfile?.user_id) return;
-    onNetworkRecovery?.(tenant.tenant_id, userProfile.user_id);
-  }, [session, networkReachable, tenant?.tenant_id, userProfile?.user_id, defaultPageSize]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!wasReachable && networkReachable) {
+      onNetworkRecovery?.(tenant.tenant_id, userProfile.user_id);
+    }
+  }, [networkReachable, onNetworkRecovery, session, tenant?.tenant_id, userProfile?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -4,6 +4,24 @@ Fecha: 2026-03-21
 Proyecto: POSLite Mobile / OfirOne
 Estado: Primera base SQL implementada
 
+## Actualizacion 2026-04-03
+
+Se agrego una migracion complementaria para backfill comercial:
+
+- `migrations/ADD_FREEMIUM_6M_TENANT_SUBSCRIPTIONS.sql`
+
+Esta migracion:
+
+- crea o actualiza el plan `freemium`
+- define un precio `semiannual` de valor `0`
+- deja features y limites base para ese plan
+- asigna una suscripcion de 6 meses solo a tenants sin suscripcion abierta
+
+Tambien se reforzo compatibilidad de esquema en billing:
+
+- `migrations/ADD_TENANT_BILLING_MONETIZATION.sql` ahora tolera instalaciones con `tenants.tenant_id` o `tenants.id`
+- el helper de tenant y la FK de actor de eventos pueden resolver instalaciones que usan `users` o `profiles`
+
 ## Alcance de esta modificacion
 
 Se implemento la primera base SQL del dominio de billing multi-tenant en:

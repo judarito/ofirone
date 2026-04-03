@@ -1966,10 +1966,13 @@ export default function PointOfSaleScreen({
         });
         const pendingCount = await getPendingOpsCount({
           tenantId: tenant?.tenant_id || null,
-          userId: null,
+          userId: userProfile?.user_id || null,
         });
         if (onPendingOpsChange) {
           onPendingOpsChange(pendingCount);
+        }
+        if (onSaleCompleted) {
+          await onSaleCompleted(payload, { source: 'offline-queue' });
         }
         clearSale();
         setMessage(`Venta guardada offline. Pendientes por sincronizar: ${pendingCount}`);
@@ -1994,10 +1997,13 @@ export default function PointOfSaleScreen({
           });
           const pendingCount = await getPendingOpsCount({
             tenantId: tenant?.tenant_id || null,
-            userId: null,
+            userId: userProfile?.user_id || null,
           });
           if (onPendingOpsChange) {
             onPendingOpsChange(pendingCount);
+          }
+          if (onSaleCompleted) {
+            await onSaleCompleted(payload, { source: 'queued-after-network-error' });
           }
           clearSale();
           setMessage(
@@ -2012,14 +2018,14 @@ export default function PointOfSaleScreen({
       clearSale();
       const pendingCount = await getPendingOpsCount({
         tenantId: tenant?.tenant_id || null,
-        userId: null,
+        userId: userProfile?.user_id || null,
       });
       if (onPendingOpsChange) {
         onPendingOpsChange(pendingCount);
       }
       setMessage(`Venta registrada. ID: ${result.data.sale_id}`);
       if (onSaleCompleted) {
-        await onSaleCompleted();
+        await onSaleCompleted(payload, { source: 'server', saleId: result.data.sale_id });
       }
     } finally {
       setProcessing(false);

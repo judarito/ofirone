@@ -78,7 +78,7 @@ create index if not exists ix_billing_plan_limits_plan
 
 create table if not exists tenant_subscriptions (
   subscription_id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(tenant_id) on delete cascade,
+  tenant_id uuid not null,
   plan_id uuid not null references billing_plans(plan_id),
   plan_price_id uuid references billing_plan_prices(plan_price_id),
   status text not null default 'pending_activation'
@@ -119,7 +119,7 @@ create index if not exists ix_tenant_subscriptions_plan
 create table if not exists tenant_subscription_periods (
   subscription_period_id uuid primary key default gen_random_uuid(),
   subscription_id uuid not null references tenant_subscriptions(subscription_id) on delete cascade,
-  tenant_id uuid not null references tenants(tenant_id) on delete cascade,
+  tenant_id uuid not null,
   period_number integer not null default 1 check (period_number > 0),
   period_start timestamptz not null,
   period_end timestamptz not null,
@@ -138,12 +138,12 @@ create index if not exists ix_tenant_subscription_periods_tenant
 create table if not exists tenant_subscription_events (
   event_id uuid primary key default gen_random_uuid(),
   subscription_id uuid not null references tenant_subscriptions(subscription_id) on delete cascade,
-  tenant_id uuid not null references tenants(tenant_id) on delete cascade,
+  tenant_id uuid not null,
   event_type text not null,
   event_source text not null default 'system'
     check (event_source in ('system', 'admin', 'payment_webhook', 'support')),
   payload jsonb not null default '{}'::jsonb,
-  created_by uuid references users(user_id) on delete set null,
+  created_by uuid,
   created_at timestamptz not null default now()
 );
 
@@ -159,7 +159,7 @@ create index if not exists ix_tenant_subscription_events_subscription
 
 create table if not exists tenant_invoices (
   invoice_id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(tenant_id) on delete cascade,
+  tenant_id uuid not null,
   subscription_id uuid not null references tenant_subscriptions(subscription_id) on delete cascade,
   subscription_period_id uuid references tenant_subscription_periods(subscription_period_id) on delete set null,
   number text not null,
@@ -186,7 +186,7 @@ create index if not exists ix_tenant_invoices_subscription
 
 create table if not exists tenant_payments (
   payment_id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(tenant_id) on delete cascade,
+  tenant_id uuid not null,
   invoice_id uuid not null references tenant_invoices(invoice_id) on delete cascade,
   provider text not null,
   provider_payment_id text,
@@ -208,7 +208,7 @@ create index if not exists ix_tenant_payments_invoice
 
 create table if not exists tenant_payment_methods (
   tenant_payment_method_id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(tenant_id) on delete cascade,
+  tenant_id uuid not null,
   provider text not null,
   provider_token text not null,
   brand text,
@@ -228,7 +228,176 @@ create index if not exists ix_tenant_payment_methods_tenant
   on tenant_payment_methods(tenant_id, provider, is_default);
 
 do $$
+declare
+  v_tenant_pk_column text;
+  v_tenant_pk_udt text;
+  v_actor_table text;
+  v_actor_pk_column text;
 begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tenants'
+      and column_name = 'tenant_id'
+  ) then
+    v_tenant_pk_column := 'tenant_id';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tenants'
+      and column_name = 'id'
+  ) then
+    v_tenant_pk_column := 'id';
+  else
+    raise exception 'No se encontro public.tenants.tenant_id ni public.tenants.id; ajusta la migracion al esquema real antes de continuar.';
+  end if;
+
+  select c.udt_name
+  into v_tenant_pk_udt
+  from information_schema.columns c
+  where c.table_schema = 'public'
+    and c.table_name = 'tenants'
+    and c.column_name = v_tenant_pk_column;
+
+  if v_tenant_pk_udt is distinct from 'uuid' then
+    raise exception 'La columna public.tenants.% es de tipo %, pero billing espera UUID.', v_tenant_pk_column, coalesce(v_tenant_pk_udt, 'desconocido');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_subscriptions'
+      and con.contype = 'f'
+      and pg_get_constraintdef(con.oid) like 'FOREIGN KEY (tenant_id) REFERENCES tenants(%'
+  ) then
+    execute format(
+      'alter table tenant_subscriptions add constraint fk_tsub_tenant foreign key (tenant_id) references tenants(%I) on delete cascade',
+      v_tenant_pk_column
+    );
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'users'
+      and column_name = 'user_id'
+  ) then
+    v_actor_table := 'users';
+    v_actor_pk_column := 'user_id';
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'id'
+  ) then
+    v_actor_table := 'profiles';
+    v_actor_pk_column := 'id';
+  end if;
+
+  if v_actor_table is not null and not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_subscription_events'
+      and con.contype = 'f'
+      and con.conname = 'fk_tsub_event_created_by_actor'
+  ) then
+    execute format(
+      'alter table tenant_subscription_events add constraint fk_tsub_event_created_by_actor foreign key (created_by) references %I(%I) on delete set null',
+      v_actor_table,
+      v_actor_pk_column
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_subscription_periods'
+      and con.contype = 'f'
+      and pg_get_constraintdef(con.oid) like 'FOREIGN KEY (tenant_id) REFERENCES tenants(%'
+  ) then
+    execute format(
+      'alter table tenant_subscription_periods add constraint fk_tsub_period_tenant foreign key (tenant_id) references tenants(%I) on delete cascade',
+      v_tenant_pk_column
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_subscription_events'
+      and con.contype = 'f'
+      and pg_get_constraintdef(con.oid) like 'FOREIGN KEY (tenant_id) REFERENCES tenants(%'
+  ) then
+    execute format(
+      'alter table tenant_subscription_events add constraint fk_tsub_event_tenant foreign key (tenant_id) references tenants(%I) on delete cascade',
+      v_tenant_pk_column
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_invoices'
+      and con.contype = 'f'
+      and pg_get_constraintdef(con.oid) like 'FOREIGN KEY (tenant_id) REFERENCES tenants(%'
+  ) then
+    execute format(
+      'alter table tenant_invoices add constraint fk_tinv_tenant foreign key (tenant_id) references tenants(%I) on delete cascade',
+      v_tenant_pk_column
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_payments'
+      and con.contype = 'f'
+      and pg_get_constraintdef(con.oid) like 'FOREIGN KEY (tenant_id) REFERENCES tenants(%'
+  ) then
+    execute format(
+      'alter table tenant_payments add constraint fk_tpay_tenant foreign key (tenant_id) references tenants(%I) on delete cascade',
+      v_tenant_pk_column
+    );
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public'
+      and rel.relname = 'tenant_payment_methods'
+      and con.contype = 'f'
+      and pg_get_constraintdef(con.oid) like 'FOREIGN KEY (tenant_id) REFERENCES tenants(%'
+  ) then
+    execute format(
+      'alter table tenant_payment_methods add constraint fk_tpm_tenant foreign key (tenant_id) references tenants(%I) on delete cascade',
+      v_tenant_pk_column
+    );
+  end if;
+
   if not exists (
     select 1
     from pg_constraint
@@ -311,7 +480,136 @@ for each row
 execute function trg_touch_billing_updated_at();
 
 -- ============================================================
--- 5) RLS para tablas tenant-scoped
+-- 5) Helpers de compatibilidad para tenant / permisos
+-- ============================================================
+
+create or replace function get_current_user_tenant_id()
+returns uuid
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  v_tenant_id uuid;
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'users'
+      and column_name = 'auth_user_id'
+  ) and exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'users'
+      and column_name = 'tenant_id'
+  ) then
+    execute 'select tenant_id from public.users where auth_user_id = auth.uid() limit 1'
+      into v_tenant_id;
+    if v_tenant_id is not null then
+      return v_tenant_id;
+    end if;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'id'
+  ) and exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'tenant_id'
+  ) then
+    execute 'select tenant_id from public.profiles where id = auth.uid() limit 1'
+      into v_tenant_id;
+    if v_tenant_id is not null then
+      return v_tenant_id;
+    end if;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'auth_user_id'
+  ) and exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'tenant_id'
+  ) then
+    execute 'select tenant_id from public.profiles where auth_user_id = auth.uid() limit 1'
+      into v_tenant_id;
+    if v_tenant_id is not null then
+      return v_tenant_id;
+    end if;
+  end if;
+
+  return null;
+end;
+$$;
+
+create or replace function has_permission(permission_code text)
+returns boolean
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  v_has_permission boolean := false;
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'users'
+  ) and exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'user_roles'
+  ) and exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'role_permissions'
+  ) and exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'permissions'
+  ) then
+    execute $sql$
+      select exists (
+        select 1
+        from public.users u
+        inner join public.user_roles ur on ur.user_id = u.user_id
+        inner join public.role_permissions rp on rp.role_id = ur.role_id
+        inner join public.permissions p on p.permission_id = rp.permission_id
+        where u.auth_user_id = auth.uid()
+          and p.code = $1
+      )
+    $sql$
+    into v_has_permission
+    using permission_code;
+    return coalesce(v_has_permission, false);
+  end if;
+
+  return false;
+end;
+$$;
+
+-- ============================================================
+-- 6) RLS para tablas tenant-scoped
 -- ============================================================
 
 alter table billing_plans enable row level security;
@@ -402,7 +700,7 @@ begin
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
-      and tablename = 'tenant_subscription_periods'
+      and tablename = 'tenant_subscriptions'
       and policyname = 'tenant_subscriptions_update_policy'
   ) then
     create policy tenant_subscriptions_update_policy on tenant_subscriptions
@@ -769,8 +1067,8 @@ select
   cs.trial_end_at,
   cs.grace_end_at,
   case
-    when cs.current_period_end is null then null
-    else (cs.current_period_end::date - current_date)
+    when coalesce(cs.current_period_end, cs.trial_end_at, cs.grace_end_at) is null then null
+    else (coalesce(cs.current_period_end, cs.trial_end_at, cs.grace_end_at)::date - current_date)
   end as days_to_expiry,
   case
     when cs.status in ('trialing', 'active', 'past_due', 'grace_period') then true

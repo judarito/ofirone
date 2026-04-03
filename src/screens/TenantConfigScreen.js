@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { getTenantConfig, saveTenantConfig } from '../services/setup.service';
+import { getTenantBillingSummary } from '../services/tenantBilling.service';
 import {
   getActiveResolution,
   getDefaultFeProviderConfig,
@@ -71,12 +72,70 @@ const FE_DOCUMENT_TYPE_OPTIONS = [
   { key: 'ND', label: 'Nota Débito (ND)' },
 ];
 
+function formatBillingDate(value) {
+  if (!value) return 'Sin fecha registrada';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Fecha inválida';
+  return date.toLocaleDateString('es-CO', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function getBillingExpiryLabel(summary) {
+  if (!summary) return 'Vence';
+  if (summary.status === 'trialing') return 'Fin del trial';
+  if (summary.status === 'grace_period') return 'Fin de gracia';
+  return 'Vence';
+}
+
+function getBillingDaysHint(daysToExpiry) {
+  if (!Number.isFinite(daysToExpiry)) return '';
+  if (daysToExpiry < 0) return `Venció hace ${Math.abs(daysToExpiry)} día${Math.abs(daysToExpiry) === 1 ? '' : 's'}.`;
+  if (daysToExpiry === 0) return 'Vence hoy.';
+  if (daysToExpiry === 1) return 'Vence mañana.';
+  return `Faltan ${daysToExpiry} días.`;
+}
+
+function getBillingStatusTone(status, isLightTheme) {
+  switch (String(status || '').trim()) {
+    case 'active':
+      return isLightTheme
+        ? { backgroundColor: '#dcfce7', borderColor: '#86efac', color: '#166534' }
+        : { backgroundColor: '#052e1a', borderColor: '#166534', color: '#86efac' };
+    case 'trialing':
+      return isLightTheme
+        ? { backgroundColor: '#dbeafe', borderColor: '#93c5fd', color: '#1d4ed8' }
+        : { backgroundColor: '#0b2245', borderColor: '#1d4ed8', color: '#93c5fd' };
+    case 'past_due':
+    case 'grace_period':
+    case 'pending_activation':
+      return isLightTheme
+        ? { backgroundColor: '#fef3c7', borderColor: '#fcd34d', color: '#92400e' }
+        : { backgroundColor: '#3b2a04', borderColor: '#92400e', color: '#fcd34d' };
+    case 'suspended':
+    case 'canceled':
+    case 'expired':
+      return isLightTheme
+        ? { backgroundColor: '#fee2e2', borderColor: '#fca5a5', color: '#b91c1c' }
+        : { backgroundColor: '#3d0c12', borderColor: '#b91c1c', color: '#fca5a5' };
+    default:
+      return isLightTheme
+        ? { backgroundColor: '#e2e8f0', borderColor: '#cbd5e1', color: '#334155' }
+        : { backgroundColor: '#0f172a', borderColor: '#334155', color: '#cbd5e1' };
+  }
+}
+
 export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'dark', onLocalThemeChange }) {
   const isLightTheme = themeMode === 'light';
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState('');
   const [error, setError] = useState('');
+  const [billingError, setBillingError] = useState('');
+  const [billingSource, setBillingSource] = useState('');
+  const [billingSummary, setBillingSummary] = useState(null);
   const [tab, setTab] = useState('general');
   const [tenantForm, setTenantForm] = useState({});
   const [settingsForm, setSettingsForm] = useState({});
@@ -87,7 +146,22 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     if (!tenant?.tenant_id) return;
     setLoading(true);
     setError('');
-    const result = await getTenantConfig(tenant.tenant_id, { offlineMode });
+    setBillingError('');
+
+    const [result, billingResult] = await Promise.all([
+      getTenantConfig(tenant.tenant_id, { offlineMode }),
+      getTenantBillingSummary(tenant.tenant_id, { offlineMode }),
+    ]);
+
+    if (billingResult.success) {
+      setBillingSummary(billingResult.data || null);
+      setBillingSource(billingResult.source || '');
+    } else {
+      setBillingSummary(null);
+      setBillingSource('');
+      setBillingError(billingResult.error || 'No fue posible cargar la suscripción.');
+    }
+
     if (!result.success) {
       setError(result.error || 'No fue posible cargar configuración.');
       setLoading(false);
@@ -282,6 +356,8 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     </View>
   );
 
+  const billingStatusTone = getBillingStatusTone(billingSummary?.status, isLightTheme);
+
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={styles.filtersBlock}>
@@ -299,6 +375,56 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
       </View>
 
       <ScrollView>
+        <View style={[styles.card, styles.billingCard, isLightTheme && styles.cardLight]}>
+          <View style={styles.billingHeader}>
+            <View style={styles.billingHeaderText}>
+              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Suscripción</Text>
+              <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
+                Estado comercial vigente del tenant.
+              </Text>
+            </View>
+            {billingSummary ? (
+              <View style={[styles.statusPill, { backgroundColor: billingStatusTone.backgroundColor, borderColor: billingStatusTone.borderColor }]}>
+                <Text style={[styles.statusPillText, { color: billingStatusTone.color }]}>{billingSummary.status_label}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {billingSummary ? (
+            <>
+              <View style={styles.billingStatRow}>
+                <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight]}>Plan actual</Text>
+                <Text style={[styles.billingValue, isLightTheme && styles.billingValueLight]}>
+                  {billingSummary.plan_name || billingSummary.plan_code || 'Sin nombre'}
+                </Text>
+              </View>
+              <View style={styles.billingStatRow}>
+                <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight]}>{getBillingExpiryLabel(billingSummary)}</Text>
+                <Text style={[styles.billingValue, isLightTheme && styles.billingValueLight]}>
+                  {formatBillingDate(billingSummary.expiration_date)}
+                </Text>
+              </View>
+              {getBillingDaysHint(billingSummary.days_to_expiry) ? (
+                <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
+                  {getBillingDaysHint(billingSummary.days_to_expiry)}
+                </Text>
+              ) : null}
+              {billingSummary.banner_message ? (
+                <Text style={[styles.noticeText, isLightTheme && styles.noticeTextLight]}>{billingSummary.banner_message}</Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[styles.helperText, isLightTheme && styles.helperTextLight]}>
+              No hay una suscripción comercial registrada para este tenant todavía.
+            </Text>
+          )}
+
+          {billingSource && billingSource !== 'default' ? (
+            <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Origen billing: {billingSource}</Text>
+          ) : null}
+          {billingError && !billingSummary ? <Text style={styles.error}>{billingError}</Text> : null}
+        </View>
+
         {tab === 'general' ? (
           <View style={[styles.card, isLightTheme && styles.cardLight]}>
             <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Información General</Text>
@@ -877,6 +1003,45 @@ const styles = StyleSheet.create({
   cardLight: {
     borderColor: '#dbe4ef',
     backgroundColor: '#ffffff',
+  },
+  billingCard: {
+    marginBottom: 8,
+  },
+  billingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 8,
+  },
+  billingHeaderText: {
+    flex: 1,
+  },
+  billingStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 6,
+  },
+  billingValue: {
+    flex: 1,
+    color: '#f8fafc',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  billingValueLight: {
+    color: '#0f172a',
+  },
+  statusPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   sectionTitle: { color: '#f8fafc', fontSize: 15, fontWeight: '700', marginBottom: 6, marginTop: 4 },
   sectionTitleLight: { color: '#0f172a' },

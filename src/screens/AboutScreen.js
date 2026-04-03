@@ -3,6 +3,33 @@ import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useThemeMode } from '../lib/themeMode';
 import { getAboutSummary } from '../services/setup.service';
+import { getTenantBillingSummary } from '../services/tenantBilling.service';
+
+function formatBillingDate(value) {
+  if (!value) return 'Sin fecha registrada';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Fecha inválida';
+  return date.toLocaleDateString('es-CO', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function getBillingExpiryLabel(summary) {
+  if (!summary) return 'Vence';
+  if (summary.status === 'trialing') return 'Fin del trial';
+  if (summary.status === 'grace_period') return 'Fin de gracia';
+  return 'Vence';
+}
+
+function getBillingDaysHint(daysToExpiry) {
+  if (!Number.isFinite(daysToExpiry)) return '';
+  if (daysToExpiry < 0) return `Venció hace ${Math.abs(daysToExpiry)} día${Math.abs(daysToExpiry) === 1 ? '' : 's'}.`;
+  if (daysToExpiry === 0) return 'Vence hoy.';
+  if (daysToExpiry === 1) return 'Vence mañana.';
+  return `Faltan ${daysToExpiry} días.`;
+}
 
 export default function AboutScreen({ tenant, userProfile, offlineMode }) {
   const themeMode = useThemeMode();
@@ -14,10 +41,27 @@ export default function AboutScreen({ tenant, userProfile, offlineMode }) {
     locations: '...',
   });
   const [error, setError] = useState('');
+  const [billing, setBilling] = useState(null);
+  const [billingError, setBillingError] = useState('');
+  const [billingSource, setBillingSource] = useState('');
 
   useEffect(() => {
     const load = async () => {
-      if (!tenant?.tenant_id || offlineMode) return;
+      if (!tenant?.tenant_id) return;
+
+      const billingResult = await getTenantBillingSummary(tenant.tenant_id, { offlineMode });
+      if (billingResult.success) {
+        setBilling(billingResult.data || null);
+        setBillingSource(billingResult.source || '');
+        setBillingError('');
+      } else {
+        setBilling(null);
+        setBillingSource('');
+        setBillingError(billingResult.error || 'No fue posible cargar el plan del tenant.');
+      }
+
+      if (offlineMode) return;
+
       const result = await getAboutSummary(tenant.tenant_id);
       if (!result.success) {
         setError(result.error || 'No fue posible cargar estadisticas');
@@ -56,6 +100,34 @@ export default function AboutScreen({ tenant, userProfile, offlineMode }) {
         <Text style={[styles.line, isLightTheme && styles.lineLight]}>Empresa: {tenant?.tenant_name || '-'}</Text>
         <Text style={[styles.line, isLightTheme && styles.lineLight]}>Usuario: {userProfile?.full_name || '-'}</Text>
         <Text style={[styles.line, isLightTheme && styles.lineLight]}>Moneda: {tenant?.currency_code || 'COP'}</Text>
+      </View>
+
+      <View style={[styles.card, isLightTheme && styles.cardLight]}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="card-outline" size={15} color={isLightTheme ? '#235ea9' : '#8ec5ff'} />
+          <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Plan y Suscripción</Text>
+        </View>
+        {billing ? (
+          <>
+            <Text style={[styles.line, isLightTheme && styles.lineLight]}>Plan: {billing.plan_name || billing.plan_code || '-'}</Text>
+            <Text style={[styles.line, isLightTheme && styles.lineLight]}>Estado: {billing.status_label || '-'}</Text>
+            <Text style={[styles.line, isLightTheme && styles.lineLight]}>
+              {getBillingExpiryLabel(billing)}: {formatBillingDate(billing.expiration_date)}
+            </Text>
+            {getBillingDaysHint(billing.days_to_expiry) ? (
+              <Text style={[styles.meta, isLightTheme && styles.metaLight]}>{getBillingDaysHint(billing.days_to_expiry)}</Text>
+            ) : null}
+            {billing.banner_message ? (
+              <Text style={[styles.meta, isLightTheme && styles.metaLight]}>{billing.banner_message}</Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={[styles.line, isLightTheme && styles.lineLight]}>Sin suscripción comercial registrada.</Text>
+        )}
+        {billingSource && billingSource !== 'default' ? (
+          <Text style={[styles.meta, isLightTheme && styles.metaLight]}>Origen billing: {billingSource}</Text>
+        ) : null}
+        {billingError && !billing ? <Text style={styles.error}>{billingError}</Text> : null}
       </View>
 
       <View style={[styles.card, isLightTheme && styles.cardLight]}>

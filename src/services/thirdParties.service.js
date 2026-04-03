@@ -18,7 +18,7 @@ export async function listThirdParties({ search = '', limit = 100, offset = 0, t
       query = supabase
         .from('third_parties')
         .select(cols, { count: 'exact' })
-        .or(`legal_name.ilike.${q},document_number.ilike.${q}`)
+        .or(`legal_name.ilike.${q},trade_name.ilike.${q},document_number.ilike.${q},phone.ilike.${q},email.ilike.${q}`)
         .order('legal_name', { ascending: true })
         .range(offset, offset + limit - 1);
       if (type) query = query.in('type', [type, 'both']);

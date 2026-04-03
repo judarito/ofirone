@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -23,6 +23,10 @@ export default function SearchableSelectField({
   themeMode = 'dark',
   disabled = false,
   allowClear = true,
+  onSearchQueryChange = null,
+  searchDebounceMs = 250,
+  loadingOptions = false,
+  emptyText = COMMON_TEXT.noResults,
 }) {
   const isLightTheme = themeMode === 'light';
   const [open, setOpen] = useState(false);
@@ -40,6 +44,16 @@ export default function SearchableSelectField({
   );
 
   const selectedLabel = selectedOption?.label || valueLabel || placeholder;
+
+  useEffect(() => {
+    if (!open || !onSearchQueryChange) return undefined;
+
+    const timeoutId = setTimeout(() => {
+      onSearchQueryChange(query);
+    }, Math.max(0, Number(searchDebounceMs || 0)));
+
+    return () => clearTimeout(timeoutId);
+  }, [open, onSearchQueryChange, query, searchDebounceMs]);
 
   const selectValue = (key) => {
     onSelect?.(key);
@@ -117,7 +131,9 @@ export default function SearchableSelectField({
                 );
               }}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>{COMMON_TEXT.noResults}</Text>
+                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>
+                  {loadingOptions ? 'Buscando...' : emptyText}
+                </Text>
               }
             />
         </View>

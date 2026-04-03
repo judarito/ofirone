@@ -75,7 +75,9 @@ const OP_HANDLERS = {
 
 // ─── Main sync function ───────────────────────────────────────────────────────
 
-export async function syncPendingOperations({ limit = 20, tenantId = null, userId = null } = {}) {
+let activeSyncPromise = null;
+
+async function runSyncPendingOperations({ limit = 20, tenantId = null, userId = null } = {}) {
   await resetStuckProcessingOps();
 
   const pending = await getPendingOps({ limit, tenantId, userId });
@@ -130,4 +132,17 @@ export async function syncPendingOperations({ limit = 20, tenantId = null, userI
     skipped,
     total: pending.length,
   };
+}
+
+export async function syncPendingOperations(options = {}) {
+  if (activeSyncPromise) {
+    return activeSyncPromise;
+  }
+
+  activeSyncPromise = runSyncPendingOperations(options)
+    .finally(() => {
+      activeSyncPromise = null;
+    });
+
+  return activeSyncPromise;
 }

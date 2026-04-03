@@ -310,6 +310,7 @@ export async function markPendingOpProcessing(opId) {
       UPDATE pending_ops
       SET status = 'PROCESSING', updated_at = ?
       WHERE op_id = ?
+        AND status IN ('PENDING', 'FAILED')
     `,
     [now, opId],
   );
@@ -360,7 +361,7 @@ export async function resetStuckProcessingOps() {
   );
 }
 
-export async function getPendingSaleOps(tenantId, limit = 200) {
+export async function getPendingSaleOps(tenantId, limit = 200, userId = null) {
   const db = await getDb();
   const rows = await db.getAllAsync(
     `
@@ -370,10 +371,11 @@ export async function getPendingSaleOps(tenantId, limit = 200) {
       WHERE op_type = 'CREATE_SALE'
         AND status IN ('PENDING','FAILED')
         AND tenant_id = ?
+        AND (? IS NULL OR user_id = ?)
       ORDER BY created_at DESC
       LIMIT ?
     `,
-    [tenantId, limit],
+    [tenantId, userId, userId, limit],
   );
 
   return (rows || []).map((row) => ({
@@ -388,7 +390,7 @@ export async function getPendingSaleOps(tenantId, limit = 200) {
   }));
 }
 
-export async function getPendingSaleOpById(opId) {
+export async function getPendingSaleOpById(opId, userId = null) {
   const db = await getDb();
   const row = await db.getFirstAsync(
     `
@@ -398,9 +400,10 @@ export async function getPendingSaleOpById(opId) {
       WHERE op_type = 'CREATE_SALE'
         AND op_id = ?
         AND status IN ('PENDING','FAILED')
+        AND (? IS NULL OR user_id = ?)
       LIMIT 1
     `,
-    [opId],
+    [opId, userId, userId],
   );
 
   if (!row) return null;
@@ -423,6 +426,7 @@ export async function retryPendingOp(opId) {
     `
       UPDATE pending_ops
       SET status = 'PENDING',
+          retry_count = 0,
           last_error = NULL,
           updated_at = ?
       WHERE op_id = ?
@@ -456,7 +460,7 @@ export async function updatePendingOpPayload(opId, payload) {
   );
 }
 
-export async function getAllQueuedOps({ tenantId = null, limit = 100 } = {}) {
+export async function getAllQueuedOps({ tenantId = null, userId = null, limit = 100 } = {}) {
   const db = await getDb();
   const rows = await db.getAllAsync(
     `
@@ -466,10 +470,11 @@ export async function getAllQueuedOps({ tenantId = null, limit = 100 } = {}) {
       FROM pending_ops
       WHERE status IN ('PENDING', 'FAILED')
         AND (? IS NULL OR tenant_id = ?)
+        AND (? IS NULL OR user_id = ?)
       ORDER BY created_at ASC
       LIMIT ?
     `,
-    [tenantId, tenantId, limit],
+    [tenantId, tenantId, userId, userId, limit],
   );
 
   return (rows || []).map((row) => ({

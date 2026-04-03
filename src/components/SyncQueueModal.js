@@ -34,6 +34,7 @@ export function SyncQueueModal({
   visible,
   isLightTheme,
   tenantId,
+  userId,
   offlineMode,
   onClose,
   onQueueChange,
@@ -46,12 +47,12 @@ export function SyncQueueModal({
     if (!tenantId) return;
     setLoading(true);
     try {
-      const result = await getAllQueuedOps({ tenantId, limit: 100 });
+      const result = await getAllQueuedOps({ tenantId, userId, limit: 100 });
       setOps(result);
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, userId]);
 
   useEffect(() => {
     if (visible) load();
@@ -73,7 +74,7 @@ export function SyncQueueModal({
     if (offlineMode) return;
     setSyncing(true);
     try {
-      await syncPendingOperations({ tenantId, limit: 100 });
+      await syncPendingOperations({ tenantId, userId, limit: 100 });
       await load();
       onQueueChange?.();
     } finally {
@@ -183,6 +184,7 @@ export function SyncQueueModal({
                     <Pressable
                       onPress={() => handleRetry(op.opId)}
                       style={[s.actionBtn, s.retryBtn]}
+                      disabled={syncing || loading}
                     >
                       <Ionicons name="refresh-outline" size={13} color="#bfdbfe" />
                       <Text style={s.retryBtnText}>Reintentar</Text>
@@ -190,6 +192,7 @@ export function SyncQueueModal({
                     <Pressable
                       onPress={() => handleDiscard(op.opId)}
                       style={[s.actionBtn, s.discardBtn, isLightTheme ? s.discardBtnLight : null]}
+                      disabled={syncing || loading}
                     >
                       <Ionicons name="trash-outline" size={13} color={isLightTheme ? '#dc2626' : '#fca5a5'} />
                       <Text style={[s.discardBtnText, isLightTheme ? s.discardBtnTextLight : null]}>

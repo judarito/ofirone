@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-03-24
+Fecha: 2026-04-03
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -14,6 +14,197 @@ Regla de trabajo:
 - si se crea, migra, elimina o cambia el alcance de un modulo, este documento debe ajustarse
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
+
+## Actualizacion reciente (2026-04-03) — Hardening transversal de offline, sync y compras
+
+### Problemas corregidos
+
+Se cerro una pasada transversal sobre fallas silenciosas que estaban afectando coherencia de datos y experiencia diaria:
+- logout con cache local permitia una reentrada offline no deseada
+- bootstrap desde cache podia dejar perfil, menu y settings viejos si la sesion se confirmaba despues
+- la cola offline podia quedar mezclada entre usuarios o en un estado dificil de reintentar
+- listas y buscadores remotos podian aplicar respuestas viejas sobre filtros o queries nuevos
+- proveedores visibles por `trade_name` no siempre aparecian en la busqueda
+- compras se seguia listando por linea de movimiento en lugar de cabecera de documento
+- una venta encolada offline no impactaba el dashboard `Home` hasta sincronizar
+
+### Solucion aplicada
+
+- `handleLogout` ahora limpia `auth_cache` y `menu_cache` tanto online como offline, baja `offlineAvailable` y reinicia el contexto de tenant/menu/dashboard.
+- el bootstrap desde cache ya no se queda solo con `setSession()`: si la sesion reaparece, rehidrata perfil en background sin tumbar la UI.
+- `useSync` ahora usa el adaptador multiplataforma `database` y solo dispara `onNetworkRecovery` al pasar de offline real a online real.
+- `syncPendingOperations()` quedo serializado en memoria para evitar carreras entre auto-sync, modal de cola y reintentos manuales.
+- la cola pendiente y el conteo se filtran por `tenantId + userId` en SQLite nativo y web.
+- `retryPendingOp()` reinicia `retry_count`, para que un reintento manual vuelva a procesar de verdad una op bloqueada o agotada.
+- `usePaginatedList`, `PurchasesScreen` e `InventoryScreen` ahora ignoran respuestas stale mediante request ids y guards de montaje.
+- la busqueda de terceros ahora incluye `trade_name`, `phone` y `email`.
+- `listPurchases()` paso a agrupar por cabecera de `purchases`, y `PurchasesScreen` usa un namespace de cache nuevo para no mezclar shapes viejos.
+- `useDashboard` ahora puede fusionar localmente una venta encolada al snapshot actual, de modo que `Home` refleje ventas offline antes del sync.
+
+### Archivos modificados en esta sesion
+
+- `App.js` — logout/cache hardening, rehidratacion en background y dashboard optimista para POS offline
+- `src/hooks/useSync.js` — recovery real y uso del adaptador multiplataforma
+- `src/hooks/usePaginatedList.js` — proteccion contra respuestas stale
+- `src/hooks/useDashboard.js` — merge optimista de ventas offline al dashboard
+- `src/screens/PointOfSaleScreen.js` — notifica ventas encoladas al dashboard
+- `src/screens/PurchasesScreen.js` — guards async y listado coherente por compra
+- `src/screens/InventoryScreen.js` — guards async en operaciones/busquedas
+- `src/services/sync.service.js` — serializacion del proceso de sync
+- `src/services/sales.service.js` — operaciones pendientes acotadas al usuario actual
+- `src/services/thirdParties.service.js` — busqueda de proveedores mas alineada con la UI
+- `src/services/inventoryCatalog.service.js` — listado de compras por cabecera
+- `src/storage/sqlite/database.native.js` — cola pendiente por usuario + retry real
+- `src/storage/sqlite/database.web.js` — paridad web del manejo de cola pendiente
+
+## Actualizacion reciente (2026-04-03) — Billing visible en mobile y correcciones base
+
+### Problemas corregidos
+
+El dominio de billing seguia en estado casi invisible para el usuario mobile:
+- existia `tenant_billing_summary`, pero mobile no lo consumia en ninguna pantalla
+- el tenant no podia ver facil su plan actual ni la fecha de vencimiento
+- la migracion base tenia un bug de idempotencia en una policy de `tenant_subscriptions`
+- `days_to_expiry` dependia solo de `current_period_end`, dejando mal casos de trial o gracia sin ese campo
+
+### Solucion aplicada
+
+- se creo `src/services/tenantBilling.service.js` para consumir `fn_get_my_tenant_billing_summary()` con fallback a cache local.
+- `TenantConfigScreen` ahora muestra un bloque de `Suscripcion` con plan, estado, vencimiento y mensaje operativo del tenant.
+- `AboutScreen` ahora tambien expone el plan actual y el vencimiento como resumen rapido.
+- la migracion `ADD_TENANT_BILLING_MONETIZATION.sql` corrige el guard roto de `tenant_subscriptions_update_policy` y calcula `days_to_expiry` usando `current_period_end`, `trial_end_at` o `grace_end_at`.
+- la misma migracion ahora detecta esquemas con `tenants.tenant_id` o `tenants.id`, y tambien puede resolver actor/tenant desde `users` o `profiles` para no romper instalaciones antiguas o variantes de esquema.
+
+### Archivos modificados en esta sesion
+
+- `src/services/tenantBilling.service.js` — lectura segura del resumen comercial + cache offline
+- `src/screens/TenantConfigScreen.js` — visibilidad del plan/vencimiento en Empresa
+- `src/screens/AboutScreen.js` — visibilidad rapida del plan/vencimiento
+- `migrations/ADD_TENANT_BILLING_MONETIZATION.sql` — fix de idempotencia y vencimiento
+
+## Actualizacion reciente (2026-04-03) — Plan freemium y backfill seguro de suscripciones
+
+### Alcance nuevo
+
+Se agrego una migracion operativa para poblar billing en tenants rezagados sin tocar planes activos existentes:
+- se crea/actualiza el plan `freemium`
+- se crea precio `semiannual` en COP con valor `0`
+- se definen features base similares a un plan operativo basico
+- se asigna una suscripcion `active` de 6 meses solo a tenants sin suscripcion abierta
+- tambien se crean el primer `tenant_subscription_period` y un evento `subscription_created`
+
+### Notas operativas
+
+- la migracion no reemplaza planes abiertos existentes; solo hace backfill en tenants sin `trialing`, `active`, `pending_activation`, `past_due` o `grace_period`
+- para compatibilidad, detecta `tenants.tenant_id` o `tenants.id`
+- el plan `freemium` quedo como no publico (`is_public = false`) para no ofrecerlo accidentalmente en catalogos futuros
+
+### Archivos modificados en esta sesion
+
+- `migrations/ADD_FREEMIUM_6M_TENANT_SUBSCRIPTIONS.sql` — seed comercial + asignacion segura de freemium 6 meses
+
+## Actualizacion reciente (2026-04-03) — Reportes de Ventas y Cajas acercados a paridad web
+
+### Problemas corregidos
+
+El modulo `Reports` en mobile estaba entregando un snapshot demasiado resumido frente a la web:
+- `PARTIAL_RETURN` se estaba sumando al bruto en lugar de devoluciones
+- faltaban KPI de descuentos e impuestos en ventas
+- `Ventas` no tenia `Top Productos`, `Por Categoria`, `Movimientos de Caja`, `Plan Separe` ni `Alertas de Stock`
+- `Cajas` no exponia `Ventas por Caja` ni `Ventas por Cajero/Sesion`
+- el selector de sedes en reportes no tenia fallback local
+
+### Solucion aplicada
+
+- `getReportsSnapshot()` ahora calcula `gross_discount`, `gross_tax`, `top_products`, `by_category`, conteos por metodo de pago, movimientos de caja detallados, contratos de plan separe, alertas de stock, ventas por caja y sesiones enriquecidas.
+- el calculo de devoluciones trata `PARTIAL_RETURN` igual que `RETURNED` para resumen y agregado diario.
+- `ReportsScreen` ahora muestra subtabs dentro de `Ventas` y `Cajas`, acercando la navegacion a la web sin romper el enfoque mobile-first.
+- `listReportLocations()` guarda cache local y puede servirlo como fallback offline.
+
+### Archivos modificados en esta sesion
+
+- `src/services/reports.service.js` — snapshot ampliado, calculos corregidos y fallback de sedes
+- `src/screens/ReportsScreen.js` — subtabs de ventas/cajas, KPI ampliados y nuevas vistas mobile
+
+## Actualizacion reciente (2026-04-03) — Compras detalle/CxP y Operaciones de Inventario en mobile
+
+### Alcance nuevo
+
+La segunda tanda de paridad mobile con web dejo operativos estos bloques:
+- detalle de compra con cabecera, proveedor, usuario, total y lineas compradas
+- bloque de cuenta por pagar por compra, con creacion de CxP y registro de abonos
+- visualizacion de devoluciones acumuladas por linea (`Dev`)
+- tab `Operaciones` dentro de `Inventory` con ajuste manual y traslado entre sedes
+- modal para recibir traslados en transito desde la sede destino
+
+### Notas operativas
+
+- el detalle de compra y la CxP siguen requiriendo conexion; en offline compras conserva consulta cacheada de la lista
+- los ajustes y traslados de inventario usan RPCs online (`sp_create_transfer_request`, `sp_receive_transfer_request`) y no se encolan offline
+- la busqueda remota de variantes reutiliza el servicio de compras para no duplicar catalogos
+
+### Archivos modificados en esta sesion
+
+- `App.js` — `InventoryScreen` tambien recibe `userProfile`
+- `src/screens/PurchasesScreen.js` — detalle de compra, CxP, abonos y estado offline coherente
+- `src/screens/InventoryScreen.js` — tab `Operaciones`, ajustes, traslados y recepcion en transito
+- `src/services/purchases.service.js` — detalle de compra + CxP + abonos + devoluciones por linea
+- `src/services/inventoryOperations.service.js` — operaciones de inventario via RPC
+- `src/services/inventoryCatalog.service.js` — exposicion de `source_id` para enlazar detalle real de compra
+
+## Actualizacion reciente (2026-04-03) — Compras mobile habilitado para registro y ordenes de compra
+
+### Alcance nuevo
+
+El modulo `Purchases` en mobile dejo de ser solo consulta. Ahora permite:
+- registrar compras contra `sp_create_purchase`
+- guardar ordenes de compra borrador contra `sp_create_purchase_order`
+- buscar proveedores y variantes desde la app
+- capturar lotes, vencimiento y ubicacion fisica cuando la variante lo requiere
+
+### Notas operativas
+
+- en `offlineMode` compras sigue siendo solo lectura; la creacion requiere conexion
+- la recepcion avanzada de OC y el seguimiento detallado siguen en web
+- el selector buscable mobile ahora soporta busqueda remota opcional para catalogos grandes
+
+### Archivos modificados en esta sesion
+
+- `App.js` — `PurchasesScreen` recibe `userProfile` para registrar `created_by`
+- `src/components/SearchableSelectField.js` — soporte para busqueda remota opcional y estado `Buscando...`
+- `src/screens/PurchasesScreen.js` — formulario mobile de compra/OC, lineas dinamicas, lote/vencimiento
+- `src/services/purchases.service.js` — RPCs y busquedas de proveedores/variantes para compras
+
+## Actualizacion reciente (2026-04-03) — Dashboard Home robusto en offline, foreground y reconexion
+
+### Problema detectado
+
+Despues del rediseño offline-first, `Home` podia quedarse con KPIs vacios o desactualizados en escenarios reales:
+- arranque desde cache con sesion validada en background, pero sin refrescar dashboard online
+- recuperacion de red sin ops pendientes, por lo que no corria `loadDashboard()`
+- retorno desde background sin recheck inmediato de conectividad
+- fallo parcial en queries opcionales (`topProducts` o `sale_payments`) que tumbaba todo el resumen del dashboard
+- UI del Home mostrando `0` cuando en realidad no habia snapshot valido
+
+### Solucion aplicada
+
+- `useDashboard` ahora guarda el ultimo snapshot exitoso por tenant en `SimpleCache` (`sync_state` SQLite).
+- Si `Home` entra en offline, el hook sirve el snapshot cacheado del dashboard en vez de quedar vacio.
+- Si una carga online falla, el hook intenta fallback a cache y, si ya habia un snapshot valido en memoria para ese tenant, lo conserva.
+- `getDashboardSummary()` ya no considera criticos los bloques de `topProducts` y `paymentMethods`; si fallan, los KPIs principales (`today`, `month`, `year`, serie diaria`) siguen saliendo.
+- `Home` refresca dashboard al entrar a la pantalla, al volver del background y con pull-to-refresh manual.
+- La recuperacion de red ahora refresca dashboard aunque no existan operaciones pendientes para sincronizar.
+- El refresco periodico online de 5 minutos ahora tambien vuelve a pedir dashboard si la pantalla visible es `Home`.
+- `useConnectivity` recupero el recheck inmediato al volver a `active`.
+- `HomeScreen` ya no pinta `0` silencioso cuando falta snapshot; muestra `Sin datos`.
+
+### Archivos modificados en esta sesion
+
+- `App.js` — refresh de dashboard en Home, foreground, reconexion y cache offline
+- `src/hooks/useDashboard.js` — cache/fallback por tenant para resumen dashboard
+- `src/hooks/useConnectivity.js` — recheck en `AppState=active`
+- `src/services/reports.service.js` — queries opcionales ya no tumban KPIs
+- `src/screens/HomeScreen.js` — pull-to-refresh y estado visual `Sin datos`
 
 ## Actualizacion reciente (2026-03-27) — Rediseno arquitectura offline, bootstrap y estabilidad de render
 

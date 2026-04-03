@@ -123,6 +123,30 @@ function isJwtSessionError(error) {
   );
 }
 
+function isTransientLoadError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('network') ||
+    message.includes('fetch') ||
+    message.includes('timeout') ||
+    message.includes('connection') ||
+    message.includes('failed to fetch')
+  );
+}
+
+function isFatalProfileAccessError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    isJwtSessionError(error) ||
+    message.includes('no se encontro perfil') ||
+    message.includes('no se encontró perfil') ||
+    message.includes('usuario esta inactivo') ||
+    message.includes('usuario está inactivo') ||
+    message.includes('tu usuario esta inactivo') ||
+    message.includes('tu usuario está inactivo')
+  );
+}
+
 const SCREEN_ICON_MAP = {
   Home: 'home-outline',
   PointOfSale: 'cart-outline',
@@ -185,16 +209,7 @@ function resolveMenuAccent(item) {
 }
 
 const HOME_BAR_COLORS = HOME_BAR_THEME_COLORS;
-const HOME_ACTION_LABELS = {
-  Products: 'Productos',
-  ThirdParties: 'Clientes',
-  Inventory: 'Inventario',
-  Reports: 'Reportes',
-};
 const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights']);
-const CONNECTIVITY_CHECK_INTERVAL_MS = 10000;
-const CONNECTIVITY_TIMEOUT_MS = 6000;
-const CONNECTIVITY_FAILURES_BEFORE_OFFLINE = 3;
 
 const ActiveModuleScreen = memo(function ActiveModuleScreen({
   currentScreen,
@@ -296,6 +311,7 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
       return (
         <InventoryScreen
           tenant={tenant}
+          userProfile={userProfile}
           themeMode={themeMode}
           offlineMode={offlineMode}
           pageSize={pageSize}
@@ -308,6 +324,7 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
       return (
         <PurchasesScreen
           tenant={tenant}
+          userProfile={userProfile}
           themeMode={themeMode}
           offlineMode={offlineMode}
           pageSize={pageSize}
@@ -449,7 +466,16 @@ function AppContent() {
     [session, networkReachable],
   );
 
-  const { kpis, dailySeries, topProducts, paymentMethodsSeries, loadingKpis, loadDashboard, resetDashboard } = useDashboard();
+  const {
+    kpis,
+    dailySeries,
+    topProducts,
+    paymentMethodsSeries,
+    loadingKpis,
+    applyPendingSaleToDashboard,
+    loadDashboard,
+    resetDashboard,
+  } = useDashboard();
   const {
     notificationsOpen,
     setNotificationsOpen,
@@ -608,7 +634,11 @@ function AppContent() {
 
         const cached = await safeStep('getAuthCache', () => getAuthCache());
         const cachedMenu = await safeStep('getMenuCache', () => getMenuCache());
-        const pendingCount = await safeStep('getPendingOps', () => getPendingOpsCount());
+        const pendingCount = await safeStep('getPendingOps', () =>
+          getPendingOpsCount({
+            tenantId: cached?.tenant?.tenant_id || null,
+            userId: cached?.userProfile?.user_id || null,
+          }));
 
         if (mounted) setPendingOpsCount(pendingCount);
         if (cached && mounted) {
@@ -648,7 +678,8 @@ function AppContent() {
               const activeSession = sessionData?.session ?? null;
               setSession(activeSession);
               setBootingFromCache(false);
-              if (activeSession) {
+              if (activeSession?.user?.id) {
+                hydrateProfile(activeSession.user.id, { background: true });
                 warmCriticalOfflineCaches(
                   cached.tenant?.tenant_id,
                   cached.userProfile?.user_id,
@@ -699,6 +730,12 @@ function AppContent() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
       setSession(nextSession);
+      if (
+        nextSession?.user?.id &&
+        (event === 'INITIAL_SESSION' || event === 'USER_UPDATED')
+      ) {
+        await hydrateProfile(nextSession.user.id, { background: true });
+      }
       if (!nextSession) {
         const reason = event === 'TOKEN_REFRESH_FAILED'
           ? APP_TEXT.sessionExpired
@@ -924,8 +961,6 @@ function AppContent() {
     if (!homeLast7Series.length) return 1;
     return Math.max(...homeLast7Series.map((entry) => Number(entry?.total || 0)), 1);
   }, [homeLast7Series]);
-  const monthVsPrev = Number(kpis?.month?.vs_prev || 0);
-  const todayVsPrev = Number(kpis?.today?.vs_prev || 0);
   const formatMoney = useCallback((value) => {
     const currency = tenant?.currency_code || 'COP';
     const amount = Number(value || 0);
@@ -991,16 +1026,6 @@ function AppContent() {
       setLoadingMenu(false);
     }
   };
-
-
-  const refreshPendingOpsCount = async ({
-    tenantId = tenant?.tenant_id || null,
-    userId = null,
-  } = {}) => {
-    const pendingCount = await getPendingOpsCount({ tenantId, userId });
-    setPendingOpsCount(pendingCount);
-  };
-
   const loadTenantConfig = async (tenantId, { forceOffline = false, userId = null } = {}) => {
     if (!tenantId) {
       setTenantSettings({});
@@ -1059,7 +1084,7 @@ function AppContent() {
 
       await listLocations(tenantId);
 
-      const [productsSale, productsComponents, cashSessions, salesHistory, stockProducts, stockComponents] = await Promise.all([
+      const [productsSale, productsComponents, cashSessions, salesHistory] = await Promise.all([
         listProducts({
           tenantId,
           search: '',
@@ -1151,10 +1176,60 @@ function AppContent() {
     }
   }, [tenant?.tenant_id, userProfile?.user_id]);
 
-  const handlePointOfSaleSaleCompleted = useCallback(
-    () => loadDashboard(tenant?.tenant_id),
-    [loadDashboard, tenant?.tenant_id],
+  const refreshDashboardForTenant = useCallback(
+    async (tenantId, { offlineOverride } = {}) => {
+      if (!tenantId) {
+        resetDashboard();
+        return { success: false, error: 'tenantId es requerido' };
+      }
+
+      const shouldUseOffline = typeof offlineOverride === 'boolean' ? offlineOverride : offlineMode;
+      return loadDashboard(tenantId, { offlineMode: shouldUseOffline });
+    },
+    [loadDashboard, offlineMode, resetDashboard],
   );
+
+  const refreshHomeDashboard = useCallback(
+    async (options = {}) => refreshDashboardForTenant(tenant?.tenant_id, options),
+    [refreshDashboardForTenant, tenant?.tenant_id],
+  );
+
+  const handlePointOfSaleSaleCompleted = useCallback(
+    async (salePayload = {}, options = {}) => {
+      const source = String(options?.source || 'server');
+
+      if (source === 'offline-queue' || source === 'queued-after-network-error') {
+        await applyPendingSaleToDashboard(tenant?.tenant_id, salePayload);
+        return;
+      }
+
+      await refreshHomeDashboard({ offlineOverride: false });
+    },
+    [applyPendingSaleToDashboard, refreshHomeDashboard, tenant?.tenant_id],
+  );
+
+  useEffect(() => {
+    if (currentScreen !== 'Home' || !tenant?.tenant_id) return undefined;
+
+    let active = true;
+    const refresh = async () => {
+      if (!active) return;
+      await refreshDashboardForTenant(tenant.tenant_id);
+    };
+
+    refresh();
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        refresh();
+      }
+    });
+
+    return () => {
+      active = false;
+      appStateSub.remove();
+    };
+  }, [currentScreen, refreshDashboardForTenant, tenant?.tenant_id]);
 
   useEffect(() => {
     const sub = Appearance.addChangeListener(() => {
@@ -1206,9 +1281,12 @@ function AppContent() {
     setError(buildMobileUnavailableText(item.label || item.title));
   };
 
-  const hydrateProfile = async (authUserId) => {
-    setLoadingProfile(true);
-    setError('');
+  const hydrateProfile = async (authUserId, { background = false } = {}) => {
+    if (!background) {
+      setLoadingProfile(true);
+      setError('');
+    }
+
     try {
       const { data: profiles, error: profileError } = await supabase
         .from('users')
@@ -1295,7 +1373,7 @@ function AppContent() {
       });
       const pendingCount = await getPendingOpsCount({
         tenantId: tenantData?.tenant_id || null,
-        userId: null,
+        userId: enriched?.user_id || null,
       });
       setPendingOpsCount(pendingCount);
       setOfflineAvailable(true);
@@ -1305,13 +1383,12 @@ function AppContent() {
       try {
         await loadMenusForUser(authUserId, { preferFreshCache: true });
       } catch (menuError) {
-        setRawMenuTree([]);
-        setMenuTree([]);
-        setMenuCachedAt('');
-        setError(
-          menuError?.message ||
-            APP_TEXT.loginMenuLoadFailed,
-        );
+        if (!background) {
+          setRawMenuTree([]);
+          setMenuTree([]);
+          setMenuCachedAt('');
+        }
+        setError(menuError?.message || APP_TEXT.loginMenuLoadFailed);
       }
       await loadTenantConfig(tenantData?.tenant_id, {
         forceOffline: false,
@@ -1320,7 +1397,19 @@ function AppContent() {
       await loadDashboard(tenantData?.tenant_id);
       // Fire-and-forget: el calentamiento de cache es best-effort y no debe bloquear el arranque
       warmCriticalOfflineCaches(tenantData?.tenant_id, enriched?.user_id);
+      return { success: true, data: { userProfile: enriched, tenant: tenantData } };
     } catch (e) {
+      const message = e?.message ?? 'No fue posible cargar el perfil.';
+
+      if (background) {
+        if (isFatalProfileAccessError(e)) {
+          forceSessionToLogin(message);
+        } else if (!isTransientLoadError(e)) {
+          setError(message);
+        }
+        return { success: false, error: message };
+      }
+
       setUserProfile(null);
       setTenant(null);
       resetDashboard();
@@ -1328,9 +1417,12 @@ function AppContent() {
       setRawMenuTree([]);
       setMenuTree([]);
       setMenuCachedAt('');
-      setError(e?.message ?? 'No fue posible cargar el perfil.');
+      setError(message);
+      return { success: false, error: message };
     } finally {
-      setLoadingProfile(false);
+      if (!background) {
+        setLoadingProfile(false);
+      }
     }
   };
 
@@ -1368,10 +1460,13 @@ function AppContent() {
     defaultPageSize,
     onPendingOpsChange: setPendingOpsCount,
     onSyncSuccess: async (tenantId, userId) => {
-      await loadDashboard(tenantId);
+      await refreshDashboardForTenant(tenantId, { offlineOverride: false });
       await warmCriticalOfflineCaches(tenantId, userId);
     },
-    onNetworkRecovery: warmCriticalOfflineCaches,
+    onNetworkRecovery: async (tenantId, userId) => {
+      await refreshDashboardForTenant(tenantId, { offlineOverride: false });
+      await warmCriticalOfflineCaches(tenantId, userId);
+    },
   });
 
   // Periodic cache warm every 5 minutes while online and logged in.
@@ -1382,10 +1477,13 @@ function AppContent() {
     const WARM_INTERVAL_MS = 5 * 60 * 1000;
     const timer = setInterval(() => {
       warmCriticalOfflineCaches(tenant.tenant_id, userProfile.user_id);
+      if (currentScreen === 'Home') {
+        refreshDashboardForTenant(tenant.tenant_id, { offlineOverride: false });
+      }
     }, WARM_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [session, networkReachable, tenant?.tenant_id, userProfile?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentScreen, refreshDashboardForTenant, session, networkReachable, tenant?.tenant_id, userProfile?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (localLlmMode === 'endpoint') return;
@@ -1410,10 +1508,14 @@ function AppContent() {
     // Sin red: cerrar sesión localmente y advertir que necesitará conexión para volver a entrar.
     if (!networkReachable) {
       await supabase.auth.signOut({ scope: 'local' });
+      await clearAuthCache();
+      await clearMenuCache();
       setSession(null);
       setUserProfile(null);
       setTenant(null);
       resetDashboard();
+      setOfflineAvailable(false);
+      setCachedAt('');
       setTenantSettings({});
       setRawMenuTree([]);
       setMenuTree([]);
@@ -1424,6 +1526,7 @@ function AppContent() {
       resetNotifications();
       resetToHome();
       setReportsInitialTab('sales');
+      setPendingOpsCount(0);
       setUserExplicitlyLoggedOut(true);
       setError('Sesión cerrada sin conexión. Necesitarás internet para volver a iniciar sesión.');
       await applyThemeFromLocalCache();
@@ -1436,10 +1539,15 @@ function AppContent() {
       return;
     }
 
+    await clearAuthCache();
+    await clearMenuCache();
     setSession(null);
     setUserProfile(null);
     setTenant(null);
     resetDashboard();
+    setOfflineAvailable(false);
+    setCachedAt('');
+    setTenantSettings({});
     setRawMenuTree([]);
     resetToHome();
     setReportsInitialTab('sales');
@@ -1449,6 +1557,7 @@ function AppContent() {
     setMenuOpen(false);
     setLastMenuAction('');
     resetNotifications();
+    setPendingOpsCount(0);
     setUserExplicitlyLoggedOut(true);
     await applyThemeFromLocalCache();
   };
@@ -1486,9 +1595,10 @@ function AppContent() {
     resetNotifications();
     const pendingCount = await getPendingOpsCount({
       tenantId: cached?.tenant?.tenant_id || null,
-      userId: null,
+      userId: cached?.userProfile?.user_id || null,
     });
     setPendingOpsCount(pendingCount);
+    await refreshDashboardForTenant(cached?.tenant?.tenant_id, { offlineOverride: true });
   };
 
   const handleClearOfflineCache = async () => {
@@ -1607,9 +1717,14 @@ function AppContent() {
         visible={syncQueueOpen}
         isLightTheme={isLightTheme}
         tenantId={tenant?.tenant_id}
+        userId={userProfile?.user_id}
         offlineMode={offlineMode}
         onClose={() => setSyncQueueOpen(false)}
-        onQueueChange={() => getPendingOpsCount({ tenantId: tenant?.tenant_id, userId: null }).then(setPendingOpsCount)}
+        onQueueChange={() =>
+          getPendingOpsCount({
+            tenantId: tenant?.tenant_id,
+            userId: userProfile?.user_id || null,
+          }).then(setPendingOpsCount)}
       />
 
       <View
@@ -1632,6 +1747,7 @@ function AppContent() {
           error={error}
           formatMoney={formatMoney}
           navigateToScreen={navigateToScreen}
+          onRefreshDashboard={refreshHomeDashboard}
           resolveMenuAccent={resolveMenuAccent}
           resolveMenuIcon={resolveMenuIcon}
         />
