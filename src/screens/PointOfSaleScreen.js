@@ -458,6 +458,37 @@ function applyLineTaxes(line, taxResult, priceAfterDiscount) {
   line.line_total = Math.round(priceAfterDiscount);
 }
 
+function formatTaxRateLabel(rate) {
+  const numericRate = Number(rate || 0);
+  if (!Number.isFinite(numericRate) || numericRate <= 0) return '';
+  const percentage = numericRate * 100;
+  const normalized = Number.isInteger(percentage)
+    ? String(percentage)
+    : percentage.toFixed(2).replace(/\.?0+$/, '');
+  return `${normalized}%`;
+}
+
+function getCartLineAccountingAmounts(line) {
+  const taxRate = Math.max(0, Number(line?.tax_rate || 0));
+  const priceIncludesTax = Boolean(line?.price_includes_tax && taxRate > 0);
+  const factor = priceIncludesTax ? 1 + taxRate : 1;
+  const discountRaw = Math.max(0, Number(line?.discount || 0));
+  const discount = Math.max(0, Math.round(discountRaw / factor));
+  const base = Math.max(0, Math.round(Number(line?.base_amount || 0)));
+  const tax = Math.max(0, Math.round(Number(line?.tax_amount || 0)));
+  const total = Math.max(0, Math.round(Number(line?.line_total || 0)));
+  const subtotal = Math.max(0, base + discount);
+
+  return {
+    subtotal,
+    discount,
+    base,
+    tax,
+    total,
+    priceIncludesTax,
+  };
+}
+
 function createOperationId() {
   const rand = Math.random().toString(36).slice(2, 10);
   return `sale_${Date.now().toString(36)}_${rand}`;
@@ -609,12 +640,15 @@ export default function PointOfSaleScreen({
     let discount = 0;
     let tax = 0;
     let totalRaw = 0;
+    let hasTax = false;
 
     cart.forEach((line) => {
-      subtotal += line.base_amount || 0;
-      discount += line.discount || 0;
-      tax += line.tax_amount || 0;
-      totalRaw += line.line_total || 0;
+      const amounts = getCartLineAccountingAmounts(line);
+      subtotal += amounts.subtotal;
+      discount += amounts.discount;
+      tax += amounts.tax;
+      totalRaw += amounts.total;
+      hasTax = hasTax || amounts.tax > 0;
     });
 
     const total = applyRounding(totalRaw);
@@ -626,6 +660,7 @@ export default function PointOfSaleScreen({
       totalRaw: Math.round(totalRaw),
       roundingAdjustment: Math.round(total - totalRaw),
       total,
+      hasTax,
     };
   }, [cart, roundingMethod, roundingMultiple]);
 
@@ -2705,6 +2740,20 @@ export default function PointOfSaleScreen({
           const coverImageUrl = line.productId ? resultImageUrls[line.productId] : null;
           const showThumbnailLoader = !offlineMode && line.productId && !hasResolvedImage;
           const hasCoverImage = typeof coverImageUrl === 'string' && coverImageUrl.length > 0;
+          const lineAmounts = getCartLineAccountingAmounts(line);
+          const lineSubtotal = lineAmounts.subtotal;
+          const lineDiscount = lineAmounts.discount;
+          const lineTax = lineAmounts.tax;
+          const hasTax = lineTax > 0;
+          const priceIncludesTax = lineAmounts.priceIncludesTax;
+          const taxRateLabel = formatTaxRateLabel(line.tax_rate);
+          const unitPriceLabel = priceIncludesTax
+            ? 'Unitario c/IVA'
+            : hasTax
+              ? 'Unitario s/IVA'
+              : 'Unitario';
+          const taxLabel = `${line.tax_name || 'IVA'}${taxRateLabel ? ` (${taxRateLabel})` : ''}`;
+          const discountLabel = hasTax ? 'Descuento s/IVA' : 'Descuento';
 
           return (
             <View key={line.variant_id} style={[styles.lineCard, isLightTheme && styles.lineCardLight]}>
@@ -2741,7 +2790,13 @@ export default function PointOfSaleScreen({
                   keyboardType="numeric"
                   style={[styles.qtyInput, isLightTheme && styles.qtyInputLight]}
                 />
-                <Text style={[styles.linePrice, isLightTheme && styles.linePriceLight]}>{formatMoney(line.unit_price)}</Text>
+                <View style={styles.linePriceBlock}>
+                  <Text style={[styles.linePriceLabel, isLightTheme && styles.linePriceLabelLight]}>{unitPriceLabel}</Text>
+                  <Text style={[styles.linePriceValue, isLightTheme && styles.linePriceValueLight]}>{formatMoney(line.unit_price)}</Text>
+                  <Text style={[styles.linePriceHint, isLightTheme && styles.linePriceHintLight]}>
+                    {`${line.quantity} x ${formatMoney(line.unit_price)}`}
+                  </Text>
+                </View>
                 {canManageDiscounts ? (
                   <View style={styles.discountBox}>
                     <View style={styles.discountField}>
@@ -2788,7 +2843,35 @@ export default function PointOfSaleScreen({
                   </View>
                 ) : null}
               </View>
-              <Text style={[styles.lineTotal, isLightTheme && styles.lineTotalLight]}>Total línea: {formatMoney(line.line_total)}</Text>
+              <View style={[styles.lineBreakdownCard, isLightTheme && styles.lineBreakdownCardLight]}>
+                <View style={styles.lineBreakdownRow}>
+                  <Text style={[styles.lineBreakdownLabel, isLightTheme && styles.lineBreakdownLabelLight]}>
+                    {hasTax ? 'Subtotal s/IVA' : 'Subtotal línea'}
+                  </Text>
+                  <Text style={[styles.lineBreakdownValue, isLightTheme && styles.lineBreakdownValueLight]}>{formatMoney(lineSubtotal)}</Text>
+                </View>
+                {lineDiscount > 0 ? (
+                  <View style={styles.lineBreakdownRow}>
+                    <Text style={[styles.lineBreakdownLabel, isLightTheme && styles.lineBreakdownLabelLight]}>{discountLabel}</Text>
+                    <Text style={[styles.lineBreakdownValue, styles.lineBreakdownValueDiscount]}>-{formatMoney(lineDiscount)}</Text>
+                  </View>
+                ) : null}
+                {hasTax ? (
+                  <View style={styles.lineBreakdownRow}>
+                    <Text style={[styles.lineBreakdownLabel, isLightTheme && styles.lineBreakdownLabelLight]}>{taxLabel}</Text>
+                    <Text style={[styles.lineBreakdownValue, isLightTheme && styles.lineBreakdownValueLight]}>
+                      {formatMoney(lineTax)}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={[styles.lineBreakdownDivider, isLightTheme && styles.lineBreakdownDividerLight]} />
+                <View style={styles.lineBreakdownRow}>
+                  <Text style={[styles.lineBreakdownTotalLabel, isLightTheme && styles.lineBreakdownTotalLabelLight]}>Total línea</Text>
+                  <Text style={[styles.lineBreakdownTotalValue, isLightTheme && styles.lineBreakdownTotalValueLight]}>
+                    {formatMoney(line.line_total)}
+                  </Text>
+                </View>
+              </View>
             </View>
           );
         })}
@@ -2800,9 +2883,9 @@ export default function PointOfSaleScreen({
           <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Totales</Text>
         </View>
         <View style={[styles.totalsCard, isLightTheme && styles.totalsCardLight]}>
-          <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>Subtotal</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>{formatMoney(totals.subtotal)}</Text></View>
+          <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>{totals.hasTax ? 'Subtotal s/IVA' : 'Subtotal'}</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>{formatMoney(totals.subtotal)}</Text></View>
           {totals.discount > 0 ? (
-            <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>Descuento</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>-{formatMoney(totals.discount)}</Text></View>
+            <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>{totals.hasTax ? 'Descuento s/IVA' : 'Descuento'}</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>-{formatMoney(totals.discount)}</Text></View>
           ) : null}
           <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>IVA</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>{formatMoney(totals.tax)}</Text></View>
           {totals.roundingAdjustment !== 0 ? (
@@ -4119,7 +4202,7 @@ const styles = StyleSheet.create({
   lineControls: {
     marginTop: 8,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
   },
   qtyInput: {
@@ -4137,11 +4220,32 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     backgroundColor: '#ffffff',
   },
-  linePrice: {
-    color: '#cbd5e1',
-    width: 96,
+  linePriceBlock: {
+    width: 112,
+    paddingTop: 2,
   },
-  linePriceLight: {
+  linePriceLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  linePriceLabelLight: {
+    color: '#64748b',
+  },
+  linePriceValue: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+  },
+  linePriceValueLight: {
+    color: '#0f172a',
+  },
+  linePriceHint: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  linePriceHintLight: {
     color: '#475569',
   },
   discountBox: {
@@ -4211,12 +4315,66 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     backgroundColor: '#ffffff',
   },
-  lineTotal: {
-    color: '#e2e8f0',
-    fontWeight: '700',
-    marginTop: 8,
+  lineBreakdownCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#0f172a',
   },
-  lineTotalLight: {
+  lineBreakdownCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  lineBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  lineBreakdownLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+    flex: 1,
+  },
+  lineBreakdownLabelLight: {
+    color: '#64748b',
+  },
+  lineBreakdownValue: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  lineBreakdownValueLight: {
+    color: '#0f172a',
+  },
+  lineBreakdownValueDiscount: {
+    color: '#f87171',
+  },
+  lineBreakdownDivider: {
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    marginTop: 4,
+    paddingTop: 6,
+  },
+  lineBreakdownDividerLight: {
+    borderTopColor: '#dbe4ef',
+  },
+  lineBreakdownTotalLabel: {
+    color: '#f8fafc',
+    fontWeight: '700',
+  },
+  lineBreakdownTotalLabelLight: {
+    color: '#0f172a',
+  },
+  lineBreakdownTotalValue: {
+    color: '#f8fafc',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  lineBreakdownTotalValueLight: {
     color: '#0f172a',
   },
   totalsCard: {

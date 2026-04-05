@@ -340,6 +340,7 @@ Texto OCR:
       invoice: parsed.invoice || {},
       line_items: normalized,
       raw: parsed,
+      model: data?.model || DEFAULT_TEXT_MODEL,
     },
   };
 }
@@ -432,6 +433,7 @@ Reglas:
       line_items: normalized,
       raw: parsed,
       ocr_text: data?.ocr_text || null,
+      model: data?.model || DEFAULT_TEXT_MODEL,
     },
   };
 }

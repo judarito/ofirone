@@ -21,6 +21,10 @@ Este directorio contiene la documentación del sistema POS Lite.
   - `/docs/AI_INSIGHTS_CENTER.md`
 - Agente RAG operativo reusable para mobile/web:
   - `/docs/OPS_RAG_AGENT.md`
+- Centro de notificaciones in-app:
+  - `/docs/NOTIFICATION_CENTER_IN_APP.md`
+- Push Android/iOS y dispatcher:
+  - `/docs/PUSH_NOTIFICATIONS_EXPO_SETUP.md`
 - Fotos por producto + IA en catalogo:
   - `/docs/PRODUCT_PHOTOS_AI_SETUP.md`
 - Carga masiva por foto OCR + IA:

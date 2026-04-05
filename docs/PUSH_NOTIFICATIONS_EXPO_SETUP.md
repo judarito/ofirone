@@ -8,6 +8,7 @@
 - Edge Function `push-dispatcher` para enviar:
   - Android: directo a FCM HTTP v1
   - iOS / fallback: Expo Push API
+- Normalizacion de copy en espanol dentro de `push-dispatcher` para humanizar eventos tecnicos (`receivable`, `expiration`, `stock`, etc.) antes de enviarlos al dispositivo.
 
 ## Archivos
 - `migrations/ADD_PUSH_NOTIFICATIONS_EXPO.sql`
@@ -26,6 +27,9 @@ Ejecuta:
 ```bash
 supabase functions deploy push-dispatcher --project-ref mcufhthejdwonndvpmev
 ```
+
+Importante:
+- si cambias el texto, titulos o reglas de copy del push, debes volver a desplegar `push-dispatcher`; no basta con recargar la app mobile
 
 ## 3) Secrets de la Edge Function
 Estos secretos viven en el runtime de la function, no en Vault:
@@ -168,3 +172,4 @@ Notas del flujo actual:
 - Android intenta registrar token FCM nativo con `expo-notifications.getDevicePushTokenAsync()`.
 - Si el token FCM nativo falla, la app puede caer a Expo como fallback, pero el objetivo operativo es `push_provider = 'fcm'` para Android.
 - iOS puede seguir usando Expo Push hasta que se implemente APNs directo.
+- El texto final que ve el usuario en la barra del sistema se construye en `supabase/functions/push-dispatcher/index.ts`; por eso las alertas tecnicas pueden y deben traducirse ahi a lenguaje de negocio en espanol.

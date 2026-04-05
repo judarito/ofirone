@@ -86,6 +86,218 @@ function normalizePushPayload(payload: unknown): Record<string, string> {
   return normalized;
 }
 
+function normalizeSearchText(value: unknown): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function collapseSpaces(value: unknown): string {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function cleanNotificationTitle(value: unknown): string {
+  return collapseSpaces(String(value || '').replace(/^\[[^\]]+\]\s*/g, ''));
+}
+
+function isGenericMessage(value: unknown): boolean {
+  const normalized = normalizeSearchText(value);
+  return (
+    !normalized ||
+    normalized === 'se detecto una alerta del sistema' ||
+    normalized === 'system alert detected' ||
+    normalized === 'sin detalles adicionales' ||
+    normalized === 'no additional details'
+  );
+}
+
+function inferNotificationTopic(row: Record<string, unknown>, payload: Record<string, string>): string {
+  const haystack = normalizeSearchText(
+    [
+      row.title,
+      row.message,
+      row.event_type,
+      payload.event_type,
+      payload.category,
+      payload.module,
+      payload.entity_type,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+
+  if (
+    haystack.includes('receivable') ||
+    haystack.includes('cartera') ||
+    haystack.includes('cobranza') ||
+    haystack.includes('saldo')
+  ) {
+    return 'receivable';
+  }
+  if (
+    haystack.includes('expiration') ||
+    haystack.includes('expiry') ||
+    haystack.includes('expira') ||
+    haystack.includes('vence') ||
+    haystack.includes('venc')
+  ) {
+    return 'expiration';
+  }
+  if (
+    haystack.includes('stock') ||
+    haystack.includes('inventory') ||
+    haystack.includes('quiebre') ||
+    haystack.includes('agotado')
+  ) {
+    return 'stock';
+  }
+  if (
+    haystack.includes('payable') ||
+    haystack.includes('proveedor') ||
+    haystack.includes('compra') ||
+    haystack.includes('purchase')
+  ) {
+    return 'purchase';
+  }
+  if (haystack.includes('cash') || haystack.includes('caja')) {
+    return 'cash';
+  }
+  if (haystack.includes('sale') || haystack.includes('venta')) {
+    return 'sale';
+  }
+  return 'system';
+}
+
+function getNotificationEntityLabel(payload: Record<string, string>, rawMessage: string): string {
+  const payloadEntity = collapseSpaces(
+    payload.entity_name ||
+      payload.product_name ||
+      payload.variant_name ||
+      payload.customer_name ||
+      payload.client_name ||
+      payload.supplier_name ||
+      payload.location_name ||
+      payload.cash_register_name ||
+      '',
+  );
+  if (payloadEntity) return payloadEntity;
+
+  const cleanedMessage = collapseSpaces(rawMessage);
+  if (!cleanedMessage || isGenericMessage(cleanedMessage)) return '';
+  if (cleanedMessage.length <= 70 && !/[.!?]/.test(cleanedMessage)) return cleanedMessage;
+  return '';
+}
+
+function isEntityOnlyMessage(rawMessage: string, entityLabel: string): boolean {
+  return Boolean(entityLabel) && normalizeSearchText(rawMessage) === normalizeSearchText(entityLabel);
+}
+
+function buildNotificationBody(rawMessage: string, fallbackMessage: string, entityLabel = ''): string {
+  if (isEntityOnlyMessage(rawMessage, entityLabel)) return fallbackMessage;
+  if (!isGenericMessage(rawMessage)) return collapseSpaces(rawMessage);
+  return fallbackMessage;
+}
+
+function formatNotificationCopy(row: Record<string, unknown>) {
+  const payload = normalizePushPayload(row.payload);
+  const rawTitle = cleanNotificationTitle(row.title);
+  const rawMessage = collapseSpaces(row.message);
+  const topic = inferNotificationTopic(row, payload);
+  const entityLabel = getNotificationEntityLabel(payload, rawMessage);
+
+  if (topic === 'receivable') {
+    return {
+      title: entityLabel ? `Cartera por revisar: ${entityLabel}` : 'Cartera por revisar',
+      body: buildNotificationBody(
+        rawMessage,
+        entityLabel
+          ? `${entityLabel} tiene cartera pendiente. Revisa saldo, vencimiento y gestion de cobro.`
+          : 'Hay cuentas por cobrar que requieren seguimiento.',
+        entityLabel,
+      ),
+      data: payload,
+    };
+  }
+
+  if (topic === 'expiration') {
+    return {
+      title: entityLabel ? `Vencimiento por revisar: ${entityLabel}` : 'Productos por vencer',
+      body: buildNotificationBody(
+        rawMessage,
+        entityLabel
+          ? `${entityLabel} tiene lotes vencidos o proximos a vencer. Revisa fechas y rotacion.`
+          : 'Hay productos con vencimiento cercano que requieren atencion.',
+        entityLabel,
+      ),
+      data: payload,
+    };
+  }
+
+  if (topic === 'stock') {
+    return {
+      title: entityLabel ? `Stock por revisar: ${entityLabel}` : 'Stock por revisar',
+      body: buildNotificationBody(
+        rawMessage,
+        entityLabel
+          ? `${entityLabel} presenta riesgo de stock bajo o agotado.`
+          : 'Se detecto una novedad de inventario que requiere revision.',
+        entityLabel,
+      ),
+      data: payload,
+    };
+  }
+
+  if (topic === 'purchase') {
+    return {
+      title: entityLabel ? `Compra por revisar: ${entityLabel}` : 'Compra por revisar',
+      body: buildNotificationBody(
+        rawMessage,
+        entityLabel
+          ? `Revisa la compra o el compromiso asociado a ${entityLabel}.`
+          : 'Hay una novedad de compras o pagos a proveedores que requiere revision.',
+        entityLabel,
+      ),
+      data: payload,
+    };
+  }
+
+  if (topic === 'cash') {
+    return {
+      title: entityLabel ? `Caja por revisar: ${entityLabel}` : 'Caja por revisar',
+      body: buildNotificationBody(
+        rawMessage,
+        entityLabel
+          ? `Revisa el movimiento o la alerta asociada a ${entityLabel}.`
+          : 'Se detecto una novedad de caja que requiere revision.',
+        entityLabel,
+      ),
+      data: payload,
+    };
+  }
+
+  if (topic === 'sale') {
+    return {
+      title: entityLabel ? `Venta por revisar: ${entityLabel}` : 'Venta por revisar',
+      body: buildNotificationBody(
+        rawMessage,
+        entityLabel
+          ? `Revisa la novedad asociada a ${entityLabel}.`
+          : 'Se detecto una novedad en ventas que requiere revision.',
+        entityLabel,
+      ),
+      data: payload,
+    };
+  }
+
+  return {
+    title: rawTitle || 'Notificacion del sistema',
+    body: buildNotificationBody(rawMessage, 'Se detecto una novedad del sistema que requiere revision.'),
+    data: payload,
+  };
+}
+
 function getFirebaseServiceAccount() {
   const raw =
     Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON') ||
@@ -218,11 +430,12 @@ function extractFcmError(responseJson: Record<string, unknown> | null, responseT
 }
 
 async function sendViaExpo(row: Record<string, unknown>, expoAccessToken: string | null) {
+  const copy = formatNotificationCopy(row);
   const expoPayload = {
     to: row.expo_push_token,
-    title: row.title,
-    body: row.message,
-    data: row.payload || {},
+    title: copy.title,
+    body: copy.body,
+    data: copy.data,
     sound: 'default',
     channelId: 'default',
     priority: 'high',
@@ -268,7 +481,7 @@ async function sendViaFcm(
   },
 ) {
   const accessToken = await getFcmAccessToken(serviceAccount);
-  const payload = normalizePushPayload(row.payload);
+  const copy = formatNotificationCopy(row);
   const response = await fetch(
     `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
     {
@@ -281,10 +494,10 @@ async function sendViaFcm(
         message: {
           token: row.push_token,
           notification: {
-            title: row.title,
-            body: row.message,
+            title: copy.title,
+            body: copy.body,
           },
-          data: payload,
+          data: copy.data,
           android: {
             priority: 'HIGH',
             ttl: '3600s',

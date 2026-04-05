@@ -2,6 +2,242 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { APP_TEXT, COMMON_TEXT } from '../constants/uiText';
 
+const SEVERITY_LABELS = {
+  INFO: 'Informativa',
+  WARNING: 'Atencion',
+  CRITICAL: 'Critica',
+  SUCCESS: 'Completada',
+};
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function collapseSpaces(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function parsePayload(payload) {
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) return payload;
+  if (typeof payload !== 'string') return {};
+  try {
+    const parsed = JSON.parse(payload);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function cleanNotificationTitle(value) {
+  return collapseSpaces(String(value || '').replace(/^\[[^\]]+\]\s*/g, ''));
+}
+
+function isGenericMessage(value) {
+  const normalized = normalizeSearchText(value);
+  return (
+    !normalized ||
+    normalized === 'se detecto una alerta del sistema' ||
+    normalized === 'system alert detected' ||
+    normalized === 'sin detalles adicionales' ||
+    normalized === 'no additional details'
+  );
+}
+
+function inferTopic({ title, message, eventType, payload }) {
+  const haystack = normalizeSearchText(
+    [
+      title,
+      message,
+      eventType,
+      payload?.event_type,
+      payload?.category,
+      payload?.module,
+      payload?.entity_type,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+
+  if (
+    haystack.includes('receivable') ||
+    haystack.includes('cartera') ||
+    haystack.includes('cobranza') ||
+    haystack.includes('saldo')
+  ) {
+    return 'receivable';
+  }
+  if (
+    haystack.includes('expiration') ||
+    haystack.includes('expiry') ||
+    haystack.includes('expira') ||
+    haystack.includes('vence') ||
+    haystack.includes('venc')
+  ) {
+    return 'expiration';
+  }
+  if (
+    haystack.includes('stock') ||
+    haystack.includes('inventory') ||
+    haystack.includes('quiebre') ||
+    haystack.includes('agotado')
+  ) {
+    return 'stock';
+  }
+  if (
+    haystack.includes('payable') ||
+    haystack.includes('proveedor') ||
+    haystack.includes('compra') ||
+    haystack.includes('purchase')
+  ) {
+    return 'purchase';
+  }
+  if (haystack.includes('cash') || haystack.includes('caja')) {
+    return 'cash';
+  }
+  if (haystack.includes('sale') || haystack.includes('venta')) {
+    return 'sale';
+  }
+  return 'system';
+}
+
+function getEntityLabel(payload, rawMessage) {
+  const payloadEntity = collapseSpaces(
+    payload?.entity_name ||
+      payload?.product_name ||
+      payload?.variant_name ||
+      payload?.customer_name ||
+      payload?.client_name ||
+      payload?.supplier_name ||
+      payload?.location_name ||
+      payload?.cash_register_name ||
+      '',
+  );
+  if (payloadEntity) return payloadEntity;
+
+  const cleanedMessage = collapseSpaces(rawMessage);
+  if (!cleanedMessage || isGenericMessage(cleanedMessage)) return '';
+  if (cleanedMessage.length <= 70 && !/[.!?]/.test(cleanedMessage)) return cleanedMessage;
+  return '';
+}
+
+function isEntityOnlyMessage(rawMessage, entityLabel) {
+  return Boolean(entityLabel) && normalizeSearchText(rawMessage) === normalizeSearchText(entityLabel);
+}
+
+function buildFallbackMessage(rawMessage, fallbackMessage, entityLabel = '') {
+  if (isEntityOnlyMessage(rawMessage, entityLabel)) return fallbackMessage;
+  if (!isGenericMessage(rawMessage)) return collapseSpaces(rawMessage);
+  return fallbackMessage;
+}
+
+function formatNotificationCopy(item) {
+  const rawTitle = cleanNotificationTitle(item?.title);
+  const rawMessage = collapseSpaces(item?.message);
+  const payload = parsePayload(item?.payload);
+  const topic = inferTopic({
+    title: rawTitle,
+    message: rawMessage,
+    eventType: item?.event_type,
+    payload,
+  });
+  const entityLabel = getEntityLabel(payload, rawMessage);
+  const severityLabel = SEVERITY_LABELS[String(item?.severity || '').toUpperCase()] || 'Notificacion';
+
+  if (topic === 'receivable') {
+    return {
+      severityLabel,
+      title: entityLabel ? `Cartera por revisar: ${entityLabel}` : 'Cartera por revisar',
+      message: buildFallbackMessage(
+        rawMessage,
+        entityLabel
+          ? `${entityLabel} tiene cartera pendiente. Revisa saldo, vencimiento y gestion de cobro.`
+          : 'Hay cuentas por cobrar que requieren seguimiento.',
+        entityLabel,
+      ),
+    };
+  }
+
+  if (topic === 'expiration') {
+    return {
+      severityLabel,
+      title: entityLabel ? `Vencimiento por revisar: ${entityLabel}` : 'Productos por vencer',
+      message: buildFallbackMessage(
+        rawMessage,
+        entityLabel
+          ? `${entityLabel} tiene lotes vencidos o proximos a vencer. Revisa fechas y rotacion.`
+          : 'Hay productos con vencimiento cercano que requieren atencion.',
+        entityLabel,
+      ),
+    };
+  }
+
+  if (topic === 'stock') {
+    return {
+      severityLabel,
+      title: entityLabel ? `Stock por revisar: ${entityLabel}` : 'Stock por revisar',
+      message: buildFallbackMessage(
+        rawMessage,
+        entityLabel
+          ? `${entityLabel} presenta riesgo de stock bajo o agotado.`
+          : 'Se detecto una novedad de inventario que requiere revision.',
+        entityLabel,
+      ),
+    };
+  }
+
+  if (topic === 'purchase') {
+    return {
+      severityLabel,
+      title: entityLabel ? `Compra por revisar: ${entityLabel}` : 'Compra por revisar',
+      message: buildFallbackMessage(
+        rawMessage,
+        entityLabel
+          ? `Revisa la compra o el compromiso asociado a ${entityLabel}.`
+          : 'Hay una novedad de compras o pagos a proveedores que requiere revision.',
+        entityLabel,
+      ),
+    };
+  }
+
+  if (topic === 'cash') {
+    return {
+      severityLabel,
+      title: entityLabel ? `Caja por revisar: ${entityLabel}` : 'Caja por revisar',
+      message: buildFallbackMessage(
+        rawMessage,
+        entityLabel
+          ? `Revisa el movimiento o la alerta asociada a ${entityLabel}.`
+          : 'Se detecto una novedad de caja que requiere revision.',
+        entityLabel,
+      ),
+    };
+  }
+
+  if (topic === 'sale') {
+    return {
+      severityLabel,
+      title: entityLabel ? `Venta por revisar: ${entityLabel}` : 'Venta por revisar',
+      message: buildFallbackMessage(
+        rawMessage,
+        entityLabel
+          ? `Revisa la novedad asociada a ${entityLabel}.`
+          : 'Se detecto una novedad en ventas que requiere revision.',
+        entityLabel,
+      ),
+    };
+  }
+
+  return {
+    severityLabel,
+    title: rawTitle || 'Notificacion del sistema',
+    message: buildFallbackMessage(rawMessage, 'Se detecto una novedad del sistema que requiere revision.'),
+  };
+}
+
 /**
  * Modal de notificaciones in-app con lista, marcar leído y marcar todos.
  */
@@ -79,52 +315,55 @@ export function NotificationsModal({
                 {APP_TEXT.noNotifications}
               </Text>
             ) : (
-              notifications.map((item) => (
-                <Pressable
-                  key={item.notification_id}
-                  onPress={() => onMarkRead(item.notification_id)}
-                  style={[
-                    styles.notificationItem,
-                    isLightTheme ? styles.notificationItemLight : null,
-                    !item.is_read ? styles.notificationItemUnread : null,
-                  ]}
-                >
-                  <View style={styles.notificationTopRow}>
+              notifications.map((item) => {
+                const formatted = formatNotificationCopy(item);
+                return (
+                  <Pressable
+                    key={item.notification_id}
+                    onPress={() => onMarkRead(item.notification_id)}
+                    style={[
+                      styles.notificationItem,
+                      isLightTheme ? styles.notificationItemLight : null,
+                      !item.is_read ? styles.notificationItemUnread : null,
+                    ]}
+                  >
+                    <View style={styles.notificationTopRow}>
+                      <Text
+                        style={[
+                          styles.notificationSeverity,
+                          isLightTheme ? styles.notificationSeverityLight : null,
+                        ]}
+                      >
+                        {formatted.severityLabel}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.notificationDate,
+                          isLightTheme ? styles.notificationDateLight : null,
+                        ]}
+                      >
+                        {formatDateTime(item.created_at)}
+                      </Text>
+                    </View>
                     <Text
                       style={[
-                        styles.notificationSeverity,
-                        isLightTheme ? styles.notificationSeverityLight : null,
+                        styles.notificationTitle,
+                        isLightTheme ? styles.notificationTitleLight : null,
                       ]}
                     >
-                      {item.severity}
+                      {formatted.title}
                     </Text>
                     <Text
                       style={[
-                        styles.notificationDate,
-                        isLightTheme ? styles.notificationDateLight : null,
+                        styles.notificationMessage,
+                        isLightTheme ? styles.notificationMessageLight : null,
                       ]}
                     >
-                      {formatDateTime(item.created_at)}
+                      {formatted.message}
                     </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.notificationTitle,
-                      isLightTheme ? styles.notificationTitleLight : null,
-                    ]}
-                  >
-                    {item.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.notificationMessage,
-                      isLightTheme ? styles.notificationMessageLight : null,
-                    ]}
-                  >
-                    {item.message}
-                  </Text>
-                </Pressable>
-              ))
+                  </Pressable>
+                );
+              })
             )}
           </ScrollView>
         </View>

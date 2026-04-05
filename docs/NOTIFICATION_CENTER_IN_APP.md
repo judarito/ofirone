@@ -12,6 +12,7 @@
   - `fn_set_my_notification_pref(...)`
 - Integración automática con `system_alerts` (trigger `trg_system_alerts_to_notifications`).
 - Realtime habilitado para `notifications`.
+- Formateo de copy en frontend (`src/components/NotificationsModal.js`) para traducir severidad y eventos tecnicos a mensajes mas claros en espanol.
 
 ## Despliegue
 1. Ejecuta la migración:
@@ -22,6 +23,12 @@
 
 ## Uso desde frontend
 Servicio: `src/services/notifications.service.js`
+
+Nota de UX actual:
+- el inbox no muestra `severity`, `title` y `message` de forma cruda cuando vienen tecnicos
+- `NotificationsModal` intenta inferir el dominio de la alerta (`cartera`, `vencimientos`, `stock`, `compras`, `caja`, `ventas`) a partir de `title`, `message`, `event_type` y `payload`
+- si el mensaje viene generico o solo con el nombre de una entidad, la UI arma una frase mas accionable para el usuario final
+- para mantener consistencia entre campanita interna y barra del sistema, la misma regla de copy deberia existir tambien en `push-dispatcher`
 
 ### Listar inbox
 ```js

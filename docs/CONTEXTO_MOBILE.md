@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-04-04
+Fecha: 2026-04-05
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -16,6 +16,23 @@ Regla de trabajo:
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
 
 ## Actualizacion reciente (2026-04-04) — Base de agente RAG operativo reusable para mobile/web
+
+### Ajuste posterior (2026-04-05) — notificaciones con copy mas claro y priorizado en espanol
+
+Se mejoro la claridad del inbox y del push remoto para evitar textos tecnicos poco utiles como `RECEIVABLE`, `EXPIRATION` o mensajes genericos tipo `Se detecto una alerta del sistema`:
+- `NotificationsModal` ahora humaniza severidad (`Informativa`, `Atencion`, `Critica`, `Completada`) y traduce eventos tecnicos a lenguaje de negocio
+- se agrego una capa de copy que infiere dominio de la alerta (`cartera`, `vencimientos`, `stock`, `compras`, `caja`, `ventas`) usando `title`, `message`, `event_type` y `payload`
+- si el backend solo trae un nombre corto como `Bolsos Almirante`, la UI construye una frase completa y accionable en espanol
+- `push-dispatcher` aplica la misma logica antes de enviar por Expo o FCM, para que la barra del sistema y la campanita interna queden alineadas
+- el objetivo es que el usuario entienda `que paso` y `que revisar` sin conocer codigos internos del sistema
+
+Archivos tocados en este ajuste:
+- `src/components/NotificationsModal.js` — formateo legible del inbox mobile
+- `supabase/functions/push-dispatcher/index.ts` — copy normalizado para push Android/iOS/fallback
+
+Nota operativa:
+- para que el nuevo copy salga en la barra del sistema, hay que volver a desplegar `push-dispatcher`
+- la mejora del inbox in-app se refleja al recargar la app
 
 ### Ajuste posterior (2026-04-04) — mejor cobertura para consultas de vencimientos
 
@@ -63,6 +80,21 @@ Se agrego la primera base de un agente operativo con retrieval orientado a datos
 - `docs/OPS_RAG_AGENT.md` — contrato, deploy y uso
 
 ## Actualizacion reciente (2026-04-04) — POS con lenguaje natural mas operativo en caja
+
+### Ajuste posterior (2026-04-05) — Compras con carga de factura por IA y creacion asistida de articulos
+
+Se extendio a `PurchasesScreen` un flujo inspirado en el escaneo de factura del POS:
+- el modal `Nueva Compra` ahora incluye un bloque `Factura con IA` con 3 entradas: `Foto`, `Galeria` y `Archivo`
+- la lectura prioriza OCR cloud + estructura de factura con `DeepSeek` via `invoiceAgent.service`; si eso falla y hay OCR nativo disponible, intenta `OCR nativo -> parseo textual`
+- las lineas detectadas se cruzan contra catalogo activo usando `listCatalogCandidatesForMatching` + `matchInvoiceLinesToCatalog`, reutilizando el patron de matching del modulo de ventas
+- los items con match se agregan automaticamente como lineas de compra con cantidad/costo inferidos desde la factura
+- los items sin match quedan listados como `Articulos sin catalogo` y se pregunta al usuario si quiere crearlos
+- para faltantes se agrego `purchaseInvoiceAssistant.service`, que normaliza el articulo con un proveedor cloud configurable (`DeepSeek` por defecto y fallback configurable para `OpenAI` si el tenant lo cablea)
+- al confirmar, se crean `product + variant` minimos desde mobile via `createCatalogVariantForPurchase` y se agregan inmediatamente a la compra
+
+Notas de integracion:
+- la opcion `Archivo` usa `expo-document-picker` si esta disponible en el build; si no, la UI informa que falta esa dependencia
+- el resumen de la factura muestra proveedor detectado, numero/fecha, total, conteo de matches/faltantes, motor OCR y preview del texto recuperado
 
 ### Ajuste posterior (2026-04-04) — consulta rapida contextual desde POS
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BottomSheetModal from '../components/BottomSheetModal';
 import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
@@ -7,8 +8,13 @@ import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
+import { extractTextWithNativeOcr, getNativeOcrStatus } from '../services/commandEngine';
+import { analyzeInvoiceWithImage, analyzeInvoiceWithText, matchInvoiceLinesToCatalog } from '../services/invoiceAgent.service';
+import { listCatalogCandidatesForMatching } from '../services/pos.service';
+import { suggestCatalogProductFromInvoiceLine } from '../services/purchaseInvoiceAssistant.service';
 import { listLocations, listPurchases } from '../services/inventoryCatalog.service';
 import {
+  createCatalogVariantForPurchase,
   createPurchase,
   createPurchaseOrder,
   createSupplierPayable,
@@ -57,6 +63,14 @@ function createPayableForm() {
   };
 }
 
+const OCR_MAX_BYTES = 980 * 1024;
+
+function estimateBase64Bytes(base64) {
+  const raw = String(base64 || '');
+  if (!raw) return 0;
+  return Math.ceil((raw.length * 3) / 4);
+}
+
 function createPaymentForm(balance = '') {
   return {
     amount: balance ? String(balance) : '',
@@ -81,6 +95,169 @@ function parseDecimalInput(value) {
     .replace(/\s+/g, '')
     .replace(',', '.');
   return Number(normalized);
+}
+
+function normalizeLookupText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+async function buildOptimizedImageForOcr(asset) {
+  if (!asset?.uri) {
+    return { success: false, error: 'No se pudo obtener URI de imagen.' };
+  }
+
+  let ImageManipulator;
+  try {
+    ImageManipulator = require('expo-image-manipulator');
+  } catch (_error) {
+    return {
+      success: false,
+      error: 'Falta expo-image-manipulator. Instala dependencia o toma una foto mas cercana.',
+    };
+  }
+
+  const widths = [1400, 1200, 1000, 800];
+  const qualities = [0.35, 0.22, 0.14, 0.1];
+
+  for (const width of widths) {
+    for (const quality of qualities) {
+      const result = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width } }],
+        {
+          compress: quality,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        },
+      );
+
+      if (result?.base64 && estimateBase64Bytes(result.base64) <= OCR_MAX_BYTES) {
+        return {
+          success: true,
+          data: { base64: result.base64, mimeType: 'image/jpeg' },
+        };
+      }
+    }
+  }
+
+  return {
+    success: false,
+    error: 'No se pudo reducir la foto por debajo de 1MB para OCR. Acerca mas la camara y evita fondo extra.',
+  };
+}
+
+async function buildEnhancedImageForNativeOcr(asset) {
+  if (!asset?.uri) {
+    return { success: false, error: 'No se pudo obtener URI de imagen para OCR nativo.' };
+  }
+
+  let ImageManipulator;
+  try {
+    ImageManipulator = require('expo-image-manipulator');
+  } catch (_error) {
+    return {
+      success: false,
+      error: 'Falta expo-image-manipulator para mejorar OCR nativo.',
+    };
+  }
+
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      [{ resize: { width: 2000 } }],
+      {
+        compress: 1,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: false,
+      },
+    );
+    return { success: true, data: { uri: result?.uri || asset.uri } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error?.message || 'No se pudo mejorar la imagen para OCR nativo.',
+    };
+  }
+}
+
+function scoreOcrTextForInvoice(text) {
+  const normalized = String(text || '').replace(/\r/g, '\n');
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return 0;
+
+  const usefulLines = lines.filter((line) => /[a-zA-ZáéíóúÁÉÍÓÚñÑ]{3,}/.test(line)).length;
+  const itemSignals = lines.filter((line) => /\b(cant|cantidad|descripcion|descripción|talla)\b/i.test(line)).length;
+  const qtySignals = lines.filter((line) => /^\d+\s+/.test(line)).length;
+  const longWords = lines.filter((line) => /\b[a-zA-ZáéíóúÁÉÍÓÚñÑ]{5,}\b/.test(line)).length;
+  const charScore = Math.min(2000, normalized.length) * 0.005;
+
+  return usefulLines + itemSignals * 2 + qtySignals * 2 + longWords * 0.8 + charScore;
+}
+
+function createInvoiceImportLine(line, index) {
+  return {
+    import_id: `purchase-invoice-line-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 7)}`,
+    raw_name: String(line?.raw_name || line?.name || '').trim(),
+    sku: line?.sku ? String(line.sku).trim() : null,
+    quantity: Math.max(1, Number(line?.quantity || 1)),
+    unit_price: line?.unit_price == null ? null : Number(line.unit_price || 0),
+    line_total: line?.line_total == null ? null : Number(line.line_total || 0),
+  };
+}
+
+function resolveInvoiceUnitCost(line, variant) {
+  const qty = Math.max(1, Number(line?.quantity || 1));
+  if (line?.unit_price != null && Number.isFinite(Number(line.unit_price))) {
+    return Math.max(0, Number(line.unit_price));
+  }
+  if (line?.line_total != null && Number.isFinite(Number(line.line_total))) {
+    return Math.max(0, Number(line.line_total) / qty);
+  }
+  return Math.max(0, Number(variant?.cost || 0));
+}
+
+function buildPurchaseLineFromInvoiceMatch(match) {
+  const variant = match?.variant || {};
+  const line = match?.line || {};
+  const unitCost = resolveInvoiceUnitCost(line, variant);
+  return createPurchaseLine({
+    line_id: buildLineId(),
+    variant_id: variant.variant_id || '',
+    variant_label: variant._displayName || `${variant?.product?.name || 'Producto'}${variant?.variant_name ? ` - ${variant.variant_name}` : ''}`,
+    sku: variant.sku || line?.sku || '',
+    qty: String(Math.max(1, Number(line?.quantity || 1))),
+    unit_cost: Number.isFinite(unitCost) ? String(unitCost) : '',
+    requires_expiration: Boolean(variant.requires_expiration),
+    batch_number: '',
+    expiration_date: '',
+    physical_location: '',
+  });
+}
+
+function findBestSupplierCandidate(searchText, suppliers) {
+  const normalizedSearch = normalizeLookupText(searchText);
+  if (!normalizedSearch) return null;
+
+  return (suppliers || []).find((item) => {
+    const candidates = [
+      item?._displayName,
+      item?.trade_name,
+      item?.legal_name,
+      item?.document_number,
+    ].map(normalizeLookupText).filter(Boolean);
+    return candidates.some((candidate) => (
+      candidate === normalizedSearch
+      || candidate.includes(normalizedSearch)
+      || normalizedSearch.includes(candidate)
+    ));
+  }) || null;
 }
 
 function lineHasAnyContent(line) {
@@ -163,6 +340,10 @@ export default function PurchasesScreen({
   const [variantsLoading, setVariantsLoading] = useState(false);
   const [savingPurchase, setSavingPurchase] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [processingInvoice, setProcessingInvoice] = useState(false);
+  const [creatingMissingCatalog, setCreatingMissingCatalog] = useState(false);
+  const [creatingMissingIds, setCreatingMissingIds] = useState([]);
+  const [invoiceImportSummary, setInvoiceImportSummary] = useState(null);
   const [generatingLineId, setGeneratingLineId] = useState('');
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -394,6 +575,9 @@ export default function PurchasesScreen({
     setError('');
     setFormError('');
     setForm(createPurchaseForm(defaultLocationId));
+    setInvoiceImportSummary(null);
+    setCreatingMissingCatalog(false);
+    setCreatingMissingIds([]);
     setCreateModalOpen(true);
     await Promise.all([loadSuppliers(''), loadVariants('')]);
   };
@@ -402,6 +586,10 @@ export default function PurchasesScreen({
     setCreateModalOpen(false);
     setFormError('');
     setGeneratingLineId('');
+    setProcessingInvoice(false);
+    setCreatingMissingCatalog(false);
+    setCreatingMissingIds([]);
+    setInvoiceImportSummary(null);
   };
 
   const closeDetailModal = () => {
@@ -564,6 +752,369 @@ export default function PurchasesScreen({
       setFormError(nextError.message);
     } finally {
       setGeneratingLineId('');
+    }
+  };
+
+  const mergeImportedPurchaseLines = (nextLines) => {
+    const additions = Array.isArray(nextLines) ? nextLines.filter(Boolean) : [];
+    if (!additions.length) return;
+
+    setForm((prev) => {
+      const currentLines = Array.isArray(prev.lines) ? prev.lines : [];
+      const canReplacePlaceholder =
+        currentLines.length === 1 && !lineHasAnyContent(currentLines[0]);
+
+      return {
+        ...prev,
+        lines: canReplacePlaceholder ? additions : [...currentLines, ...additions],
+      };
+    });
+  };
+
+  const maybeAutofillSupplierFromInvoice = async (invoice) => {
+    const vendorName = String(invoice?.vendor_name || '').trim();
+    if (!vendorName) return;
+
+    const result = await listPurchaseSuppliers({ search: vendorName, limit: 8 });
+    if (!result.success) return;
+
+    const best = findBestSupplierCandidate(vendorName, result.data || []);
+    if (!best?.third_party_id) return;
+
+    setForm((prev) => {
+      if (prev.supplier_id) return prev;
+      return {
+        ...prev,
+        supplier_id: best.third_party_id,
+        supplier_label: best._displayName || best.trade_name || best.legal_name || 'Proveedor',
+      };
+    });
+  };
+
+  const pickInvoiceAsset = async (source = 'camera') => {
+    if (source === 'file') {
+      let DocumentPicker;
+      try {
+        DocumentPicker = require('expo-document-picker');
+      } catch (_error) {
+        return {
+          success: false,
+          error: 'Falta expo-document-picker para cargar archivos. Instala la dependencia y recompila la app.',
+        };
+      }
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/*',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result?.canceled) return { success: false, canceled: true };
+      const asset = result?.assets?.[0];
+      if (!asset?.uri) {
+        return { success: false, error: 'No se pudo obtener el archivo seleccionado.' };
+      }
+      if (asset?.mimeType && !String(asset.mimeType).toLowerCase().startsWith('image/')) {
+        return { success: false, error: 'Por ahora solo se soportan archivos de imagen para la factura.' };
+      }
+      return { success: true, asset };
+    }
+
+    let ImagePicker;
+    try {
+      ImagePicker = require('expo-image-picker');
+    } catch (_error) {
+      return {
+        success: false,
+        error: 'Falta expo-image-picker. Instala la dependencia y recompila la app.',
+      };
+    }
+
+    if (source === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission?.granted && Platform.OS !== 'web') {
+        return { success: false, error: 'Permiso de camara denegado.' };
+      }
+    } else {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission?.granted && Platform.OS !== 'web') {
+        return { success: false, error: 'Permiso de galeria denegado.' };
+      }
+    }
+
+    const pickerOptions = {
+      mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? 'images',
+      allowsEditing: false,
+      quality: 1,
+      base64: false,
+      exif: false,
+    };
+
+    const capture = source === 'camera'
+      ? await ImagePicker.launchCameraAsync(pickerOptions)
+      : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+    if (capture?.canceled) return { success: false, canceled: true };
+    const asset = capture?.assets?.[0];
+    if (!asset?.uri) {
+      return { success: false, error: 'No se pudo obtener la imagen seleccionada.' };
+    }
+
+    return { success: true, asset };
+  };
+
+  const createMissingCatalogItems = async (targetImportIds = []) => {
+    if (!tenant?.tenant_id) {
+      setFormError('Tenant invalido para crear articulos faltantes.');
+      return;
+    }
+
+    const summary = invoiceImportSummary;
+    const pendingIds = new Set(Array.isArray(targetImportIds) ? targetImportIds : []);
+    const candidates = (summary?.unmatched || []).filter((item) => {
+      if (!pendingIds.size) return true;
+      return pendingIds.has(item.import_id);
+    });
+
+    if (!candidates.length) return;
+
+    setCreatingMissingCatalog(true);
+    setCreatingMissingIds(candidates.map((item) => item.import_id));
+    setFormError('');
+
+    try {
+      const createdImportIds = [];
+      const failedById = new Map();
+      const createdLines = [];
+      const createdVariants = [];
+
+      for (const item of candidates) {
+        const suggestionResult = await suggestCatalogProductFromInvoiceLine({
+          tenantId: tenant.tenant_id,
+          line: item,
+        });
+
+        const suggestion = suggestionResult?.data || {};
+        const createResult = await createCatalogVariantForPurchase({
+          tenantId: tenant.tenant_id,
+          rawName: item.raw_name,
+          productName: suggestion.product_name || item.raw_name,
+          variantName: suggestion.variant_name || 'Predeterminada',
+          suggestedSku: suggestion.suggested_sku || null,
+          unitCost: resolveInvoiceUnitCost(item, null),
+          requiresExpiration: suggestion.requires_expiration === true,
+          inventoryBehavior: suggestion.inventory_behavior || 'RESELL',
+          notes: suggestion.notes || `Creado desde factura: ${item.raw_name}`,
+          isComponent: suggestion.is_component === true,
+        });
+
+        if (!createResult.success || !createResult.data?.variant_id) {
+          failedById.set(item.import_id, createResult.error || suggestionResult?.error || 'No se pudo crear el articulo.');
+          continue;
+        }
+
+        createdImportIds.push(item.import_id);
+        createdVariants.push(createResult.data);
+        createdLines.push(buildPurchaseLineFromInvoiceMatch({
+          line: item,
+          variant: createResult.data,
+        }));
+      }
+
+      if (createdLines.length) {
+        mergeImportedPurchaseLines(createdLines);
+        setVariantOptions((prev) => {
+          const merged = new Map((prev || []).map((item) => [item.variant_id, item]));
+          createdVariants.forEach((item) => {
+            if (item?.variant_id) merged.set(item.variant_id, item);
+          });
+          return Array.from(merged.values());
+        });
+      }
+
+      setInvoiceImportSummary((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          createdCount: Number(prev.createdCount || 0) + createdImportIds.length,
+          unmatched: (prev.unmatched || [])
+            .filter((item) => !createdImportIds.includes(item.import_id))
+            .map((item) => {
+              if (!failedById.has(item.import_id)) return item;
+              return { ...item, create_error: failedById.get(item.import_id) };
+            }),
+        };
+      });
+
+      if (failedById.size > 0) {
+        const firstError = Array.from(failedById.values())[0];
+        setFormError(firstError || 'Algunos articulos no se pudieron crear.');
+      } else if (createdImportIds.length > 0) {
+        Alert.alert('Articulos creados', `Se crearon y agregaron ${createdImportIds.length} articulo(s) faltante(s) a la compra.`);
+      }
+
+      if (createdImportIds.length > 0) {
+        await loadVariants('');
+      }
+    } finally {
+      setCreatingMissingCatalog(false);
+      setCreatingMissingIds([]);
+    }
+  };
+
+  const scanPurchaseInvoice = async (source = 'camera') => {
+    if (offlineMode) {
+      setFormError('La lectura de facturas con IA requiere conexion online.');
+      return;
+    }
+    if (!tenant?.tenant_id) {
+      setFormError('Tenant invalido para leer la factura.');
+      return;
+    }
+
+    setFormError('');
+    setInvoiceImportSummary(null);
+    const picked = await pickInvoiceAsset(source);
+    if (picked?.canceled) return;
+    if (!picked?.success || !picked?.asset) {
+      setFormError(picked?.error || 'No se pudo obtener la factura.');
+      return;
+    }
+
+    setProcessingInvoice(true);
+    setCreatingMissingCatalog(false);
+    setCreatingMissingIds([]);
+
+    try {
+      const asset = picked.asset;
+      let analysisResult = null;
+      let ocrEngine = 'cloud_ocr_edge';
+      let ocrText = '';
+
+      const optimized = await buildOptimizedImageForOcr(asset);
+      if (optimized.success) {
+        const cloudResult = await analyzeInvoiceWithImage({
+          tenantId: tenant.tenant_id,
+          imageBase64: optimized.data.base64,
+          mimeType: optimized.data.mimeType || asset.mimeType || 'image/jpeg',
+        });
+        if (cloudResult.success) {
+          analysisResult = cloudResult;
+          ocrText = String(cloudResult?.data?.ocr_text || '').trim();
+        }
+      }
+
+      if (!analysisResult?.success) {
+        const nativeStatus = await getNativeOcrStatus();
+        if (nativeStatus?.available) {
+          const enhancedResult = await buildEnhancedImageForNativeOcr(asset);
+          const candidateUris = [asset.uri];
+          if (enhancedResult?.success && enhancedResult?.data?.uri && enhancedResult.data.uri !== asset.uri) {
+            candidateUris.push(enhancedResult.data.uri);
+          }
+
+          let bestNative = null;
+          for (const uri of candidateUris) {
+            const passResult = await extractTextWithNativeOcr({ imageUri: uri });
+            if (!passResult?.success) continue;
+            const candidateText = String(passResult?.data?.text || '').trim();
+            if (!candidateText) continue;
+            const candidateScore = scoreOcrTextForInvoice(candidateText);
+            if (!bestNative || candidateScore > bestNative.score) {
+              bestNative = {
+                text: candidateText,
+                score: candidateScore,
+                engine: passResult?.data?.engine || 'native_ocr',
+              };
+            }
+          }
+
+          if (bestNative?.text) {
+            const textResult = await analyzeInvoiceWithText({
+              tenantId: tenant.tenant_id,
+              ocrText: bestNative.text,
+            });
+            if (textResult.success) {
+              analysisResult = textResult;
+              ocrText = bestNative.text;
+              ocrEngine = bestNative.engine || 'native_ocr';
+            }
+          }
+        }
+      }
+
+      if (!analysisResult?.success) {
+        setFormError(analysisResult?.error || 'No se pudo analizar la factura con IA.');
+        return;
+      }
+
+      const importedLines = (analysisResult?.data?.line_items || [])
+        .map((line, index) => createInvoiceImportLine(line, index))
+        .filter((line) => line.raw_name);
+
+      if (!importedLines.length) {
+        setFormError('La factura no devolvio articulos utilizables.');
+        return;
+      }
+
+      const candidatesResult = await listCatalogCandidatesForMatching(
+        tenant.tenant_id,
+        form.location_id || null,
+        importedLines,
+        {
+          offlineMode: false,
+          perTermLimit: 24,
+          maxCandidates: 260,
+          fallbackLimit: 1600,
+        },
+      );
+
+      const matchResult = candidatesResult?.success
+        ? matchInvoiceLinesToCatalog(importedLines, candidatesResult.data || [], { minTokenConfidence: 0.58 })
+        : { matched: [], unmatched: importedLines };
+
+      const matchedEntries = matchResult.matched || [];
+      const unmatchedEntries = (matchResult.unmatched || []).map((line) => ({
+        ...line,
+        create_error: '',
+      }));
+
+      if (matchedEntries.length) {
+        mergeImportedPurchaseLines(matchedEntries.map(buildPurchaseLineFromInvoiceMatch));
+      }
+
+      await maybeAutofillSupplierFromInvoice(analysisResult?.data?.invoice || {});
+
+      setInvoiceImportSummary({
+        source,
+        invoice: analysisResult?.data?.invoice || {},
+        matched: matchedEntries,
+        unmatched: unmatchedEntries,
+        ocrEngine,
+        ocrTextPreview: ocrText.slice(0, 180),
+        model: analysisResult?.data?.model || null,
+        createdCount: 0,
+      });
+
+      if (unmatchedEntries.length > 0) {
+        Alert.alert(
+          'Articulos sin catalogo',
+          `Se agregaron ${matchedEntries.length} coincidencia(s) y quedaron ${unmatchedEntries.length} articulo(s) sin match. ¿Quieres crearlos con ayuda de IA?`,
+          [
+            { text: 'Luego', style: 'cancel' },
+            {
+              text: 'Crear ahora',
+              onPress: () => {
+                void createMissingCatalogItems(unmatchedEntries.map((item) => item.import_id));
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert('Factura procesada', `Se agregaron ${matchedEntries.length} articulo(s) desde la factura.`);
+      }
+    } finally {
+      setProcessingInvoice(false);
     }
   };
 
@@ -1101,6 +1652,168 @@ export default function PurchasesScreen({
           placeholderTextColor="#64748b"
           multiline
         />
+
+        <View style={[styles.invoiceAiCard, isLightTheme && styles.invoiceAiCardLight]}>
+          <View style={styles.invoiceAiHeader}>
+            <View style={styles.invoiceAiHeaderText}>
+              <Text style={[styles.invoiceAiTitle, isLightTheme && styles.invoiceAiTitleLight]}>
+                Factura con IA
+              </Text>
+              <Text style={[styles.invoiceAiMeta, isLightTheme && styles.invoiceAiMetaLight]}>
+                Toma una foto o sube una imagen para extraer artículos, costos y sugerir creación de faltantes.
+              </Text>
+            </View>
+            {processingInvoice ? (
+              <ActivityIndicator color={isLightTheme ? '#2563eb' : '#93c5fd'} />
+            ) : null}
+          </View>
+
+          <View style={styles.invoiceAiActions}>
+            <Pressable
+              style={[styles.invoiceAiActionBtn, isLightTheme && styles.invoiceAiActionBtnLight, processingInvoice && styles.actionDisabled]}
+              onPress={() => scanPurchaseInvoice('camera')}
+              disabled={processingInvoice || savingPurchase || savingDraft}
+            >
+              <Ionicons name="camera-outline" size={16} color={isLightTheme ? '#1d4ed8' : '#dbeafe'} />
+              <Text style={[styles.invoiceAiActionText, isLightTheme && styles.invoiceAiActionTextLight]}>Foto</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.invoiceAiActionBtn, isLightTheme && styles.invoiceAiActionBtnLight, processingInvoice && styles.actionDisabled]}
+              onPress={() => scanPurchaseInvoice('library')}
+              disabled={processingInvoice || savingPurchase || savingDraft}
+            >
+              <Ionicons name="images-outline" size={16} color={isLightTheme ? '#1d4ed8' : '#dbeafe'} />
+              <Text style={[styles.invoiceAiActionText, isLightTheme && styles.invoiceAiActionTextLight]}>Galeria</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.invoiceAiActionBtn, isLightTheme && styles.invoiceAiActionBtnLight, processingInvoice && styles.actionDisabled]}
+              onPress={() => scanPurchaseInvoice('file')}
+              disabled={processingInvoice || savingPurchase || savingDraft}
+            >
+              <Ionicons name="document-outline" size={16} color={isLightTheme ? '#1d4ed8' : '#dbeafe'} />
+              <Text style={[styles.invoiceAiActionText, isLightTheme && styles.invoiceAiActionTextLight]}>Archivo</Text>
+            </Pressable>
+          </View>
+
+          {invoiceImportSummary ? (
+            <View style={[styles.invoiceAiSummary, isLightTheme && styles.invoiceAiSummaryLight]}>
+              <Text style={[styles.invoiceAiSummaryTitle, isLightTheme && styles.invoiceAiSummaryTitleLight]}>
+                Resultado factura
+              </Text>
+              <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                Fuente: {invoiceImportSummary.source === 'camera' ? 'foto' : invoiceImportSummary.source === 'library' ? 'galeria' : 'archivo'}
+              </Text>
+              {invoiceImportSummary.invoice?.vendor_name ? (
+                <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                  Proveedor detectado: {invoiceImportSummary.invoice.vendor_name}
+                </Text>
+              ) : null}
+              {invoiceImportSummary.invoice?.invoice_number ? (
+                <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                  Factura: {invoiceImportSummary.invoice.invoice_number}
+                </Text>
+              ) : null}
+              {invoiceImportSummary.invoice?.date ? (
+                <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                  Fecha: {invoiceImportSummary.invoice.date}
+                </Text>
+              ) : null}
+              {invoiceImportSummary.invoice?.total != null ? (
+                <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                  Total detectado: {money(invoiceImportSummary.invoice.total)}
+                </Text>
+              ) : null}
+              <View style={styles.invoiceAiPills}>
+                <View style={[styles.invoiceAiPill, styles.invoiceAiPillSuccess]}>
+                  <Text style={styles.invoiceAiPillText}>
+                    Match {Number(invoiceImportSummary.matched?.length || 0)}
+                  </Text>
+                </View>
+                <View style={[styles.invoiceAiPill, styles.invoiceAiPillWarn]}>
+                  <Text style={styles.invoiceAiPillText}>
+                    Faltantes {Number(invoiceImportSummary.unmatched?.length || 0)}
+                  </Text>
+                </View>
+                {Number(invoiceImportSummary.createdCount || 0) > 0 ? (
+                  <View style={[styles.invoiceAiPill, styles.invoiceAiPillInfo]}>
+                    <Text style={styles.invoiceAiPillText}>
+                      Creados {Number(invoiceImportSummary.createdCount || 0)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              {invoiceImportSummary.model ? (
+                <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                  Modelo OCR/parse: {invoiceImportSummary.model}
+                </Text>
+              ) : null}
+              {invoiceImportSummary.ocrEngine ? (
+                <Text style={[styles.invoiceAiSummaryLine, isLightTheme && styles.invoiceAiSummaryLineLight]}>
+                  OCR: {invoiceImportSummary.ocrEngine}
+                </Text>
+              ) : null}
+              {invoiceImportSummary.ocrTextPreview ? (
+                <Text style={[styles.invoiceAiSummaryPreview, isLightTheme && styles.invoiceAiSummaryPreviewLight]}>
+                  Preview OCR: {invoiceImportSummary.ocrTextPreview}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {(invoiceImportSummary?.unmatched || []).length > 0 ? (
+            <View style={styles.invoiceAiMissingWrap}>
+              <View style={styles.invoiceAiMissingHeader}>
+                <Text style={[styles.invoiceAiMissingTitle, isLightTheme && styles.invoiceAiMissingTitleLight]}>
+                  Artículos sin catálogo
+                </Text>
+                <Pressable
+                  style={[
+                    styles.invoiceAiCreateAllBtn,
+                    isLightTheme && styles.invoiceAiCreateAllBtnLight,
+                    creatingMissingCatalog && styles.actionDisabled,
+                  ]}
+                  onPress={() => createMissingCatalogItems()}
+                  disabled={creatingMissingCatalog || processingInvoice}
+                >
+                  <Text style={[styles.invoiceAiCreateAllText, isLightTheme && styles.invoiceAiCreateAllTextLight]}>
+                    {creatingMissingCatalog ? 'Creando...' : 'Crear todos'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {(invoiceImportSummary.unmatched || []).map((item) => {
+                const busy = creatingMissingIds.includes(item.import_id);
+                const unitCost = resolveInvoiceUnitCost(item, null);
+                return (
+                  <View key={item.import_id} style={[styles.invoiceAiMissingCard, isLightTheme && styles.invoiceAiMissingCardLight]}>
+                    <Text style={[styles.invoiceAiMissingName, isLightTheme && styles.invoiceAiMissingNameLight]}>
+                      {item.raw_name}
+                    </Text>
+                    <Text style={[styles.invoiceAiMissingMeta, isLightTheme && styles.invoiceAiMissingMetaLight]}>
+                      Cant. {Number(item.quantity || 0).toLocaleString('es-CO')} · Costo {money(unitCost)}
+                    </Text>
+                    {item.create_error ? (
+                      <Text style={styles.invoiceAiMissingError}>{item.create_error}</Text>
+                    ) : null}
+                    <Pressable
+                      style={[
+                        styles.invoiceAiCreateOneBtn,
+                        isLightTheme && styles.invoiceAiCreateOneBtnLight,
+                        busy && styles.actionDisabled,
+                      ]}
+                      onPress={() => createMissingCatalogItems([item.import_id])}
+                      disabled={busy || creatingMissingCatalog || processingInvoice}
+                    >
+                      <Text style={[styles.invoiceAiCreateOneText, isLightTheme && styles.invoiceAiCreateOneTextLight]}>
+                        {busy ? 'Creando...' : 'Crear y agregar'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Productos</Text>
@@ -1642,6 +2355,244 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   noteInput: { minHeight: 86, textAlignVertical: 'top' },
+  invoiceAiCard: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#1d4ed8',
+    borderRadius: 14,
+    backgroundColor: '#0b1220',
+    padding: 12,
+  },
+  invoiceAiCardLight: {
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
+  },
+  invoiceAiHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  invoiceAiHeaderText: {
+    flex: 1,
+  },
+  invoiceAiTitle: {
+    color: '#dbeafe',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  invoiceAiTitleLight: {
+    color: '#1d4ed8',
+  },
+  invoiceAiMeta: {
+    color: '#93c5fd',
+    marginTop: 4,
+    lineHeight: 18,
+    fontSize: 12,
+  },
+  invoiceAiMetaLight: {
+    color: '#1e40af',
+  },
+  invoiceAiActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  invoiceAiActionBtn: {
+    minHeight: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    backgroundColor: '#1d4ed8',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  invoiceAiActionBtnLight: {
+    borderColor: '#93c5fd',
+    backgroundColor: '#ffffff',
+  },
+  invoiceAiActionText: {
+    color: '#eff6ff',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  invoiceAiActionTextLight: {
+    color: '#1d4ed8',
+  },
+  invoiceAiSummary: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#111827',
+    padding: 12,
+  },
+  invoiceAiSummaryLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  invoiceAiSummaryTitle: {
+    color: '#f8fafc',
+    fontWeight: '800',
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  invoiceAiSummaryTitleLight: {
+    color: '#0f172a',
+  },
+  invoiceAiSummaryLine: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  invoiceAiSummaryLineLight: {
+    color: '#475569',
+  },
+  invoiceAiSummaryPreview: {
+    color: '#93c5fd',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  invoiceAiSummaryPreviewLight: {
+    color: '#1d4ed8',
+  },
+  invoiceAiPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  invoiceAiPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+  },
+  invoiceAiPillSuccess: {
+    borderColor: '#16a34a',
+    backgroundColor: '#052e16',
+  },
+  invoiceAiPillWarn: {
+    borderColor: '#d97706',
+    backgroundColor: '#3f2b05',
+  },
+  invoiceAiPillInfo: {
+    borderColor: '#2563eb',
+    backgroundColor: '#0b255a',
+  },
+  invoiceAiPillText: {
+    color: '#f8fafc',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  invoiceAiMissingWrap: {
+    marginTop: 12,
+  },
+  invoiceAiMissingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 8,
+  },
+  invoiceAiMissingTitle: {
+    color: '#f8fafc',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  invoiceAiMissingTitleLight: {
+    color: '#0f172a',
+  },
+  invoiceAiCreateAllBtn: {
+    minHeight: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#22c55e',
+    backgroundColor: '#14532d',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  invoiceAiCreateAllBtnLight: {
+    borderColor: '#86efac',
+    backgroundColor: '#f0fdf4',
+  },
+  invoiceAiCreateAllText: {
+    color: '#dcfce7',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  invoiceAiCreateAllTextLight: {
+    color: '#166534',
+  },
+  invoiceAiMissingCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#111827',
+    padding: 12,
+    marginTop: 8,
+  },
+  invoiceAiMissingCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  invoiceAiMissingName: {
+    color: '#f8fafc',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  invoiceAiMissingNameLight: {
+    color: '#0f172a',
+  },
+  invoiceAiMissingMeta: {
+    color: '#94a3b8',
+    marginTop: 4,
+    fontSize: 12,
+  },
+  invoiceAiMissingMetaLight: {
+    color: '#64748b',
+  },
+  invoiceAiMissingError: {
+    color: '#fca5a5',
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  invoiceAiCreateOneBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    backgroundColor: '#1d4ed8',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  invoiceAiCreateOneBtnLight: {
+    borderColor: '#93c5fd',
+    backgroundColor: '#dbeafe',
+  },
+  invoiceAiCreateOneText: {
+    color: '#eff6ff',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  invoiceAiCreateOneTextLight: {
+    color: '#1d4ed8',
+  },
   sectionHeader: {
     marginTop: 14,
     marginBottom: 4,
