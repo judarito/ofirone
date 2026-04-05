@@ -9,6 +9,16 @@ import {
   runAllAiInsights,
 } from '../services/aiInsights.service';
 import { generateInsightNarrative } from '../services/aiInsightNarrative.service';
+import { askOpsRagAgent } from '../services/opsRagAgent.service';
+
+const OPS_DOMAIN_OPTIONS = [
+  { id: 'sales', label: 'Ventas' },
+  { id: 'inventory', label: 'Inventario' },
+  { id: 'purchases', label: 'Compras' },
+  { id: 'cash', label: 'Caja' },
+  { id: 'portfolio', label: 'Cartera' },
+  { id: 'production', label: 'Produccion' },
+];
 
 function getToneStyle(tone) {
   if (tone === 'danger') return { borderColor: '#7f1d1d', textColor: '#fecaca', bgColor: '#3f1111' };
@@ -30,10 +40,33 @@ function normalizeResult(result) {
   };
 }
 
+function normalizeOpsResult(result) {
+  const parsedConfidence = Number(result?.confidence);
+  return {
+    answer: result?.answer || 'Sin respuesta disponible.',
+    summary: result?.summary || '',
+    clarifyingQuestion: result?.clarifying_question || null,
+    suggestedActions: Array.isArray(result?.suggested_actions) ? result.suggested_actions : [],
+    citations: Array.isArray(result?.citations) ? result.citations : [],
+    domains: Array.isArray(result?.domains) ? result.domains : [],
+    filters: result?.filters || null,
+    retrievedContext: Array.isArray(result?.retrieved_context) ? result.retrieved_context : [],
+    retrievalErrors: Array.isArray(result?.retrieval_errors) ? result.retrieval_errors : [],
+    model: result?.model || null,
+    cacheHit: result?.cache_hit === true,
+    confidence: Number.isFinite(parsedConfidence) ? parsedConfidence : null,
+  };
+}
+
 export default function AIInsightsScreen({ tenant, offlineMode }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
   const [queryText, setQueryText] = useState('');
+  const [opsQueryText, setOpsQueryText] = useState('');
+  const [opsSelectedDomains, setOpsSelectedDomains] = useState([]);
+  const [opsLoading, setOpsLoading] = useState(false);
+  const [opsError, setOpsError] = useState('');
+  const [opsResult, setOpsResult] = useState(null);
   const [loadingId, setLoadingId] = useState('');
   const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState('');
@@ -43,6 +76,14 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
   const [loadingNarrativeId, setLoadingNarrativeId] = useState('');
 
   const orderedCatalog = useMemo(() => AI_INSIGHT_CATALOG, []);
+
+  const toggleOpsDomain = (domainId) => {
+    setOpsSelectedDomains((prev) =>
+      prev.includes(domainId)
+        ? prev.filter((item) => item !== domainId)
+        : [...prev, domainId]
+    );
+  };
 
   const runSingle = async (insightId) => {
     if (!tenant?.tenant_id) return;
@@ -166,6 +207,41 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
     await runSingle(routed.data.insightId);
   };
 
+  const runOpsAgent = async () => {
+    if (!tenant?.tenant_id) {
+      setOpsError('No hay tenant activo para consultar.');
+      return;
+    }
+
+    const text = String(opsQueryText || '').trim();
+    if (!text) {
+      setOpsError('Escribe una consulta para el agente operativo.');
+      return;
+    }
+
+    if (offlineMode) {
+      setOpsError('El agente operativo requiere conexion para consultar Supabase.');
+      return;
+    }
+
+    setOpsLoading(true);
+    setOpsError('');
+    try {
+      const response = await askOpsRagAgent({
+        tenantId: tenant.tenant_id,
+        query: text,
+        domains: opsSelectedDomains,
+      });
+      if (!response.success || !response?.data) {
+        setOpsError(response.error || 'No se pudo consultar el agente operativo.');
+        return;
+      }
+      setOpsResult(normalizeOpsResult(response.data));
+    } finally {
+      setOpsLoading(false);
+    }
+  };
+
   return (
     <ScrollView
       contentContainerStyle={[styles.container, isLightTheme && styles.containerLight]}
@@ -209,6 +285,195 @@ export default function AIInsightsScreen({ tenant, offlineMode }) {
             {Math.round(Number(queryRouting.confidence || 0) * 100)}%)
             {queryRouting?.engine?.source ? ` | ${queryRouting.engine.source}` : ''}
           </Text>
+        ) : null}
+      </View>
+
+      <View style={[styles.opsCard, isLightTheme && styles.opsCardLight]}>
+        <View style={styles.cardTop}>
+          <View style={styles.cardTopLeft}>
+            <View style={[styles.iconWrap, styles.opsIconWrap, isLightTheme && styles.opsIconWrapLight]}>
+              <Ionicons name="sparkles" size={18} color="#0f172a" />
+            </View>
+            <View style={styles.cardTextWrap}>
+              <Text style={[styles.cardTitle, isLightTheme && styles.cardTitleLight]}>Agente operativo RAG</Text>
+              <Text style={[styles.cardSubtitle, isLightTheme && styles.cardSubtitleLight]}>
+                Consulta ventas, inventario, compras, caja, cartera y produccion con contexto real del tenant.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.opsDomainRow}>
+          {OPS_DOMAIN_OPTIONS.map((item) => {
+            const selected = opsSelectedDomains.includes(item.id);
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => toggleOpsDomain(item.id)}
+                style={[
+                  styles.opsDomainChip,
+                  isLightTheme && styles.opsDomainChipLight,
+                  selected && styles.opsDomainChipSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.opsDomainChipText,
+                    isLightTheme && styles.opsDomainChipTextLight,
+                    selected && styles.opsDomainChipTextSelected,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <TextInput
+          style={[styles.input, styles.opsInput, isLightTheme && styles.inputLight]}
+          value={opsQueryText}
+          onChangeText={setOpsQueryText}
+          placeholder="Ej: como van las ventas e inventario de la sede centro esta semana"
+          placeholderTextColor="#64748b"
+          returnKeyType="search"
+          onSubmitEditing={runOpsAgent}
+        />
+
+        <View style={styles.opsActionsRow}>
+          <Pressable
+            style={[
+              styles.primaryBtn,
+              styles.opsPrimaryBtn,
+              isLightTheme && styles.primaryBtnLight,
+              (opsLoading || offlineMode || !opsQueryText.trim()) && styles.btnDisabled,
+            ]}
+            onPress={runOpsAgent}
+            disabled={opsLoading || offlineMode || !opsQueryText.trim()}
+          >
+            {opsLoading ? (
+              <ActivityIndicator size="small" color="#eff6ff" />
+            ) : (
+              <>
+                <Ionicons name="send-outline" size={15} style={styles.primaryBtnIcon} />
+                <Text style={styles.primaryBtnText}>Preguntar al agente</Text>
+              </>
+            )}
+          </Pressable>
+
+          {(opsResult || opsSelectedDomains.length > 0 || opsQueryText) ? (
+            <Pressable
+              style={[styles.opsGhostBtn, isLightTheme && styles.opsGhostBtnLight]}
+              onPress={() => {
+                setOpsQueryText('');
+                setOpsSelectedDomains([]);
+                setOpsError('');
+                setOpsResult(null);
+              }}
+            >
+              <Text style={[styles.opsGhostBtnText, isLightTheme && styles.opsGhostBtnTextLight]}>Limpiar</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <Text style={[styles.opsNote, isLightTheme && styles.opsNoteLight]}>
+          {offlineMode
+            ? 'Modo offline: este agente necesita conectividad para invocar la Edge Function.'
+            : 'Si no eliges dominios, el agente intenta inferirlos desde la pregunta.'}
+        </Text>
+
+        {opsError ? <Text style={styles.errorText}>{opsError}</Text> : null}
+
+        {opsResult ? (
+          <View style={[styles.resultWrap, styles.opsResultWrap, isLightTheme && styles.resultWrapLight]}>
+            {opsResult.summary ? (
+              <Text style={[styles.resultSummary, isLightTheme && styles.resultSummaryLight]}>{opsResult.summary}</Text>
+            ) : null}
+
+            <Text style={[styles.opsAnswer, isLightTheme && styles.opsAnswerLight]}>{opsResult.answer}</Text>
+
+            {opsResult.clarifyingQuestion ? (
+              <View style={styles.block}>
+                <Text style={[styles.blockTitle, isLightTheme && styles.blockTitleLight]}>Pregunta de precision</Text>
+                <Text style={[styles.recLine, isLightTheme && styles.recLineLight]}>{opsResult.clarifyingQuestion}</Text>
+              </View>
+            ) : null}
+
+            {opsResult.suggestedActions.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={[styles.blockTitle, isLightTheme && styles.blockTitleLight]}>Acciones sugeridas</Text>
+                {opsResult.suggestedActions.map((line, idx) => (
+                  <Text key={`ops-action-${idx}`} style={[styles.recLine, isLightTheme && styles.recLineLight]}>
+                    - {line}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {opsResult.citations.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={[styles.blockTitle, isLightTheme && styles.blockTitleLight]}>Citas</Text>
+                <View style={styles.opsCitationsRow}>
+                  {opsResult.citations.map((citation) => (
+                    <View
+                      key={citation}
+                      style={[styles.opsCitationChip, isLightTheme && styles.opsCitationChipLight]}
+                    >
+                      <Text style={[styles.opsCitationChipText, isLightTheme && styles.opsCitationChipTextLight]}>
+                        {citation}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {opsResult.retrievedContext.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={[styles.blockTitle, isLightTheme && styles.blockTitleLight]}>Contexto recuperado</Text>
+                {opsResult.retrievedContext.map((item) => (
+                  <View key={item.block_id} style={styles.lineItem}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{item.title || item.block_id}</Text>
+                    <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
+                      {item.domain || 'general'} | {item.source || 'sin fuente'}
+                    </Text>
+                    <Text style={[styles.lineMeta, isLightTheme && styles.lineMetaLight]}>
+                      {item.block_id}
+                      {item?.rows_count != null ? ` | ${item.rows_count} filas` : ''}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {opsResult.retrievalErrors.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={[styles.blockTitle, isLightTheme && styles.blockTitleLight]}>Observaciones</Text>
+                {opsResult.retrievalErrors.map((line, idx) => (
+                  <Text key={`ops-error-${idx}`} style={[styles.recLine, isLightTheme && styles.recLineLight]}>
+                    - {line}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {opsResult.filters ? (
+              <Text style={[styles.engineLine, isLightTheme && styles.engineLineLight]}>
+                {opsResult.filters?.location_name ? `Sede ${opsResult.filters.location_name}` : 'Todas las sedes'}
+                {opsResult.filters?.range?.fromDate && opsResult.filters?.range?.toDate
+                  ? ` | ${opsResult.filters.range.fromDate} a ${opsResult.filters.range.toDate}`
+                  : ''}
+                {opsResult.filters?.range?.label ? ` | ${opsResult.filters.range.label}` : ''}
+              </Text>
+            ) : null}
+
+            <Text style={[styles.engineLine, isLightTheme && styles.engineLineLight]}>
+              Dominios: {opsResult.domains.length ? opsResult.domains.join(', ') : 'inferidos'}
+              {opsResult.confidence != null ? ` | Confianza ${Math.round(opsResult.confidence * 100)}%` : ''}
+              {opsResult.model ? ` | Modelo ${opsResult.model}` : ''}
+              {` | Cache ${opsResult.cacheHit ? 'si' : 'no'}`}
+            </Text>
+          </View>
         ) : null}
       </View>
 
@@ -502,6 +767,138 @@ const styles = StyleSheet.create({
   },
   queryHintLight: {
     color: '#235ea9',
+  },
+  opsCard: {
+    borderWidth: 1,
+    borderColor: '#d3a322',
+    backgroundColor: '#1a1607',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 8,
+  },
+  opsCardLight: {
+    borderColor: '#efd79a',
+    backgroundColor: '#fffaf0',
+  },
+  opsIconWrap: {
+    borderColor: '#facc15',
+    backgroundColor: '#facc15',
+  },
+  opsIconWrapLight: {
+    borderColor: '#facc15',
+    backgroundColor: '#facc15',
+  },
+  opsDomainRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  opsDomainChip: {
+    borderWidth: 1,
+    borderColor: '#5f4a12',
+    backgroundColor: '#2a230d',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  opsDomainChipLight: {
+    borderColor: '#e4c66b',
+    backgroundColor: '#fff4cf',
+  },
+  opsDomainChipSelected: {
+    borderColor: '#facc15',
+    backgroundColor: '#facc15',
+  },
+  opsDomainChipText: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  opsDomainChipTextLight: {
+    color: '#8a5a00',
+  },
+  opsDomainChipTextSelected: {
+    color: '#0f172a',
+  },
+  opsInput: {
+    minHeight: 46,
+  },
+  opsActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  opsPrimaryBtn: {
+    flex: 1,
+  },
+  opsGhostBtn: {
+    borderWidth: 1,
+    borderColor: '#5f4a12',
+    backgroundColor: '#2a230d',
+    borderRadius: 9,
+    minHeight: 38,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  opsGhostBtnLight: {
+    borderColor: '#e4c66b',
+    backgroundColor: '#fff4cf',
+  },
+  opsGhostBtnText: {
+    color: '#fde68a',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  opsGhostBtnTextLight: {
+    color: '#8a5a00',
+  },
+  opsNote: {
+    marginTop: 8,
+    color: '#fcd34d',
+    fontSize: 12,
+  },
+  opsNoteLight: {
+    color: '#946200',
+  },
+  opsResultWrap: {
+    marginTop: 12,
+  },
+  opsAnswer: {
+    color: '#f8fafc',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  opsAnswerLight: {
+    color: '#0f172a',
+  },
+  opsCitationsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  opsCitationChip: {
+    borderWidth: 1,
+    borderColor: '#3b4252',
+    backgroundColor: '#111827',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  opsCitationChipLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  opsCitationChipText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  opsCitationChipTextLight: {
+    color: '#334155',
   },
   errorText: {
     color: '#ef4444',

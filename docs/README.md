@@ -19,6 +19,8 @@ Este directorio contiene la documentación del sistema POS Lite.
   - `/docs/QWEN_LOCAL_LLM_SETUP.md`
 - Centro IA mobile (8 analisis operativos):
   - `/docs/AI_INSIGHTS_CENTER.md`
+- Agente RAG operativo reusable para mobile/web:
+  - `/docs/OPS_RAG_AGENT.md`
 - Fotos por producto + IA en catalogo:
   - `/docs/PRODUCT_PHOTOS_AI_SETUP.md`
 - Carga masiva por foto OCR + IA:

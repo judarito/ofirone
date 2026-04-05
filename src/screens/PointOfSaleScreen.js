@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheetModal from '../components/BottomSheetModal';
 import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
@@ -43,6 +44,7 @@ import {
   resolveSaleCommandFromText,
   transcribeWithVosk,
 } from '../services/commandEngine';
+import { askOpsRagAgent } from '../services/opsRagAgent.service';
 import { enqueuePendingOp, getPendingOpsCount } from '../storage/sqlite/database';
 import { getOrCreateDeviceId } from '../services/device.service';
 import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.service';
@@ -51,6 +53,46 @@ import { playCartAddSound } from '../services/soundFeedback.service';
 const OCR_MAX_BYTES = 980 * 1024;
 const POS_RESULT_IMAGE_SIGNED_URL_TTL = 60 * 30;
 const QUICK_CASH_DENOMINATIONS = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
+const POS_OPS_QUICK_ACTIONS = [
+  {
+    id: 'top_today',
+    label: 'Mas vendidos hoy',
+    icon: 'trending-up-outline',
+    domains: ['sales'],
+    rangeMode: 'today',
+    buildQuery: ({ locationName }) =>
+      `cuales son los productos mas vendidos hoy${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+  {
+    id: 'low_today',
+    label: 'Menos vendidos hoy',
+    icon: 'trending-down-outline',
+    domains: ['sales'],
+    rangeMode: 'today',
+    buildQuery: ({ locationName }) =>
+      `cuales son los productos menos vendidos hoy${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+  {
+    id: 'stock_alerts',
+    label: 'Stock critico',
+    icon: 'alert-circle-outline',
+    domains: ['inventory'],
+    rangeMode: 'today',
+    buildQuery: ({ locationName }) =>
+      `que productos tienen stock critico, bajo minimo o quiebre${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+  {
+    id: 'shift_summary',
+    label: 'Resumen turno',
+    icon: 'receipt-outline',
+    domains: ['sales', 'cash'],
+    rangeMode: 'session',
+    buildQuery: ({ locationName, hasSession }) =>
+      hasSession
+        ? `como van las ventas y la caja del turno actual${locationName ? ` en la sede ${locationName}` : ''}`
+        : `como van las ventas y la caja de hoy${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+];
 
 let NativeDateTimePicker = null;
 try {
@@ -198,6 +240,29 @@ function getResolutionSourceUsage(metrics, source) {
   return {
     count: Number(stats?.count || 0),
     sharePct: Math.round(Number(stats?.share || 0) * 100),
+  };
+}
+
+function toYmdDate(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeOpsQuickResult(result) {
+  const parsedConfidence = Number(result?.confidence);
+  return {
+    answer: result?.answer || 'Sin respuesta disponible.',
+    summary: result?.summary || '',
+    clarifyingQuestion: result?.clarifying_question || null,
+    suggestedActions: Array.isArray(result?.suggested_actions) ? result.suggested_actions : [],
+    citations: Array.isArray(result?.citations) ? result.citations : [],
+    domains: Array.isArray(result?.domains) ? result.domains : [],
+    filters: result?.filters || null,
+    retrievalErrors: Array.isArray(result?.retrieval_errors) ? result.retrieval_errors : [],
+    model: result?.model || null,
+    cacheHit: result?.cache_hit === true,
+    confidence: Number.isFinite(parsedConfidence) ? parsedConfidence : null,
   };
 }
 
@@ -496,6 +561,12 @@ export default function PointOfSaleScreen({
   const [showAiTools, setShowAiTools] = useState(false);
   const [showAiLogs, setShowAiLogs] = useState(false);
   const [showChatComposer, setShowChatComposer] = useState(false);
+  const [showOpsQuickSheet, setShowOpsQuickSheet] = useState(false);
+  const [opsQuickLoading, setOpsQuickLoading] = useState(false);
+  const [opsQuickError, setOpsQuickError] = useState('');
+  const [opsQuickResult, setOpsQuickResult] = useState(null);
+  const [opsQuickActionId, setOpsQuickActionId] = useState('');
+  const [opsQuickMeta, setOpsQuickMeta] = useState(null);
   const [aiWorking, setAiWorking] = useState(false);
   const [aiWorkingLabel, setAiWorkingLabel] = useState('');
   const [floatingNotice, setFloatingNotice] = useState(null);
@@ -620,6 +691,9 @@ export default function PointOfSaleScreen({
   }, [canSelectSaleDateTime, currentSession?.opened_at, posMaxBackdateHours, selectedSaleDate]);
 
   const effectiveThirdPartyId = selectedCustomer?.customer_id || null;
+  const currentLocationId = currentSession?.cash_register?.location_id || null;
+  const currentLocationName = currentSession?.cash_register?.location?.name || null;
+  const currentSessionOpenedAt = currentSession?.opened_at || null;
   const localLlmMode = useMemo(
     () => String(process.env.EXPO_PUBLIC_LOCAL_LLM_MODE || 'auto').trim().toLowerCase(),
     [],
@@ -658,6 +732,80 @@ export default function PointOfSaleScreen({
     if (!content) return;
     setMessage('');
     showFloatingNotice(content, 'error', ttlMs);
+  };
+
+  const resetOpsQuickState = () => {
+    setOpsQuickError('');
+    setOpsQuickResult(null);
+    setOpsQuickActionId('');
+    setOpsQuickMeta(null);
+  };
+
+  const runOpsQuickAction = async (action) => {
+    if (!tenant?.tenant_id) {
+      setOpsQuickError('No hay tenant activo para consultar.');
+      return;
+    }
+
+    if (offlineMode) {
+      setOpsQuickError('La consulta rápida requiere conexión para consultar el agente operativo.');
+      return;
+    }
+
+    const now = new Date();
+    const todayYmd = toYmdDate(now);
+    let fromDate = todayYmd;
+    let toDate = todayYmd;
+    let rangeLabel = 'Hoy';
+
+    if (action?.rangeMode === 'session' && currentSessionOpenedAt) {
+      const openedYmd = toYmdDate(currentSessionOpenedAt);
+      fromDate = openedYmd || todayYmd;
+      toDate = todayYmd;
+      rangeLabel = fromDate === toDate ? 'Turno actual' : `Turno actual (${fromDate} a ${toDate})`;
+    }
+
+    const query = action?.buildQuery?.({
+      locationName: currentLocationName,
+      hasSession: Boolean(currentSession?.cash_session_id),
+    });
+
+    if (!query) {
+      setOpsQuickError('No fue posible construir la consulta rápida.');
+      return;
+    }
+
+    setOpsQuickLoading(true);
+    setOpsQuickError('');
+    setOpsQuickActionId(action.id);
+    setOpsQuickMeta({
+      label: action.label,
+      rangeLabel,
+      locationName: currentLocationName || null,
+      query,
+    });
+
+    try {
+      const response = await askOpsRagAgent({
+        tenantId: tenant.tenant_id,
+        query,
+        domains: action.domains,
+        fromDate,
+        toDate,
+        locationId: currentLocationId,
+        locationName: currentLocationName,
+      });
+
+      if (!response.success || !response?.data) {
+        setOpsQuickError(response.error || 'No se pudo obtener respuesta de la consulta rápida.');
+        setOpsQuickResult(null);
+        return;
+      }
+
+      setOpsQuickResult(normalizeOpsQuickResult(response.data));
+    } finally {
+      setOpsQuickLoading(false);
+    }
   };
 
   const mergeResultImageUrls = (entries) => {
@@ -1613,19 +1761,18 @@ export default function PointOfSaleScreen({
       setError('Pega o escribe el pedido del chat.');
       return;
     }
-    if (!(await ensureAiModelReady('chat IA'))) {
-      return;
-    }
 
     setProcessingChatOrder(true);
     try {
-      await runCommandToCart({
+      const didConvert = await runCommandToCart({
         commandText: chatOrderText,
         inputType: 'text',
       });
+      if (didConvert) {
+        setChatOrderText('');
+      }
     } finally {
       setProcessingChatOrder(false);
-      setChatOrderText('');
     }
   };
 
@@ -1644,9 +1791,6 @@ export default function PointOfSaleScreen({
     if (processingVoiceOrder) {
       await cancelVoskTranscription();
       setProcessingVoiceOrder(false);
-      return;
-    }
-    if (!(await ensureAiModelReady('comando de voz'))) {
       return;
     }
 
@@ -2099,10 +2243,10 @@ export default function PointOfSaleScreen({
 
               <Pressable
                 onPress={() => setShowChatComposer((prev) => !prev)}
-                disabled={processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing}
+                disabled={processingChatOrder || processingVoiceOrder}
                 style={[
                   styles.aiIconBtn,
-                  (processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing) && styles.btnDisabled,
+                  (processingChatOrder || processingVoiceOrder) && styles.btnDisabled,
                   isLightTheme && styles.aiIconBtnLight,
                   showChatComposer && styles.aiIconBtnActive,
                 ]}
@@ -2119,16 +2263,16 @@ export default function PointOfSaleScreen({
                     showChatComposer && styles.aiIconBtnTextActive,
                   ]}
                 >
-                  Chat
+                  Natural
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={parseVoiceOrderWithVosk}
-                disabled={processingChatOrder || isEmbeddedModelPreparing}
+                disabled={processingChatOrder}
                 style={[
                   styles.aiIconBtn,
-                  (processingChatOrder || isEmbeddedModelPreparing) && styles.btnDisabled,
+                  processingChatOrder && styles.btnDisabled,
                   isLightTheme && styles.aiIconBtnLight,
                   processingVoiceOrder && styles.aiIconBtnActive,
                 ]}
@@ -2174,12 +2318,38 @@ export default function PointOfSaleScreen({
               </Pressable>
             </View>
 
+            <Pressable
+              onPress={() => setShowOpsQuickSheet(true)}
+              style={[styles.opsQuickLaunchBtn, isLightTheme && styles.opsQuickLaunchBtnLight]}
+            >
+              <View style={styles.opsQuickLaunchContent}>
+                <Ionicons
+                  name="flash-outline"
+                  size={18}
+                  color={isLightTheme ? '#235ea9' : '#fde68a'}
+                />
+                <View style={styles.opsQuickLaunchTextWrap}>
+                  <Text style={[styles.opsQuickLaunchTitle, isLightTheme && styles.opsQuickLaunchTitleLight]}>
+                    Consulta rápida
+                  </Text>
+                  <Text style={[styles.opsQuickLaunchHint, isLightTheme && styles.opsQuickLaunchHintLight]}>
+                    Responde con ventas, stock o caja sin salir del POS.
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={isLightTheme ? '#235ea9' : '#fde68a'}
+                />
+              </View>
+            </Pressable>
+
             {showChatComposer ? (
               <View style={styles.chatComposerWrap}>
                 <TextInput
                   value={chatOrderText}
                   onChangeText={setChatOrderText}
-                  placeholder="Pega pedido del chat..."
+                  placeholder="Ej: agrega 2 cocas 350 y 1 arroz diana para Ana"
                   placeholderTextColor="#64748b"
                   multiline
                   numberOfLines={2}
@@ -2187,15 +2357,21 @@ export default function PointOfSaleScreen({
                 />
                 <Pressable
                   onPress={parseChatOrderWithAgent}
-                  disabled={processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing}
+                  disabled={processingChatOrder || processingVoiceOrder}
                   style={[
                     styles.chatSendBtn,
-                    (processingChatOrder || processingVoiceOrder || isEmbeddedModelPreparing) && styles.btnDisabled,
+                    (processingChatOrder || processingVoiceOrder) && styles.btnDisabled,
                   ]}
                 >
                   <Ionicons name="send-outline" size={18} color="#ecfeff" />
                 </Pressable>
               </View>
+            ) : null}
+
+            {showChatComposer ? (
+              <Text style={[styles.chatComposerHint, isLightTheme && styles.chatComposerHintLight]}>
+                Lenguaje natural: agrega, cliente y notas. Ej: "2 cocas 350, 1 arroz diana, para Ana, entrega hoy".
+              </Text>
             ) : null}
 
             {aiWorking ? (
@@ -2837,6 +3013,195 @@ export default function PointOfSaleScreen({
         </View>
       </Pressable>
       </ScrollView>
+      <BottomSheetModal
+        visible={showOpsQuickSheet}
+        onClose={() => setShowOpsQuickSheet(false)}
+        themeMode={themeMode}
+        maxHeight="78%"
+        footer={(
+          <View style={styles.opsQuickFooter}>
+            {(opsQuickResult || opsQuickError) ? (
+              <Pressable
+                style={[styles.opsQuickFooterBtn, isLightTheme && styles.opsQuickFooterBtnLight]}
+                onPress={resetOpsQuickState}
+              >
+                <Text style={[styles.opsQuickFooterBtnText, isLightTheme && styles.opsQuickFooterBtnTextLight]}>
+                  Limpiar
+                </Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
+            <Pressable
+              style={[styles.opsQuickFooterPrimaryBtn, isLightTheme && styles.opsQuickFooterPrimaryBtnLight]}
+              onPress={() => setShowOpsQuickSheet(false)}
+            >
+              <Text style={styles.opsQuickFooterPrimaryBtnText}>Cerrar</Text>
+            </Pressable>
+          </View>
+        )}
+      >
+        <Text style={[styles.opsQuickSheetTitle, isLightTheme && styles.opsQuickSheetTitleLight]}>
+          Consulta rápida de caja
+        </Text>
+        <Text style={[styles.opsQuickSheetSubtitle, isLightTheme && styles.opsQuickSheetSubtitleLight]}>
+          Atajos operativos para responder desde la sede actual sin salir del flujo de venta.
+        </Text>
+
+        <View style={[styles.opsQuickContextCard, isLightTheme && styles.opsQuickContextCardLight]}>
+          <Text style={[styles.opsQuickContextLine, isLightTheme && styles.opsQuickContextLineLight]}>
+            {currentLocationName ? `Sede actual: ${currentLocationName}` : 'Sede actual: no detectada'}
+          </Text>
+          <Text style={[styles.opsQuickContextLine, isLightTheme && styles.opsQuickContextLineLight]}>
+            {currentSession?.cash_register?.name ? `Caja: ${currentSession.cash_register.name}` : 'Caja: sin sesión abierta'}
+          </Text>
+          <Text style={[styles.opsQuickContextHint, isLightTheme && styles.opsQuickContextHintLight]}>
+            {offlineMode
+              ? 'Modo offline: la consulta rápida necesita conexión.'
+              : 'Usa hoy o el turno actual como contexto según la acción elegida.'}
+          </Text>
+        </View>
+
+        <View style={styles.opsQuickActionsGrid}>
+          {POS_OPS_QUICK_ACTIONS.map((action) => {
+            const active = opsQuickActionId === action.id;
+            return (
+              <Pressable
+                key={action.id}
+                onPress={() => runOpsQuickAction(action)}
+                disabled={opsQuickLoading || offlineMode}
+                style={[
+                  styles.opsQuickActionBtn,
+                  isLightTheme && styles.opsQuickActionBtnLight,
+                  active && styles.opsQuickActionBtnActive,
+                  (opsQuickLoading || offlineMode) && styles.opsQuickActionBtnDisabled,
+                ]}
+              >
+                <Ionicons
+                  name={action.icon}
+                  size={18}
+                  color={active ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#fde68a')}
+                />
+                <Text
+                  style={[
+                    styles.opsQuickActionBtnText,
+                    isLightTheme && styles.opsQuickActionBtnTextLight,
+                    active && styles.opsQuickActionBtnTextActive,
+                  ]}
+                >
+                  {action.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {opsQuickLoading ? (
+          <View style={[styles.opsQuickLoadingCard, isLightTheme && styles.opsQuickLoadingCardLight]}>
+            <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#fde68a'} />
+            <Text style={[styles.opsQuickLoadingText, isLightTheme && styles.opsQuickLoadingTextLight]}>
+              Consultando agente operativo...
+            </Text>
+          </View>
+        ) : null}
+
+        {opsQuickError ? <Text style={styles.opsQuickErrorText}>{opsQuickError}</Text> : null}
+
+        {opsQuickResult ? (
+          <View style={[styles.opsQuickResultCard, isLightTheme && styles.opsQuickResultCardLight]}>
+            {opsQuickMeta?.label ? (
+              <Text style={[styles.opsQuickResultTitle, isLightTheme && styles.opsQuickResultTitleLight]}>
+                {opsQuickMeta.label}
+              </Text>
+            ) : null}
+
+            {opsQuickMeta?.rangeLabel || opsQuickMeta?.locationName ? (
+              <Text style={[styles.opsQuickResultMeta, isLightTheme && styles.opsQuickResultMetaLight]}>
+                {[opsQuickMeta?.rangeLabel, opsQuickMeta?.locationName ? `Sede ${opsQuickMeta.locationName}` : null]
+                  .filter(Boolean)
+                  .join(' | ')}
+              </Text>
+            ) : null}
+
+            {opsQuickResult.summary ? (
+              <Text style={[styles.opsQuickResultSummary, isLightTheme && styles.opsQuickResultSummaryLight]}>
+                {opsQuickResult.summary}
+              </Text>
+            ) : null}
+
+            <Text style={[styles.opsQuickResultAnswer, isLightTheme && styles.opsQuickResultAnswerLight]}>
+              {opsQuickResult.answer}
+            </Text>
+
+            {opsQuickResult.clarifyingQuestion ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Pregunta de precision
+                </Text>
+                <Text style={[styles.opsQuickBlockLine, isLightTheme && styles.opsQuickBlockLineLight]}>
+                  {opsQuickResult.clarifyingQuestion}
+                </Text>
+              </View>
+            ) : null}
+
+            {opsQuickResult.suggestedActions.length > 0 ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Acciones sugeridas
+                </Text>
+                {opsQuickResult.suggestedActions.map((item, index) => (
+                  <Text
+                    key={`${opsQuickActionId || 'ops'}-action-${index}`}
+                    style={[styles.opsQuickBlockLine, isLightTheme && styles.opsQuickBlockLineLight]}
+                  >
+                    - {item}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {opsQuickResult.citations.length > 0 ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Citas
+                </Text>
+                <View style={styles.opsQuickCitationRow}>
+                  {opsQuickResult.citations.map((item) => (
+                    <View key={item} style={[styles.opsQuickCitationChip, isLightTheme && styles.opsQuickCitationChipLight]}>
+                      <Text style={[styles.opsQuickCitationChipText, isLightTheme && styles.opsQuickCitationChipTextLight]}>
+                        {item}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {opsQuickResult.retrievalErrors.length > 0 ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Observaciones
+                </Text>
+                {opsQuickResult.retrievalErrors.map((item, index) => (
+                  <Text
+                    key={`${opsQuickActionId || 'ops'}-error-${index}`}
+                    style={[styles.opsQuickBlockLine, isLightTheme && styles.opsQuickBlockLineLight]}
+                  >
+                    - {item}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            <Text style={[styles.opsQuickResultMeta, isLightTheme && styles.opsQuickResultMetaLight]}>
+              Dominios: {opsQuickResult.domains.length ? opsQuickResult.domains.join(', ') : 'inferidos'}
+              {opsQuickResult.confidence != null ? ` | Confianza ${Math.round(opsQuickResult.confidence * 100)}%` : ''}
+              {opsQuickResult.model ? ` | Modelo ${opsQuickResult.model}` : ''}
+              {` | Cache ${opsQuickResult.cacheHit ? 'si' : 'no'}`}
+            </Text>
+          </View>
+        ) : null}
+      </BottomSheetModal>
       {floatingNotice ? (
         <View
           style={[
@@ -2978,6 +3343,43 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
+  opsQuickLaunchBtn: {
+    borderWidth: 1,
+    borderColor: '#7c5a10',
+    borderRadius: 10,
+    backgroundColor: '#1f1a0a',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  opsQuickLaunchBtnLight: {
+    borderColor: '#e6c36a',
+    backgroundColor: '#fff7db',
+  },
+  opsQuickLaunchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  opsQuickLaunchTextWrap: {
+    flex: 1,
+  },
+  opsQuickLaunchTitle: {
+    color: '#fde68a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  opsQuickLaunchTitleLight: {
+    color: '#8a5a00',
+  },
+  opsQuickLaunchHint: {
+    color: '#fef3c7',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  opsQuickLaunchHintLight: {
+    color: '#946200',
+  },
   aiIconBtn: {
     flex: 1,
     minHeight: 52,
@@ -3021,6 +3423,15 @@ const styles = StyleSheet.create({
     maxHeight: 90,
     textAlignVertical: 'top',
     marginBottom: 0,
+  },
+  chatComposerHint: {
+    color: '#93c5fd',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  chatComposerHintLight: {
+    color: '#475569',
   },
   chatSendBtn: {
     width: 44,
@@ -3137,6 +3548,265 @@ const styles = StyleSheet.create({
   },
   embeddedLlmMetaLight: {
     color: '#334155',
+  },
+  opsQuickSheetTitle: {
+    color: '#eff6ff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  opsQuickSheetTitleLight: {
+    color: '#0f172a',
+  },
+  opsQuickSheetSubtitle: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  opsQuickSheetSubtitleLight: {
+    color: '#475569',
+  },
+  opsQuickContextCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    padding: 10,
+    marginBottom: 10,
+  },
+  opsQuickContextCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fafc',
+  },
+  opsQuickContextLine: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  opsQuickContextLineLight: {
+    color: '#0f172a',
+  },
+  opsQuickContextHint: {
+    color: '#93c5fd',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  opsQuickContextHintLight: {
+    color: '#475569',
+  },
+  opsQuickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  opsQuickActionBtn: {
+    width: '48%',
+    minHeight: 74,
+    borderWidth: 1,
+    borderColor: '#7c5a10',
+    borderRadius: 12,
+    backgroundColor: '#1f1a0a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  opsQuickActionBtnLight: {
+    borderColor: '#e6c36a',
+    backgroundColor: '#fff7db',
+  },
+  opsQuickActionBtnActive: {
+    borderColor: '#0f766e',
+    backgroundColor: '#0f766e',
+  },
+  opsQuickActionBtnDisabled: {
+    opacity: 0.6,
+  },
+  opsQuickActionBtnText: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  opsQuickActionBtnTextLight: {
+    color: '#8a5a00',
+  },
+  opsQuickActionBtnTextActive: {
+    color: '#ecfeff',
+  },
+  opsQuickLoadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#7c5a10',
+    borderRadius: 10,
+    backgroundColor: '#1f1a0a',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  opsQuickLoadingCardLight: {
+    borderColor: '#e6c36a',
+    backgroundColor: '#fff7db',
+  },
+  opsQuickLoadingText: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  opsQuickLoadingTextLight: {
+    color: '#8a5a00',
+  },
+  opsQuickErrorText: {
+    color: '#ef4444',
+    marginBottom: 10,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  opsQuickResultCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    padding: 12,
+    marginBottom: 10,
+  },
+  opsQuickResultCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  opsQuickResultTitle: {
+    color: '#eff6ff',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  opsQuickResultTitleLight: {
+    color: '#0f172a',
+  },
+  opsQuickResultMeta: {
+    color: '#94a3b8',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  opsQuickResultMetaLight: {
+    color: '#64748b',
+  },
+  opsQuickResultSummary: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  opsQuickResultSummaryLight: {
+    color: '#1d4ed8',
+  },
+  opsQuickResultAnswer: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  opsQuickResultAnswerLight: {
+    color: '#0f172a',
+  },
+  opsQuickBlock: {
+    marginTop: 10,
+  },
+  opsQuickBlockTitle: {
+    color: '#eff6ff',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  opsQuickBlockTitleLight: {
+    color: '#0f172a',
+  },
+  opsQuickBlockLine: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  opsQuickBlockLineLight: {
+    color: '#334155',
+  },
+  opsQuickCitationRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  opsQuickCitationChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  opsQuickCitationChipLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  opsQuickCitationChipText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  opsQuickCitationChipTextLight: {
+    color: '#334155',
+  },
+  opsQuickFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  opsQuickFooterBtn: {
+    minWidth: 92,
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  opsQuickFooterBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  opsQuickFooterBtnText: {
+    color: '#cbd5e1',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  opsQuickFooterBtnTextLight: {
+    color: '#334155',
+  },
+  opsQuickFooterPrimaryBtn: {
+    minWidth: 110,
+    borderRadius: 10,
+    backgroundColor: '#235ea9',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  opsQuickFooterPrimaryBtnLight: {
+    backgroundColor: '#235ea9',
+  },
+  opsQuickFooterPrimaryBtnText: {
+    color: '#eff6ff',
+    fontWeight: '800',
+    fontSize: 12,
   },
   favoritesWrap: {
     marginBottom: 6,

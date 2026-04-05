@@ -78,21 +78,24 @@ EXPO_PUBLIC_DEEPSEEK_TEXT_MODEL=deepseek-chat
 
 ## Uso en POS
 1. Ir a `Punto de Venta`.
-2. Pegar texto en campo de chat.
-3. Pulsar `Convertir chat a venta (IA)`.
-4. Revisar resumen:
+2. Abrir `IA` y luego `Natural`.
+3. Escribir o pegar el pedido en lenguaje natural.
+4. Pulsar enviar.
+5. Revisar resumen:
    - `Cargados`
    - `Confianza IA`
    - `Sin match`
    - `Cliente sugerido`
-5. Validar carrito y cobrar.
+6. Validar carrito y cobrar.
 
 ## Reglas y límites actuales
-- Requiere conexión online (no disponible en offline).
+- Si hay conexion, el flujo puede usar cache, parser local, LLM local o fallback cloud.
+- En offline puede funcionar si el parser/cache local logra interpretar el comando y el catalogo ya esta disponible en cache.
 - No confirma venta automáticamente.
 - Si no hay coincidencias de catálogo, no precarga líneas.
 - La IA no reemplaza reglas de negocio del POS.
 - Primero consulta cache por hash de chat; si existe hit, evita llamada a IA.
+- Si la conversion falla, el texto queda en pantalla para corregirlo y reintentar.
 
 ## Prueba rápida
 Texto de ejemplo:

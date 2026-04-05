@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-04-03
+Fecha: 2026-04-04
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -14,6 +14,82 @@ Regla de trabajo:
 - si se crea, migra, elimina o cambia el alcance de un modulo, este documento debe ajustarse
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
+
+## Actualizacion reciente (2026-04-04) — Base de agente RAG operativo reusable para mobile/web
+
+### Ajuste posterior (2026-04-04) — mejor cobertura para consultas de vencimientos
+
+Se endurecio la primera version del agente RAG para consultas de expiracion/lotes:
+- el routing del dominio `inventory` ahora reconoce mejor vocabulario real de usuario como `vencido`, `vencidos`, `vence`, `por vencer`, `caduca`, `expira` y `fefo`
+- el retrieval de inventario ya no depende solo del bloque `<= 30 dias`; ahora expone resumen de vencimientos, proximos lotes a vencer y lotes ya vencidos
+- se subio `CACHE_VERSION` del agente para evitar que respuestas viejas cacheadas sigan devolviendo falta de contexto en preguntas de vencimientos
+
+### Ajuste posterior (2026-04-04) — soporte explicito para productos menos vendidos
+
+Se ajusto el dominio `sales` del agente RAG para consultas de baja rotacion:
+- el routing ahora reconoce frases como `menos vendidos`, `baja rotacion`, `menor rotacion` y `poca rotacion`
+- el retrieval ya no expone solo `sales_top_products`; ahora agrega `sales_low_rotation_summary` y `sales_low_rotation_products`
+- cuando el catalogo activo esta disponible, el agente puede incluir variantes con `0 ventas` en el rango para responder mejor preguntas de `menos vendidos`
+- se actualizo nuevamente `CACHE_VERSION` para invalidar respuestas cacheadas previas que no tenian estos bloques
+
+### Ajuste posterior (2026-04-04) — consultas de que comprar / reabastecimiento
+
+Se corrigio el routing de consultas de compra sugerida:
+- preguntas como `que debo comprar`, `que debo pedir`, `reponer`, `reabastecer` o `comprar para la proxima semana` ya no quedan sesgadas solo al dominio `purchases`
+- el agente ahora fuerza combinacion de `inventory + sales + purchases` para esa intencion
+- el prompt grounded tambien se ajusto para priorizar stock/riesgo + top ventas + compras recientes antes de recomendar productos concretos
+
+### Alcance nuevo
+
+Se agrego la primera base de un agente operativo con retrieval orientado a datos reales del tenant:
+- nueva Edge Function `ops-rag-agent`
+- retrieval SQL multi-dominio sobre `sales`, `inventory`, `purchases`, `cash`, `portfolio` y `production`
+- respuesta grounded con `citations` a bloques recuperados
+- cache compartida en BD para reuso entre clientes mobile y web
+
+### Diseno aplicado
+
+- el agente no ejecuta acciones transaccionales; responde sobre contexto recuperado
+- el routing de dominios es deterministico, con soporte para hints explicitos enviados por el cliente
+- el retrieval usa las tablas operativas reales y respeta el usuario autenticado via JWT
+- se creo `src/services/opsRagAgent.service.js` como cliente mobile del contrato comun
+- se documento el contrato y despliegue en `docs/OPS_RAG_AGENT.md`
+
+### Archivos modificados en esta sesion
+
+- `supabase/functions/ops-rag-agent/index.ts` — Edge Function RAG multi-dominio
+- `migrations/ADD_OPS_RAG_AGENT_CACHE.sql` — cache compartida del agente
+- `src/services/opsRagAgent.service.js` — wrapper cliente mobile
+- `docs/OPS_RAG_AGENT.md` — contrato, deploy y uso
+
+## Actualizacion reciente (2026-04-04) — POS con lenguaje natural mas operativo en caja
+
+### Ajuste posterior (2026-04-04) — consulta rapida contextual desde POS
+
+Se llevo parte del valor del agente operativo directamente al flujo de caja:
+- `PointOfSaleScreen` ahora expone una `Consulta rapida` dentro del bloque IA del POS
+- la consulta usa el contexto de caja actual para lanzar preguntas operativas sin salir del flujo de venta
+- se agregaron 4 accesos directos orientados a caja: `Mas vendidos hoy`, `Menos vendidos hoy`, `Stock critico` y `Resumen turno`
+- las respuestas muestran resumen grounded, acciones sugeridas, citas y metadata basica de confianza/cache dentro de un bottom sheet
+- en `offlineMode` la UI deja visible la funcionalidad, pero explica que necesita conectividad para responder
+
+### Problemas corregidos
+
+El flujo de carga por texto natural en POS ya existia, pero seguia teniendo fricciones de uso real:
+- el modo de texto seguia rotulado como `Chat`, lo que ocultaba que acepta lenguaje natural libre
+- el input se limpiaba incluso cuando el comando fallaba o quedaba con `sin match`, obligando al cajero a reescribir
+- texto y voz quedaban bloqueados esperando el modelo embebido, aunque el parser deterministico o el fallback cloud podian resolver
+
+### Solucion aplicada
+
+- el acceso de texto IA en POS ahora se presenta como `Natural`, mas alineado al uso real en operacion
+- el composer muestra un ejemplo explicito de lenguaje natural para guiar al cajero
+- `parseChatOrderWithAgent()` ya no bloquea por preparacion del modelo embebido y solo limpia el texto cuando la conversion al carrito fue exitosa
+- `parseVoiceOrderWithVosk()` tambien deja de depender del modelo embebido para poder intentar resolver por parser/cache/cloud
+
+### Archivos modificados en esta sesion
+
+- `src/screens/PointOfSaleScreen.js` — UX mas clara para lenguaje natural y menor friccion operativa
 
 ## Actualizacion reciente (2026-04-03) — Hardening transversal de offline, sync y compras
 
