@@ -28,7 +28,10 @@ import {
   searchVariants,
   warmPosCatalog,
   warmCustomersCatalog,
+  warmPricingRules,
+  getPricingRulesFromCache,
 } from '../services/pos.service';
+import { resolveApplicableRule, applyPriceRule } from '../../../shared/utils/pricingRuleEngine';
 import { listProductCoverImageUrls } from '../services/productsCatalog.service';
 import { analyzeInvoiceWithImage, matchInvoiceLinesToCatalog } from '../services/invoiceAgent.service';
 import {
@@ -605,6 +608,7 @@ export default function PointOfSaleScreen({
   const resultImageUrlsRef = useRef({});
   const autosaveTimerRef = useRef(null);
   const activeCartRestoredRef = useRef(false);
+  const pricingRulesRef = useRef([]);
 
   const currency = tenant?.currency_code || 'COP';
   const roundingMethod = tenantSettings?.rounding_method || 'normal';
@@ -889,11 +893,17 @@ export default function PointOfSaleScreen({
           setCurrentSession(session.data);
         }
 
+        const warmLocationId = session?.data?.cash_register?.location_id || null;
         if (!offlineMode) {
-          await Promise.all([
-            warmPosCatalog(tenantId, session?.data?.cash_register?.location_id || null),
+          const [, , rulesResult] = await Promise.all([
+            warmPosCatalog(tenantId, warmLocationId),
             warmCustomersCatalog(tenantId),
+            warmPricingRules(tenantId, warmLocationId),
           ]);
+          if (active && rulesResult.success) pricingRulesRef.current = rulesResult.data;
+        } else {
+          const cached = await getPricingRulesFromCache(tenantId, warmLocationId);
+          if (active) pricingRulesRef.current = cached;
         }
       } finally {
         if (active) setLoadingInit(false);
@@ -1220,7 +1230,17 @@ export default function PointOfSaleScreen({
     setError('');
     const qtyToAdd = Math.max(1, Math.round(Number(quantity || 1)));
     const explicitUnitPrice = Number(unitPrice || 0);
-    const initialUnitPrice = explicitUnitPrice > 0 ? explicitUnitPrice : Number(variant.price || 0);
+    let initialUnitPrice = explicitUnitPrice > 0 ? explicitUnitPrice : Number(variant.price || 0);
+    if (explicitUnitPrice <= 0 && pricingRulesRef.current.length > 0) {
+      const rule = resolveApplicableRule(pricingRulesRef.current, {
+        variantId: variant.variant_id,
+        productId: variant.product?.product_id || null,
+        categoryId: variant.product?.category_id || null,
+        locationId: currentSession?.cash_register?.location_id || null,
+      });
+      const rulePrice = applyPriceRule(Number(variant.cost || 0), rule);
+      if (rulePrice !== null) initialUnitPrice = rulePrice;
+    }
     const taxResult = await getTaxInfoForVariant(tenant?.tenant_id, variant.variant_id);
 
     setCart((prev) => {

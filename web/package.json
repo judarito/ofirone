@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "generate:templates": "node scripts/generate-templates.js"
+    "generate:templates": "node scripts/generate-templates.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
@@ -25,6 +27,7 @@
     "@vitejs/plugin-vue": "^5.0.3",
     "supabase": "^2.76.15",
     "vite": "^5.0.12",
-    "vite-plugin-vuetify": "^2.0.1"
+    "vite-plugin-vuetify": "^2.0.1",
+    "vitest": "^2.1.9"
   }
 }

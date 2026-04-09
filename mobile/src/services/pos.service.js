@@ -21,6 +21,10 @@ function catalogCacheKey(tenantId, locationId) {
   return `pos-catalog:${tenantId}:${locationId || 'na'}`;
 }
 
+function pricingRulesCacheKey(tenantId, locationId) {
+  return `pos-pricing-rules:${tenantId}:${locationId || 'na'}`;
+}
+
 function paymentMethodsCacheKey(tenantId) {
   return `pos-payment-methods:${tenantId}`;
 }
@@ -303,7 +307,7 @@ export async function warmPosCatalog(tenantId, locationId = null, limit = 2000) 
       .select(
         `
           variant_id, sku, variant_name, cost, price, price_includes_tax, is_active, is_component,
-          product:product_id(product_id, name, is_component)
+          product:product_id(product_id, name, category_id, is_component)
         `,
       )
       .eq('tenant_id', tenantId)
@@ -738,4 +742,29 @@ export async function createSale(tenantId, saleData) {
     }
     return { success: false, error: error.message };
   }
+}
+
+export async function warmPricingRules(tenantId, locationId = null) {
+  try {
+    const { data, error } = await supabase
+      .from('pricing_rules')
+      .select(
+        'pricing_rule_id,scope,location_id,category_id,product_id,variant_id,' +
+        'pricing_method,markup_percentage,price_rounding,rounding_to,priority,is_active',
+      )
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('priority', { ascending: false });
+
+    if (error) throw error;
+    await saveSimpleCache(pricingRulesCacheKey(tenantId, locationId), data || []);
+    return { success: true, data: data || [] };
+  } catch (error) {
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function getPricingRulesFromCache(tenantId, locationId = null) {
+  const cached = await getSimpleCache(pricingRulesCacheKey(tenantId, locationId));
+  return cached?.value || [];
 }
