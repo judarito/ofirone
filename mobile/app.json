@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "OfirOne",
+    "slug": "poslite-mobile",
+    "version": "1.0.0",
+    "newArchEnabled": true,
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.juan.d.ricardo.t.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "OfirOne necesita acceso al microfono para procesar comandos de voz."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "package": "com.juan.d.ricardo.t.app",
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#2563EB",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "OfirOne necesita acceso a la camara para escanear facturas.",
+          "photosPermission": "OfirOne necesita acceso a fotos para seleccionar facturas."
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9e8bb899-b7f4-4a46-b047-dfd27a5c341e"
+      }
+    }
+  }
+}

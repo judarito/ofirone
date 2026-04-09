@@ -1,0 +1,87 @@
+export const MOBILE_APP_BAR_TITLES = {
+  Home: 'OfirOne',
+  PointOfSale: 'Punto de Venta',
+  Sales: 'Historial Ventas',
+  Layaway: 'Plan Separe',
+  ThirdParties: 'Terceros',
+  Customers: 'Clientes',
+  Suppliers: 'Proveedores',
+  Cartera: 'Cartera',
+  Products: 'Productos',
+  Categories: 'Categorias',
+  Units: 'Unidades de Medida',
+  BulkImports: 'Carga Masiva',
+  Inventory: 'Inventario',
+  Batches: 'Lotes y Vencimientos',
+  Purchases: 'Compras',
+  ProductionOrders: 'Ordenes de Produccion',
+  BOMs: 'Listas de Materiales',
+  CashSessions: 'Sesiones de Caja',
+  CashRegisters: 'Cajas Registradoras',
+  CashAssignments: 'Asignacion de Cajas',
+  PaymentMethods: 'Metodos de Pago',
+  Reports: 'Reportes',
+  AIInsights: 'Centro IA',
+  Setup: 'Configuracion',
+  TenantConfig: 'Config Empresa',
+  TenantManagement: 'Gestion Empresa',
+  Locations: 'Sedes',
+  Taxes: 'Impuestos',
+  TaxRules: 'Reglas de Impuesto',
+  PricingRules: 'Reglas de Precio',
+  Users: 'Usuarios',
+  RolesMenus: 'Roles y Menus',
+  About: 'Acerca de',
+};
+
+const MOBILE_SUPPORTED_SCREENS = new Set([
+  'PointOfSale',
+  'Sales',
+  'Layaway',
+  'ThirdParties',
+  'Customers',
+  'Suppliers',
+  'Cartera',
+  'Products',
+  'Categories',
+  'Units',
+  'BulkImports',
+  'Inventory',
+  'Batches',
+  'Purchases',
+  'ProductionOrders',
+  'BOMs',
+  'CashSessions',
+  'CashRegisters',
+  'CashAssignments',
+  'PaymentMethods',
+  'Reports',
+  'AIInsights',
+  'Setup',
+  'TenantConfig',
+  'TenantManagement',
+  'Locations',
+  'Taxes',
+  'TaxRules',
+  'PricingRules',
+  'Users',
+  'RolesMenus',
+  'About',
+]);
+
+export function getMobileAppBarTitle(screen) {
+  return MOBILE_APP_BAR_TITLES[screen] || 'OfirOne';
+}
+
+export function isMobileScreenSupported(screen) {
+  return MOBILE_SUPPORTED_SCREENS.has(screen);
+}
+
+export function resolveReportsInitialTab(route) {
+  const normalized = String(route || '').toLowerCase();
+  if (normalized.includes('/reports/cajas')) return 'cash';
+  if (normalized.includes('/reports/inventario')) return 'inventory';
+  if (normalized.includes('/reports/financiero')) return 'financial';
+  if (normalized.includes('/reports/produccion')) return 'production';
+  return 'sales';
+}

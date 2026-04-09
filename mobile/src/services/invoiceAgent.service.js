@@ -1,0 +1,474 @@
+import { supabase } from '../lib/supabase';
+
+const OCR_EDGE_FUNCTION = process.env.EXPO_PUBLIC_DEEPSEEK_OCR_EDGE_FUNCTION || 'deepseek-ocr-proxy';
+const TEXT_EDGE_FUNCTION = process.env.EXPO_PUBLIC_DEEPSEEK_TEXT_EDGE_FUNCTION || 'deepseek-proxy';
+const DEFAULT_TEXT_MODEL = process.env.EXPO_PUBLIC_DEEPSEEK_TEXT_MODEL || 'deepseek-chat';
+
+async function extractInvokeError(error) {
+  const fragments = [];
+  if (error?.message) fragments.push(String(error.message));
+
+  const context = error?.context;
+  if (!context) return fragments.join(' | ') || 'Error desconocido';
+
+  try {
+    const response = typeof context.clone === 'function' ? context.clone() : context;
+    if (response?.status) fragments.push(`HTTP ${response.status}`);
+
+    let bodyJson = null;
+    if (typeof response?.json === 'function') {
+      bodyJson = await response.json().catch(() => null);
+    }
+
+    if (bodyJson?.error) fragments.push(String(bodyJson.error));
+    if (bodyJson?.details) fragments.push(String(bodyJson.details));
+
+    if (!bodyJson && typeof response?.text === 'function') {
+      const bodyText = await response.text().catch(() => '');
+      if (bodyText?.trim()) fragments.push(bodyText.trim().slice(0, 280));
+    }
+  } catch (_e) {
+    // No-op: keep original invoke message.
+  }
+
+  const unique = Array.from(new Set(fragments.filter(Boolean)));
+  return unique.join(' | ') || 'Error desconocido';
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeSku(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+const SIZE_TOKENS = new Set([
+  'xs',
+  's',
+  'm',
+  'l',
+  'xl',
+  'xxl',
+  'xxxl',
+  '2xl',
+  '3xl',
+  '4xl',
+]);
+
+const MATCH_STOP_TOKENS = new Set([
+  'de',
+  'del',
+  'la',
+  'las',
+  'el',
+  'los',
+  'y',
+  'en',
+  'con',
+  'por',
+  'para',
+  'un',
+  'una',
+]);
+
+function normalizeSizeToken(token) {
+  const clean = String(token || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  if (!clean) return null;
+  if (SIZE_TOKENS.has(clean)) return clean;
+  return null;
+}
+
+function tokenize(value) {
+  return normalizeText(value)
+    .split(' ')
+    .filter((t) => !MATCH_STOP_TOKENS.has(t))
+    .filter((t) => t.length >= 2 || SIZE_TOKENS.has(t));
+}
+
+function extractSizeTokens(value) {
+  const tokens = normalizeText(value).split(' ').filter(Boolean);
+  const sizes = new Set();
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const current = tokens[i];
+    const next = tokens[i + 1];
+
+    const direct = normalizeSizeToken(current);
+    if (direct) sizes.add(direct);
+
+    if (current === 'talla' && next) {
+      const hinted = normalizeSizeToken(next);
+      if (hinted) sizes.add(hinted);
+    }
+  }
+
+  return sizes;
+}
+
+function parseAiJson(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch (_e) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch (_err) {
+      return null;
+    }
+  }
+}
+
+function scoreByTokens(lineText, candidate) {
+  const lineTokens = tokenize(lineText);
+  if (lineTokens.length === 0) return 0;
+
+  const candidateNameText = `${candidate?.product?.name || ''} ${candidate?.variant_name || ''}`.trim();
+  const candidateSkuText = `${candidate?.sku || ''}`.trim();
+  const candidateNameTokens = tokenize(candidateNameText);
+  if (candidateNameTokens.length === 0) return 0;
+
+  const normalizedLine = normalizeText(lineText);
+  const normalizedCandidateName = normalizeText(candidateNameText);
+  const nameTokenSet = new Set(candidateNameTokens);
+  const skuTokenSet = new Set(tokenize(candidateSkuText));
+
+  const nameIntersectionTokens = lineTokens.filter((token) => nameTokenSet.has(token));
+  const skuIntersectionTokens = lineTokens.filter((token) => skuTokenSet.has(token));
+  const nameIntersection = nameIntersectionTokens.length;
+  const strongNameOverlap = nameIntersectionTokens.filter((token) => token.length >= 4 || SIZE_TOKENS.has(token)).length;
+  const containmentBonus =
+    normalizedCandidateName.includes(normalizedLine) || normalizedLine.includes(normalizedCandidateName)
+      ? 0.12
+      : 0;
+
+  // No permitas que un prefijo corto del SKU (ej: PAN-...) fuerce match si el nombre no coincide.
+  if (nameIntersection === 0 && containmentBonus === 0) {
+    return 0;
+  }
+
+  let score = nameIntersection / lineTokens.length;
+
+  if (strongNameOverlap > 0) {
+    score += 0.08;
+  }
+
+  if (skuIntersectionTokens.length > 0 && nameIntersection > 0) {
+    score += 0.04;
+  }
+
+  return Math.min(1, score + containmentBonus);
+}
+
+function findBestVariantMatch(line, catalog) {
+  const lineSku = normalizeSku(line?.sku);
+  const rawName = String(`${line?.raw_name || line?.name || ''} ${line?.unit_hint || ''}`).trim();
+  const normalizedName = normalizeText(rawName);
+  const lineSizes = extractSizeTokens(rawName);
+
+  if (lineSku) {
+    const bySku = catalog.find((item) => normalizeSku(item?.sku) === lineSku);
+    if (bySku) {
+      return { variant: bySku, confidence: 1, matchReason: 'sku_exact' };
+    }
+  }
+
+  if (normalizedName) {
+    const exactName = catalog.find((item) => {
+      const candidate = normalizeText(`${item?.product?.name || ''} ${item?.variant_name || ''}`);
+      return candidate === normalizedName;
+    });
+    if (exactName) {
+      return { variant: exactName, confidence: 0.94, matchReason: 'name_exact' };
+    }
+  }
+
+  let candidates = Array.isArray(catalog) ? [...catalog] : [];
+  if (lineSizes.size > 0) {
+    const sizedCandidates = candidates.filter((candidate) => {
+      const candidateText = `${candidate?.product?.name || ''} ${candidate?.variant_name || ''} ${candidate?.sku || ''}`;
+      const candidateSizes = extractSizeTokens(candidateText);
+      return candidateSizes.size > 0;
+    });
+    const withOverlappingSize = sizedCandidates.filter((candidate) => {
+      const candidateText = `${candidate?.product?.name || ''} ${candidate?.variant_name || ''} ${candidate?.sku || ''}`;
+      const candidateSizes = extractSizeTokens(candidateText);
+      return Array.from(lineSizes).some((size) => candidateSizes.has(size));
+    });
+
+    // Si hay variantes con talla pero ninguna coincide con la talla pedida, no fuerces match.
+    if (sizedCandidates.length > 0 && withOverlappingSize.length === 0) {
+      return null;
+    }
+
+    // Si existe solape de talla, limita candidatos solo a esas variantes.
+    if (withOverlappingSize.length > 0) {
+      candidates = withOverlappingSize;
+    }
+  }
+
+  let best = null;
+  for (const candidate of candidates) {
+    let score = scoreByTokens(rawName, candidate);
+    const candidateText = `${candidate?.product?.name || ''} ${candidate?.variant_name || ''} ${candidate?.sku || ''}`;
+    const candidateSizes = extractSizeTokens(candidateText);
+
+    if (lineSizes.size > 0 && candidateSizes.size > 0) {
+      const hasSizeOverlap = Array.from(lineSizes).some((size) => candidateSizes.has(size));
+      if (hasSizeOverlap) score += 0.35;
+      else score -= 0.35;
+    }
+
+    if (lineSizes.size > 0 && candidateSizes.size === 0) {
+      score -= 0.15;
+    }
+
+    if (!best || score > best.score) {
+      best = { candidate, score };
+    }
+  }
+
+  if (best && best.score >= 0.52) {
+    return {
+      variant: best.candidate,
+      confidence: Number(Math.min(1, Math.max(0, best.score)).toFixed(3)),
+      matchReason: 'name_tokens',
+    };
+  }
+
+  return null;
+}
+
+export async function analyzeInvoiceWithText({ tenantId, ocrText }) {
+  if (!tenantId) {
+    return { success: false, error: 'tenantId es requerido.' };
+  }
+  const extractedText = String(ocrText || '').trim();
+  if (!extractedText) {
+    return { success: false, error: 'No hay texto OCR para analizar.' };
+  }
+  const clippedText = extractedText.slice(0, 12000);
+
+  const systemPrompt =
+    'Eres un agente estructurador de facturas para POS. A partir de texto OCR, extrae productos y cantidades con alta precision. Responde SOLO JSON valido.';
+
+  const userPrompt = `Analiza este texto OCR de una factura y responde JSON con:
+{
+  "invoice": {
+    "vendor_name": "string|null",
+    "invoice_number": "string|null",
+    "date": "YYYY-MM-DD|null",
+    "currency": "string|null",
+    "subtotal": number|null,
+    "tax": number|null,
+    "total": number|null
+  },
+  "line_items": [
+    {
+      "raw_name": "string",
+      "sku": "string|null",
+      "quantity": number,
+      "unit_price": number|null,
+      "line_total": number|null
+    }
+  ]
+}
+
+Reglas:
+- quantity debe ser > 0 (si no existe, usa 1).
+- Si no puedes inferir un campo, usa null.
+- No agregues texto fuera del JSON.
+- No inventes lineas o precios no presentes.
+- Conserva atributos de variante en raw_name (ej: talla, color, presentacion, capacidad).
+
+Texto OCR:
+"""${clippedText}"""`;
+
+  const { data, error } = await supabase.functions.invoke(TEXT_EDGE_FUNCTION, {
+    body: {
+      model: DEFAULT_TEXT_MODEL,
+      temperature: 0.1,
+      max_tokens: 2400,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    },
+  });
+
+  if (error) {
+    const details = await extractInvokeError(error);
+    return {
+      success: false,
+      error: `Error invocando Edge Function "${TEXT_EDGE_FUNCTION}": ${details}.`,
+    };
+  }
+
+  const content = data?.content;
+  const parsed = parseAiJson(content);
+  if (!parsed || !Array.isArray(parsed.line_items)) {
+    return { success: false, error: 'No se pudo parsear la respuesta de IA para la factura.' };
+  }
+
+  const normalized = parsed.line_items
+    .map((item) => ({
+      raw_name: String(item?.raw_name || '').trim(),
+      sku: item?.sku ? String(item.sku).trim() : null,
+      quantity: Math.max(1, Number(item?.quantity || 1)),
+      unit_price: item?.unit_price == null ? null : Number(item.unit_price || 0),
+      line_total: item?.line_total == null ? null : Number(item.line_total || 0),
+    }))
+    .filter((item) => item.raw_name);
+
+  return {
+    success: true,
+    data: {
+      invoice: parsed.invoice || {},
+      line_items: normalized,
+      raw: parsed,
+      model: data?.model || DEFAULT_TEXT_MODEL,
+    },
+  };
+}
+
+export async function analyzeInvoiceWithImage({ tenantId, imageBase64, mimeType = 'image/jpeg' }) {
+  if (!tenantId) {
+    return { success: false, error: 'tenantId es requerido.' };
+  }
+  if (!imageBase64) {
+    return { success: false, error: 'No hay imagen en base64 para analizar.' };
+  }
+  if (String(imageBase64).length > 5_500_000) {
+    return {
+      success: false,
+      error: 'La foto es demasiado grande para IA/OCR. Toma la foto mas cerca o reduce resolucion.',
+    };
+  }
+
+  const prompt = `Analiza el texto OCR de una factura y responde JSON con:
+{
+  "invoice": {
+    "vendor_name": "string|null",
+    "invoice_number": "string|null",
+    "date": "YYYY-MM-DD|null",
+    "currency": "string|null",
+    "subtotal": number|null,
+    "tax": number|null,
+    "total": number|null
+  },
+  "line_items": [
+    {
+      "raw_name": "string",
+      "sku": "string|null",
+      "quantity": number,
+      "unit_price": number|null,
+      "line_total": number|null
+    }
+  ]
+}
+
+Reglas:
+- quantity > 0 (si no existe, usa 1).
+- Si no puedes inferir un campo, usa null.
+- No agregues texto fuera del JSON.
+- No inventes lineas o precios no presentes.
+- Conserva atributos de variante en raw_name (ej: talla, color, presentacion, capacidad).`;
+
+  const { data, error } = await supabase.functions.invoke(OCR_EDGE_FUNCTION, {
+    body: {
+      model: DEFAULT_TEXT_MODEL,
+      temperature: 0.1,
+      max_tokens: 2400,
+      image: imageBase64,
+      mime_type: mimeType,
+      prompt,
+    },
+  });
+
+  if (error) {
+    const details = await extractInvokeError(error);
+    const sizeHint = String(details || '').toLowerCase().includes('maximum size limit 1024 kb')
+      ? ' OCR.Space (plan actual) solo acepta imagenes <= 1MB. La app intenta comprimir automaticamente; si persiste, toma la foto mas cerca y con menos fondo.'
+      : '';
+    return {
+      success: false,
+      error: `Error invocando Edge Function "${OCR_EDGE_FUNCTION}": ${details}.${sizeHint}`,
+    };
+  }
+
+  const content = data?.content;
+  const parsed = parseAiJson(content);
+  if (!parsed || !Array.isArray(parsed.line_items)) {
+    return { success: false, error: 'No se pudo parsear la respuesta OCR+IA para la factura.' };
+  }
+
+  const normalized = parsed.line_items
+    .map((item) => ({
+      raw_name: String(item?.raw_name || '').trim(),
+      sku: item?.sku ? String(item.sku).trim() : null,
+      quantity: Math.max(1, Number(item?.quantity || 1)),
+      unit_price: item?.unit_price == null ? null : Number(item.unit_price || 0),
+      line_total: item?.line_total == null ? null : Number(item.line_total || 0),
+    }))
+    .filter((item) => item.raw_name);
+
+  return {
+    success: true,
+    data: {
+      invoice: parsed.invoice || {},
+      line_items: normalized,
+      raw: parsed,
+      ocr_text: data?.ocr_text || null,
+      model: data?.model || DEFAULT_TEXT_MODEL,
+    },
+  };
+}
+
+export function matchInvoiceLinesToCatalog(lineItems, catalog, options = {}) {
+  const lines = Array.isArray(lineItems) ? lineItems : [];
+  const list = Array.isArray(catalog) ? catalog : [];
+  const configuredMinTokenConfidence = Number(options?.minTokenConfidence);
+  const minTokenConfidence = Number.isFinite(configuredMinTokenConfidence)
+    ? Math.max(0, Math.min(1, configuredMinTokenConfidence))
+    : 0.42;
+
+  const matched = [];
+  const unmatched = [];
+
+  for (const line of lines) {
+    const best = findBestVariantMatch(line, list);
+    if (best?.variant) {
+      const isWeakTokenMatch =
+        best.matchReason === 'name_tokens' &&
+        Number(best.confidence || 0) < minTokenConfidence;
+      if (isWeakTokenMatch) {
+        unmatched.push(line);
+        continue;
+      }
+      matched.push({
+        line,
+        variant: best.variant,
+        confidence: best.confidence,
+        matchReason: best.matchReason,
+      });
+    } else {
+      unmatched.push(line);
+    }
+  }
+
+  return { matched, unmatched };
+}

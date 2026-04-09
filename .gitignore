@@ -1,29 +1,61 @@
-# Logs
+# ─── Node ───────────────────────────────────────────────
+node_modules/
+
+# ─── Logs ───────────────────────────────────────────────
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+# ─── Build output ───────────────────────────────────────
 dist
 dist-ssr
+web-build/
 *.local
 
-# Editor directories and files
+# ─── Expo / React Native ────────────────────────────────
+.expo/
+expo-env.d.ts
+.metro-health-check*
+.kotlin/
+
+# Native generated folders (no commitear)
+/ios
+/android
+
+# Signing / secrets nativos
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-services.json
+android/app/google-services.json
+GoogleService-Info.plist
+ios/app/GoogleService-Info.plist
+
+# ─── Environment variables ──────────────────────────────
+.env
+.env.local
+.env*.local
+
+# ─── Editor ─────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# ─── OS ─────────────────────────────────────────────────
+.DS_Store
+*.pem
+
+# ─── TypeScript ─────────────────────────────────────────
+*.tsbuildinfo

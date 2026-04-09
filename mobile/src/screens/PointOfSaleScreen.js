@@ -1,0 +1,4632 @@
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import BottomSheetModal from '../components/BottomSheetModal';
+import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
+import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
+import { useThemeMode } from '../lib/themeMode';
+import {
+  createSale,
+  findVariantByCode,
+  getCurrentUserOpenSession,
+  getPaymentMethodsForDropdown,
+  getTaxInfoForVariant,
+  listCatalogCandidatesForMatching,
+  searchCustomers,
+  searchCustomersOffline,
+  searchVariantsOffline,
+  searchVariants,
+  warmPosCatalog,
+  warmCustomersCatalog,
+} from '../services/pos.service';
+import { listProductCoverImageUrls } from '../services/productsCatalog.service';
+import { analyzeInvoiceWithImage, matchInvoiceLinesToCatalog } from '../services/invoiceAgent.service';
+import {
+  cancelVoskTranscription,
+  ensureEmbeddedModelReady,
+  extractTextWithNativeOcr,
+  getEmbeddedLlmStatus,
+  getEmbeddedModelStatus,
+  getCommandEngineMetrics,
+  getNativeOcrStatus,
+  getVoskSttStatus,
+  isVoskSttAvailable,
+  resolveSaleCommandFromText,
+  transcribeWithVosk,
+} from '../services/commandEngine';
+import { askOpsRagAgent } from '../services/opsRagAgent.service';
+import { enqueuePendingOp, getPendingOpsCount } from '../storage/sqlite/database';
+import { getOrCreateDeviceId } from '../services/device.service';
+import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.service';
+import { playCartAddSound } from '../services/soundFeedback.service';
+
+const OCR_MAX_BYTES = 980 * 1024;
+const POS_RESULT_IMAGE_SIGNED_URL_TTL = 60 * 30;
+const QUICK_CASH_DENOMINATIONS = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
+const POS_OPS_QUICK_ACTIONS = [
+  {
+    id: 'top_today',
+    label: 'Mas vendidos hoy',
+    icon: 'trending-up-outline',
+    domains: ['sales'],
+    rangeMode: 'today',
+    buildQuery: ({ locationName }) =>
+      `cuales son los productos mas vendidos hoy${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+  {
+    id: 'low_today',
+    label: 'Menos vendidos hoy',
+    icon: 'trending-down-outline',
+    domains: ['sales'],
+    rangeMode: 'today',
+    buildQuery: ({ locationName }) =>
+      `cuales son los productos menos vendidos hoy${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+  {
+    id: 'stock_alerts',
+    label: 'Stock critico',
+    icon: 'alert-circle-outline',
+    domains: ['inventory'],
+    rangeMode: 'today',
+    buildQuery: ({ locationName }) =>
+      `que productos tienen stock critico, bajo minimo o quiebre${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+  {
+    id: 'shift_summary',
+    label: 'Resumen turno',
+    icon: 'receipt-outline',
+    domains: ['sales', 'cash'],
+    rangeMode: 'session',
+    buildQuery: ({ locationName, hasSession }) =>
+      hasSession
+        ? `como van las ventas y la caja del turno actual${locationName ? ` en la sede ${locationName}` : ''}`
+        : `como van las ventas y la caja de hoy${locationName ? ` en la sede ${locationName}` : ''}`,
+  },
+];
+
+let NativeDateTimePicker = null;
+try {
+  NativeDateTimePicker = require('@react-native-community/datetimepicker').default;
+} catch (_error) {
+  NativeDateTimePicker = null;
+}
+
+const WEB_DATE_TIME_INPUT_DARK_STYLE = {
+  width: '100%',
+  border: 'none',
+  outline: 'none',
+  backgroundColor: 'transparent',
+  color: '#f8fafc',
+  fontSize: 14,
+  minHeight: 24,
+};
+
+const WEB_DATE_TIME_INPUT_LIGHT_STYLE = {
+  width: '100%',
+  border: 'none',
+  outline: 'none',
+  backgroundColor: 'transparent',
+  color: '#0f172a',
+  fontSize: 14,
+  minHeight: 24,
+};
+
+function favoritesCacheKey(tenantId, userId) {
+  return `pos-favorites:${tenantId}:${userId}`;
+}
+
+function draftsCacheKey(tenantId, userId) {
+  return `pos-ticket-drafts:${tenantId}:${userId}`;
+}
+
+function activeCartCacheKey(tenantId, userId) {
+  return `pos-active-cart:${tenantId}:${userId}`;
+}
+
+function normalizeLookupText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isCashMethodCode(code) {
+  const value = normalizeLookupText(code);
+  return (
+    value === 'cash' ||
+    value === 'efectivo' ||
+    value === 'cash_efectivo'
+  );
+}
+
+function isLikelyScannerInput(value) {
+  const text = String(value || '').trim();
+  if (text.length < 4) return false;
+  if (text.includes(' ')) return false;
+  return /^[a-z0-9._-]+$/i.test(text);
+}
+
+function roundUpAmount(value, step = 1000) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  const safeStep = Math.max(1, Number(step || 1000));
+  return Math.ceil(numeric / safeStep) * safeStep;
+}
+
+function buildQuickCashOptions(total) {
+  const amount = Number(total || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return QUICK_CASH_DENOMINATIONS.slice(0, 4);
+  }
+
+  const matchingDenominations = QUICK_CASH_DENOMINATIONS.filter((value) => value >= amount);
+  if (matchingDenominations.length >= 4) {
+    return matchingDenominations.slice(0, 4);
+  }
+
+  const generated = [
+    roundUpAmount(amount, 1000),
+    roundUpAmount(amount * 1.25, 1000),
+    roundUpAmount(amount * 1.5, 5000),
+    roundUpAmount(amount * 2, 10000),
+  ];
+
+  return Array.from(new Set([...matchingDenominations, ...generated]))
+    .filter((value) => value > amount)
+    .sort((a, b) => a - b)
+    .slice(0, 4);
+}
+
+function getBaseEngineSourceLabel(source) {
+  const normalized = String(source || '').trim();
+  if (normalized === 'local_cache') return 'caché local';
+  if (normalized === 'deterministic_parser') return 'parser local';
+  if (normalized === 'local_llm') return 'llm local';
+  if (normalized === 'cloud_llm') return 'llm cloud';
+  return normalized || 'engine';
+}
+
+function resolveEngineSummary(engine) {
+  const source = String(engine?.source || '').trim() || 'engine';
+  const originalSource = String(engine?.original_source || '').trim() || null;
+  const inputType = String(engine?.input_type || '').trim() || null;
+  const cacheInputType = String(engine?.cache_input_type || '').trim() || null;
+  const fallbackChain = Array.isArray(engine?.fallback_chain) ? engine.fallback_chain : [];
+  const cacheHit = source === 'local_cache' || Boolean(engine?.cache_hit);
+  const cacheCrossInput = Boolean(
+    source === 'local_cache' &&
+    cacheHit &&
+    cacheInputType &&
+    inputType &&
+    cacheInputType !== inputType,
+  );
+  const primarySource = source === 'local_cache' && originalSource ? originalSource : source;
+  const sourceLabel = source === 'local_cache' && originalSource
+    ? `${getBaseEngineSourceLabel(source)} (${getBaseEngineSourceLabel(originalSource)})`
+    : getBaseEngineSourceLabel(source);
+  const showConfidence = primarySource === 'local_llm' || primarySource === 'cloud_llm';
+
+  return {
+    source,
+    originalSource,
+    primarySource,
+    sourceLabel,
+    fallbackChain,
+    cacheHit,
+    cacheCrossInput,
+    inputType,
+    cacheInputType,
+    showConfidence,
+  };
+}
+
+function getInputTypeLabel(inputType) {
+  const normalized = String(inputType || '').trim().toLowerCase();
+  if (normalized === 'voice') return 'voz';
+  if (normalized === 'text') return 'texto';
+  if (normalized === 'image') return 'imagen';
+  return normalized || 'comando';
+}
+
+function getResolutionSourceUsage(metrics, source) {
+  const stats = metrics?.resolution?.sources?.[source] || null;
+  return {
+    count: Number(stats?.count || 0),
+    sharePct: Math.round(Number(stats?.share || 0) * 100),
+  };
+}
+
+function toYmdDate(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeOpsQuickResult(result) {
+  const parsedConfidence = Number(result?.confidence);
+  return {
+    answer: result?.answer || 'Sin respuesta disponible.',
+    summary: result?.summary || '',
+    clarifyingQuestion: result?.clarifying_question || null,
+    suggestedActions: Array.isArray(result?.suggested_actions) ? result.suggested_actions : [],
+    citations: Array.isArray(result?.citations) ? result.citations : [],
+    domains: Array.isArray(result?.domains) ? result.domains : [],
+    filters: result?.filters || null,
+    retrievalErrors: Array.isArray(result?.retrieval_errors) ? result.retrieval_errors : [],
+    model: result?.model || null,
+    cacheHit: result?.cache_hit === true,
+    confidence: Number.isFinite(parsedConfidence) ? parsedConfidence : null,
+  };
+}
+
+function estimateBase64Bytes(base64) {
+  const raw = String(base64 || '');
+  if (!raw) return 0;
+  return Math.ceil((raw.length * 3) / 4);
+}
+
+async function buildOptimizedImageForOcr(asset) {
+  if (!asset?.uri) {
+    return { success: false, error: 'No se pudo obtener URI de imagen.' };
+  }
+
+  let ImageManipulator;
+  try {
+    ImageManipulator = require('expo-image-manipulator');
+  } catch (_e) {
+    return {
+      success: false,
+      error: 'Falta expo-image-manipulator. Instala dependencia o toma una foto mas cercana.',
+    };
+  }
+
+  const widths = [1400, 1200, 1000, 800];
+  const qualities = [0.35, 0.22, 0.14, 0.1];
+
+  for (const width of widths) {
+    for (const quality of qualities) {
+      const result = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width } }],
+        {
+          compress: quality,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        },
+      );
+
+      if (result?.base64 && estimateBase64Bytes(result.base64) <= OCR_MAX_BYTES) {
+        return {
+          success: true,
+          data: { base64: result.base64, mimeType: 'image/jpeg' },
+        };
+      }
+    }
+  }
+
+  return {
+    success: false,
+    error: 'No se pudo reducir la foto por debajo de 1MB para OCR. Acerca más la cámara y evita fondo extra.',
+  };
+}
+
+async function buildEnhancedImageForNativeOcr(asset) {
+  if (!asset?.uri) {
+    return { success: false, error: 'No se pudo obtener URI de imagen para OCR nativo.' };
+  }
+
+  let ImageManipulator;
+  try {
+    ImageManipulator = require('expo-image-manipulator');
+  } catch (_e) {
+    return {
+      success: false,
+      error: 'Falta expo-image-manipulator para mejorar OCR nativo.',
+    };
+  }
+
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      [{ resize: { width: 2000 } }],
+      {
+        compress: 1,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: false,
+      },
+    );
+    return { success: true, data: { uri: result?.uri || asset.uri } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error?.message || 'No se pudo mejorar la imagen para OCR nativo.',
+    };
+  }
+}
+
+function padDateTimePart(value) {
+  return String(value).padStart(2, '0');
+}
+
+function getCurrentSaleDateTimeLocalValue() {
+  const now = new Date();
+  return toLocalDateTimeInputValue(now);
+}
+
+function toLocalDateTimeInputValue(date) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${parsed.getFullYear()}-${padDateTimePart(parsed.getMonth() + 1)}-${padDateTimePart(parsed.getDate())}T${padDateTimePart(parsed.getHours())}:${padDateTimePart(parsed.getMinutes())}`;
+}
+
+function parseSaleDateTimeValue(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatSaleDateTimeDisplay(value) {
+  const parsed = parseSaleDateTimeValue(value);
+  if (!parsed) return 'Seleccionar fecha y hora';
+  return parsed.toLocaleString();
+}
+
+function scoreOcrTextForInvoice(text) {
+  const normalized = String(text || '').replace(/\r/g, '\n');
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return 0;
+
+  const usefulLines = lines.filter((line) => /[a-zA-ZáéíóúÁÉÍÓÚñÑ]{3,}/.test(line)).length;
+  const itemSignals = lines.filter((line) => /\b(cant|cantidad|descripcion|descripción|talla)\b/i.test(line)).length;
+  const qtySignals = lines.filter((line) => /^\d+\s+/.test(line)).length;
+  const longWords = lines.filter((line) => /\b[a-zA-ZáéíóúÁÉÍÓÚñÑ]{5,}\b/.test(line)).length;
+  const charScore = Math.min(2000, normalized.length) * 0.005;
+
+  return usefulLines + itemSignals * 2 + qtySignals * 2 + longWords * 0.8 + charScore;
+}
+
+function calculateDiscount(subtotal, discountValue, discountType) {
+  const value = Number(discountValue || 0);
+  if (!value || value <= 0) return 0;
+  if (discountType === 'PERCENT') {
+    return Math.round((subtotal * (value / 100)) * 100) / 100;
+  }
+  return Math.round(Math.min(value, subtotal) * 100) / 100;
+}
+
+function clampLineDiscountValue(lineSubtotal, discountType, rawValue) {
+  const numeric = Math.max(0, Number(rawValue || 0));
+  if (!Number.isFinite(numeric)) return 0;
+  if (discountType === 'PERCENT') {
+    return Math.min(numeric, 100);
+  }
+  return Math.min(numeric, Math.max(0, Number(lineSubtotal || 0)));
+}
+
+function normalizeCartLineDiscount(line) {
+  const lineSubtotal = Math.max(0, Number(line?.quantity || 0) * Number(line?.unit_price || 0));
+  const discountType = String(line?.discount_line_type || 'AMOUNT').trim() === 'PERCENT'
+    ? 'PERCENT'
+    : 'AMOUNT';
+  const discountLine = clampLineDiscountValue(lineSubtotal, discountType, line?.discount_line);
+
+  return {
+    ...line,
+    discount_line_type: discountType,
+    discount_line: discountLine,
+  };
+}
+
+function applyLineTaxes(line, taxResult, priceAfterDiscount) {
+  if (taxResult.success && taxResult.rate) {
+    line.tax_rate = taxResult.rate;
+    line.tax_code = taxResult.code;
+    line.tax_name = taxResult.name;
+
+    if (line.price_includes_tax) {
+      const total = priceAfterDiscount;
+      const base = total / (1 + line.tax_rate);
+      line.line_total = Math.round(total);
+      line.base_amount = Math.round(base);
+      line.tax_amount = line.line_total - line.base_amount;
+      return;
+    }
+
+    const base = priceAfterDiscount;
+    const tax = base * line.tax_rate;
+    line.base_amount = Math.round(base);
+    line.line_total = Math.round(base + tax);
+    line.tax_amount = line.line_total - line.base_amount;
+    return;
+  }
+
+  line.base_amount = Math.round(priceAfterDiscount);
+  line.tax_amount = 0;
+  line.tax_rate = 0;
+  line.tax_code = null;
+  line.tax_name = null;
+  line.line_total = Math.round(priceAfterDiscount);
+}
+
+function formatTaxRateLabel(rate) {
+  const numericRate = Number(rate || 0);
+  if (!Number.isFinite(numericRate) || numericRate <= 0) return '';
+  const percentage = numericRate * 100;
+  const normalized = Number.isInteger(percentage)
+    ? String(percentage)
+    : percentage.toFixed(2).replace(/\.?0+$/, '');
+  return `${normalized}%`;
+}
+
+function getCartLineAccountingAmounts(line) {
+  const taxRate = Math.max(0, Number(line?.tax_rate || 0));
+  const priceIncludesTax = Boolean(line?.price_includes_tax && taxRate > 0);
+  const factor = priceIncludesTax ? 1 + taxRate : 1;
+  const discountRaw = Math.max(0, Number(line?.discount || 0));
+  const discount = Math.max(0, Math.round(discountRaw / factor));
+  const base = Math.max(0, Math.round(Number(line?.base_amount || 0)));
+  const tax = Math.max(0, Math.round(Number(line?.tax_amount || 0)));
+  const total = Math.max(0, Math.round(Number(line?.line_total || 0)));
+  const subtotal = Math.max(0, base + discount);
+
+  return {
+    subtotal,
+    discount,
+    base,
+    tax,
+    total,
+    priceIncludesTax,
+  };
+}
+
+function createOperationId() {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `sale_${Date.now().toString(36)}_${rand}`;
+}
+
+function isTransientNetworkError(message) {
+  const text = String(message || '').toLowerCase();
+  return (
+    text.includes('network') ||
+    text.includes('fetch') ||
+    text.includes('timeout') ||
+    text.includes('connection') ||
+    text.includes('failed to fetch')
+  );
+}
+
+function normalizeMatchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function scoreCustomerName(targetName, customer) {
+  const target = normalizeMatchText(targetName);
+  const candidate = normalizeMatchText(customer?.full_name || '');
+  if (!target || !candidate) return 0;
+  if (target === candidate) return 1;
+  if (candidate.includes(target) || target.includes(candidate)) return 0.92;
+
+  const targetTokens = target.split(' ').filter((t) => t.length > 1);
+  const candidateTokens = candidate.split(' ').filter((t) => t.length > 1);
+  if (!targetTokens.length || !candidateTokens.length) return 0;
+
+  const candidateSet = new Set(candidateTokens);
+  const common = targetTokens.filter((token) => candidateSet.has(token)).length;
+  return common / targetTokens.length;
+}
+
+function findBestCustomerMatch(targetName, customersList) {
+  const list = Array.isArray(customersList) ? customersList : [];
+  let best = null;
+  for (const c of list) {
+    const score = scoreCustomerName(targetName, c);
+    if (!best || score > best.score) best = { customer: c, score };
+  }
+  if (!best || best.score < 0.55) return null;
+  return best;
+}
+
+export default function PointOfSaleScreen({
+  tenant,
+  userProfile,
+  tenantSettings,
+  offlineMode,
+  onPendingOpsChange,
+  onSaleCompleted,
+}) {
+  const themeMode = useThemeMode();
+  const isLightTheme = themeMode === 'light';
+  const androidBottomInset = useAndroidBottomInset();
+  const [loadingInit, setLoadingInit] = useState(true);
+  const [search, setSearch] = useState('');
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [results, setResults] = useState([]);
+  const [resultImageUrls, setResultImageUrls] = useState({});
+  const [favoriteVariants, setFavoriteVariants] = useState([]);
+  const [ticketDrafts, setTicketDrafts] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [searchCustomer, setSearchCustomer] = useState('');
+  const [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [payments, setPayments] = useState([{ method: '', amount: 0, reference: '' }]);
+  const [currentSession, setCurrentSession] = useState(null);
+  const [saleNote, setSaleNote] = useState('');
+  const [saleDateTime, setSaleDateTime] = useState('');
+  const [saleDateTimeTouched, setSaleDateTimeTouched] = useState(false);
+  const [saleDatePickerOpen, setSaleDatePickerOpen] = useState(false);
+  const [saleDatePickerMode, setSaleDatePickerMode] = useState('date');
+  const [saleDatePickerValue, setSaleDatePickerValue] = useState(new Date());
+  const [processing, setProcessing] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [processingInvoice, setProcessingInvoice] = useState(false);
+  const [invoiceScanSummary, setInvoiceScanSummary] = useState(null);
+  const [chatOrderText, setChatOrderText] = useState('');
+  const [processingChatOrder, setProcessingChatOrder] = useState(false);
+  const [chatOrderSummary, setChatOrderSummary] = useState(null);
+  const [processingVoiceOrder, setProcessingVoiceOrder] = useState(false);
+  const [voicePreviewText, setVoicePreviewText] = useState('');
+  const [voiceAvailable, setVoiceAvailable] = useState(() => isVoskSttAvailable());
+  const [commandEngineMetrics, setCommandEngineMetrics] = useState(null);
+  const [embeddedLlmStatus, setEmbeddedLlmStatus] = useState(null);
+  const [preparingEmbeddedLlm, setPreparingEmbeddedLlm] = useState(false);
+  const [embeddedDownloadProgress, setEmbeddedDownloadProgress] = useState(0);
+  const [showAiTools, setShowAiTools] = useState(false);
+  const [showAiLogs, setShowAiLogs] = useState(false);
+  const [showChatComposer, setShowChatComposer] = useState(false);
+  const [showOpsQuickSheet, setShowOpsQuickSheet] = useState(false);
+  const [opsQuickLoading, setOpsQuickLoading] = useState(false);
+  const [opsQuickError, setOpsQuickError] = useState('');
+  const [opsQuickResult, setOpsQuickResult] = useState(null);
+  const [opsQuickActionId, setOpsQuickActionId] = useState('');
+  const [opsQuickMeta, setOpsQuickMeta] = useState(null);
+  const [aiWorking, setAiWorking] = useState(false);
+  const [aiWorkingLabel, setAiWorkingLabel] = useState('');
+  const [floatingNotice, setFloatingNotice] = useState(null);
+  const floatingNoticeTimerRef = useRef(null);
+  const resultImageUrlsRef = useRef({});
+  const autosaveTimerRef = useRef(null);
+  const activeCartRestoredRef = useRef(false);
+
+  const currency = tenant?.currency_code || 'COP';
+  const roundingMethod = tenantSettings?.rounding_method || 'normal';
+  const roundingMultiple = Number(tenantSettings?.rounding_multiple || 100);
+
+  const applyRounding = (amount) => {
+    const numeric = Number(amount || 0);
+    if (!Number.isFinite(numeric)) return 0;
+    if (roundingMethod === 'none' || roundingMultiple <= 1) {
+      return Math.round(numeric);
+    }
+
+    const divided = numeric / roundingMultiple;
+    let roundedUnit = Math.round(divided);
+    if (roundingMethod === 'up') roundedUnit = Math.ceil(divided);
+    if (roundingMethod === 'down') roundedUnit = Math.floor(divided);
+    return Math.round(roundedUnit * roundingMultiple);
+  };
+  const formatMoney = (value) => {
+    try {
+      return new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 0,
+      }).format(Number(value || 0));
+    } catch (_e) {
+      return `$ ${Math.round(Number(value || 0)).toLocaleString('es-CO')}`;
+    }
+  };
+
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let discount = 0;
+    let tax = 0;
+    let totalRaw = 0;
+    let hasTax = false;
+
+    cart.forEach((line) => {
+      const amounts = getCartLineAccountingAmounts(line);
+      subtotal += amounts.subtotal;
+      discount += amounts.discount;
+      tax += amounts.tax;
+      totalRaw += amounts.total;
+      hasTax = hasTax || amounts.tax > 0;
+    });
+
+    const total = applyRounding(totalRaw);
+
+    return {
+      subtotal,
+      discount,
+      tax,
+      totalRaw: Math.round(totalRaw),
+      roundingAdjustment: Math.round(total - totalRaw),
+      total,
+      hasTax,
+    };
+  }, [cart, roundingMethod, roundingMultiple]);
+
+  const paidTotal = useMemo(
+    () => payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+    [payments],
+  );
+  const remaining = useMemo(() => Math.max(0, totals.total - paidTotal), [totals.total, paidTotal]);
+  const change = useMemo(() => Math.max(0, paidTotal - totals.total), [totals.total, paidTotal]);
+  const quickCashOptions = useMemo(() => buildQuickCashOptions(totals.total), [totals.total]);
+  const visibleResults = useMemo(() => results.slice(0, 8), [results]);
+  const quickCashSelectedAmount = useMemo(() => {
+    const cashPayment = payments.find((payment) => isCashMethodCode(payment.method)) || payments[0];
+    return Number(cashPayment?.amount || 0);
+  }, [payments]);
+
+  const canManageDiscounts = useMemo(
+    () => (userProfile?.roles || []).some((role) => (
+      role?.name === 'ADMINISTRADOR' || role?.name === 'GERENTE'
+    )),
+    [userProfile],
+  );
+  const cashSessionMaxHours = resolveCashSessionMaxHours(tenantSettings, 24);
+  const sessionAgeHours = useMemo(
+    () => getCashSessionAgeHours(currentSession),
+    [currentSession?.opened_at],
+  );
+  const sessionExpired = useMemo(
+    () => isCashSessionExpired(currentSession, cashSessionMaxHours),
+    [currentSession?.opened_at, cashSessionMaxHours],
+  );
+  const canSelectSaleDateTime = canManageDiscounts && tenantSettings?.pos_allow_manual_sale_datetime === true;
+  const saleDateTimeInputValue = saleDateTimeTouched ? saleDateTime : getCurrentSaleDateTimeLocalValue();
+  const selectedSaleDate = useMemo(() => {
+    if (!canSelectSaleDateTime) return null;
+    return parseSaleDateTimeValue(saleDateTimeInputValue);
+  }, [canSelectSaleDateTime, saleDateTimeInputValue]);
+  const posMaxBackdateHours = Number(tenantSettings?.pos_max_backdate_hours || 24);
+  const saleDateTimeError = useMemo(() => {
+    if (!canSelectSaleDateTime) return '';
+    if (!selectedSaleDate) return 'Selecciona una fecha/hora válida.';
+
+    const now = new Date();
+    if (selectedSaleDate.getTime() > now.getTime()) {
+      return 'La fecha/hora de venta no puede estar en el futuro.';
+    }
+
+    const safeMaxBackdateHours = Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0
+      ? posMaxBackdateHours
+      : 24;
+    if ((now.getTime() - selectedSaleDate.getTime()) > safeMaxBackdateHours * 3600000) {
+      return `La retrofecha máxima permitida es de ${safeMaxBackdateHours} hora(s).`;
+    }
+
+    if (currentSession?.opened_at) {
+      const sessionOpenedAt = new Date(currentSession.opened_at);
+      if (!Number.isNaN(sessionOpenedAt.getTime()) && selectedSaleDate.getTime() < sessionOpenedAt.getTime()) {
+        return 'La fecha/hora de venta no puede ser anterior a la apertura de la caja.';
+      }
+    }
+
+    return '';
+  }, [canSelectSaleDateTime, currentSession?.opened_at, posMaxBackdateHours, selectedSaleDate]);
+
+  const effectiveThirdPartyId = selectedCustomer?.customer_id || null;
+  const currentLocationId = currentSession?.cash_register?.location_id || null;
+  const currentLocationName = currentSession?.cash_register?.location?.name || null;
+  const currentSessionOpenedAt = currentSession?.opened_at || null;
+  const localLlmMode = useMemo(
+    () => String(process.env.EXPO_PUBLIC_LOCAL_LLM_MODE || 'auto').trim().toLowerCase(),
+    [],
+  );
+  const embeddedModelStatus = embeddedLlmStatus?.model || null;
+  const embeddedModelDownloadProgress = preparingEmbeddedLlm
+    ? embeddedDownloadProgress
+    : Number(embeddedModelStatus?.download_progress || 0);
+  const isEmbeddedModelPreparing = Boolean(
+    preparingEmbeddedLlm || embeddedModelStatus?.downloading,
+  );
+
+  const showFloatingNotice = (text, type = 'info', ttlMs = 3800) => {
+    const content = String(text || '').trim();
+    if (!content) return;
+
+    if (floatingNoticeTimerRef.current) {
+      clearTimeout(floatingNoticeTimerRef.current);
+      floatingNoticeTimerRef.current = null;
+    }
+
+    setFloatingNotice({
+      id: Date.now(),
+      type,
+      text: content,
+    });
+
+    floatingNoticeTimerRef.current = setTimeout(() => {
+      setFloatingNotice(null);
+      floatingNoticeTimerRef.current = null;
+    }, Math.max(1200, Number(ttlMs || 0)));
+  };
+
+  const showValidationError = (text, ttlMs = 4600) => {
+    const content = String(text || '').trim();
+    if (!content) return;
+    setMessage('');
+    showFloatingNotice(content, 'error', ttlMs);
+  };
+
+  const resetOpsQuickState = () => {
+    setOpsQuickError('');
+    setOpsQuickResult(null);
+    setOpsQuickActionId('');
+    setOpsQuickMeta(null);
+  };
+
+  const runOpsQuickAction = async (action) => {
+    if (!tenant?.tenant_id) {
+      setOpsQuickError('No hay tenant activo para consultar.');
+      return;
+    }
+
+    if (offlineMode) {
+      setOpsQuickError('La consulta rápida requiere conexión para consultar el agente operativo.');
+      return;
+    }
+
+    const now = new Date();
+    const todayYmd = toYmdDate(now);
+    let fromDate = todayYmd;
+    let toDate = todayYmd;
+    let rangeLabel = 'Hoy';
+
+    if (action?.rangeMode === 'session' && currentSessionOpenedAt) {
+      const openedYmd = toYmdDate(currentSessionOpenedAt);
+      fromDate = openedYmd || todayYmd;
+      toDate = todayYmd;
+      rangeLabel = fromDate === toDate ? 'Turno actual' : `Turno actual (${fromDate} a ${toDate})`;
+    }
+
+    const query = action?.buildQuery?.({
+      locationName: currentLocationName,
+      hasSession: Boolean(currentSession?.cash_session_id),
+    });
+
+    if (!query) {
+      setOpsQuickError('No fue posible construir la consulta rápida.');
+      return;
+    }
+
+    setOpsQuickLoading(true);
+    setOpsQuickError('');
+    setOpsQuickActionId(action.id);
+    setOpsQuickMeta({
+      label: action.label,
+      rangeLabel,
+      locationName: currentLocationName || null,
+      query,
+    });
+
+    try {
+      const response = await askOpsRagAgent({
+        tenantId: tenant.tenant_id,
+        query,
+        domains: action.domains,
+        fromDate,
+        toDate,
+        locationId: currentLocationId,
+        locationName: currentLocationName,
+      });
+
+      if (!response.success || !response?.data) {
+        setOpsQuickError(response.error || 'No se pudo obtener respuesta de la consulta rápida.');
+        setOpsQuickResult(null);
+        return;
+      }
+
+      setOpsQuickResult(normalizeOpsQuickResult(response.data));
+    } finally {
+      setOpsQuickLoading(false);
+    }
+  };
+
+  const mergeResultImageUrls = (entries) => {
+    const pairs = Object.entries(entries || {});
+    if (!pairs.length) return;
+
+    let changed = false;
+    const next = { ...resultImageUrlsRef.current };
+    pairs.forEach(([productId, url]) => {
+      if (next[productId] === url) return;
+      next[productId] = url;
+      changed = true;
+    });
+
+    if (!changed) return;
+
+    resultImageUrlsRef.current = next;
+    startTransition(() => {
+      setResultImageUrls(next);
+    });
+  };
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoadingInit(true);
+      try {
+        const tenantId = tenant?.tenant_id;
+        const userId = userProfile?.user_id;
+        if (!tenantId || !userId) return;
+
+        const [pm, session] = await Promise.all([
+          getPaymentMethodsForDropdown(tenantId, { offlineMode }),
+          getCurrentUserOpenSession(tenantId, userId, { offlineMode }),
+        ]);
+
+        if (!active) return;
+
+        if (pm.success) {
+          setPaymentMethods(pm.data);
+          if (pm.data.length > 0) {
+            setPayments([{ method: pm.data[0].code, amount: 0, reference: '' }]);
+          }
+        }
+        if (session.success) {
+          setCurrentSession(session.data);
+        }
+
+        if (!offlineMode) {
+          await Promise.all([
+            warmPosCatalog(tenantId, session?.data?.cash_register?.location_id || null),
+            warmCustomersCatalog(tenantId),
+          ]);
+        }
+      } finally {
+        if (active) setLoadingInit(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, [tenant?.tenant_id, userProfile?.user_id, offlineMode]);
+
+  useEffect(() => {
+    if (!search || search.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    let active = true;
+    const t = setTimeout(async () => {
+      setSearchingProducts(true);
+      const tenantId = tenant?.tenant_id;
+      if (!tenantId) {
+        if (active) setSearchingProducts(false);
+        return;
+      }
+      const locationId = currentSession?.cash_register?.location_id || null;
+      const r = offlineMode
+        ? await searchVariantsOffline(tenantId, search, 20, locationId)
+        : await searchVariants(tenantId, search, 20, locationId);
+      if (active) {
+        setResults(r.success ? r.data : []);
+        setSearchingProducts(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [search, tenant?.tenant_id, currentSession?.cash_register?.location_id, offlineMode]);
+
+  useEffect(() => {
+    if (!searchCustomer || searchCustomer.length < 2) {
+      setCustomers([]);
+      return;
+    }
+
+    let active = true;
+    const t = setTimeout(async () => {
+      setSearchingCustomers(true);
+      const tenantId = tenant?.tenant_id;
+      if (!tenantId) {
+        if (active) setSearchingCustomers(false);
+        return;
+      }
+      const r = offlineMode
+        ? await searchCustomersOffline(tenantId, searchCustomer, 20)
+        : await searchCustomers(tenantId, searchCustomer, 20);
+      if (active) {
+        setCustomers(r.success ? r.data : []);
+        setSearchingCustomers(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [searchCustomer, tenant?.tenant_id, offlineMode]);
+
+  useEffect(() => {
+    resultImageUrlsRef.current = {};
+    setResultImageUrls({});
+  }, [tenant?.tenant_id]);
+
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    if (!tenantId || offlineMode) return;
+
+    const targetProductIds = Array.from(new Set([
+      ...visibleResults.map((item) => item.product?.product_id),
+      ...cart.map((line) => line.productId),
+    ].filter(Boolean)));
+
+    if (!targetProductIds.length) return;
+
+    const missingProductIds = targetProductIds.filter(
+      (productId) => !(productId in resultImageUrlsRef.current),
+    );
+
+    if (!missingProductIds.length) return;
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      const coverResult = await listProductCoverImageUrls({
+        tenantId,
+        productIds: missingProductIds,
+        expiresIn: POS_RESULT_IMAGE_SIGNED_URL_TTL,
+      });
+
+      const resolvedEntries = {};
+      missingProductIds.forEach((productId) => {
+        resolvedEntries[productId] = coverResult.success &&
+          Object.prototype.hasOwnProperty.call(coverResult.data || {}, productId)
+          ? coverResult.data[productId]
+          : null;
+      });
+
+      if (!active) return;
+      mergeResultImageUrls(resolvedEntries);
+
+      Object.values(resolvedEntries)
+        .filter((url) => typeof url === 'string' && url)
+        .forEach((url) => {
+          Image.prefetch(url).catch(() => {});
+        });
+    }, 80);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [visibleResults, cart, tenant?.tenant_id, offlineMode]);
+
+  useEffect(() => {
+    let active = true;
+    const loadLocalState = async () => {
+      const tenantId = tenant?.tenant_id;
+      const userId = userProfile?.user_id;
+      if (!tenantId || !userId) return;
+
+      const [favoritesCached, draftsCached] = await Promise.all([
+        getSimpleCache(favoritesCacheKey(tenantId, userId)),
+        getSimpleCache(draftsCacheKey(tenantId, userId)),
+      ]);
+
+      if (!active) return;
+      setFavoriteVariants(Array.isArray(favoritesCached?.value) ? favoritesCached.value : []);
+      setTicketDrafts(Array.isArray(draftsCached?.value) ? draftsCached.value : []);
+    };
+
+    loadLocalState();
+    return () => {
+      active = false;
+    };
+  }, [tenant?.tenant_id, userProfile?.user_id]);
+
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (!tenantId || !userId) return;
+    saveSimpleCache(favoritesCacheKey(tenantId, userId), favoriteVariants);
+  }, [favoriteVariants, tenant?.tenant_id, userProfile?.user_id]);
+
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (!tenantId || !userId) return;
+    saveSimpleCache(draftsCacheKey(tenantId, userId), ticketDrafts);
+  }, [ticketDrafts, tenant?.tenant_id, userProfile?.user_id]);
+
+  // Restore active cart from autosave on mount (only once, only if cart is empty)
+  useEffect(() => {
+    let active = true;
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (!tenantId || !userId) return;
+
+    getSimpleCache(activeCartCacheKey(tenantId, userId)).then((saved) => {
+      if (!active || !saved?.cart?.length || activeCartRestoredRef.current) return;
+      activeCartRestoredRef.current = true;
+      setCart(saved.cart || []);
+      setSelectedCustomer(saved.customer || null);
+      setSearchCustomer(saved.search_customer || '');
+      setSaleNote(saved.sale_note || '');
+      setSaleDateTime(saved.sale_datetime || '');
+      setSaleDateTimeTouched(saved.sale_datetime_touched === true);
+      setPayments(
+        Array.isArray(saved.payments) && saved.payments.length > 0
+          ? saved.payments
+          : [{ method: '', amount: 0, reference: '' }],
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [tenant?.tenant_id, userProfile?.user_id]);
+
+  // Autosave active cart to local cache (debounced 2s) whenever cart changes
+  useEffect(() => {
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (!tenantId || !userId || !activeCartRestoredRef.current) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      if (!cart.length) {
+        saveSimpleCache(activeCartCacheKey(tenantId, userId), null);
+      } else {
+        saveSimpleCache(activeCartCacheKey(tenantId, userId), {
+          cart,
+          customer: selectedCustomer,
+          search_customer: searchCustomer,
+          sale_note: saleNote,
+          sale_datetime: saleDateTime,
+          sale_datetime_touched: saleDateTimeTouched,
+          payments,
+          savedAt: new Date().toISOString(),
+        });
+      }
+    }, 2000);
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [cart, selectedCustomer, searchCustomer, saleNote, saleDateTime, saleDateTimeTouched, payments, tenant?.tenant_id, userProfile?.user_id]);
+
+  useEffect(() => {
+    if (!tenant?.tenant_id) return;
+    getCommandEngineMetrics(tenant.tenant_id).then((result) => {
+      if (result.success) {
+        setCommandEngineMetrics(result.data);
+      }
+    });
+  }, [tenant?.tenant_id]);
+
+  useEffect(() => {
+    refreshEmbeddedLlmStatus();
+  }, []);
+
+  useEffect(() => {
+    if (!embeddedModelStatus?.downloading) return undefined;
+
+    const timer = setInterval(() => {
+      refreshEmbeddedLlmStatus();
+    }, 900);
+
+    return () => clearInterval(timer);
+  }, [embeddedModelStatus?.downloading]);
+
+  useEffect(() => {
+    setVoiceAvailable(isVoskSttAvailable());
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (floatingNoticeTimerRef.current) {
+        clearTimeout(floatingNoticeTimerRef.current);
+        floatingNoticeTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!error) return;
+    showFloatingNotice(error, 'error', 4600);
+  }, [error]);
+
+  useEffect(() => {
+    if (!message) return;
+    showFloatingNotice(message, 'info', 2800);
+  }, [message]);
+
+  const openSaleDateTimePicker = () => {
+    if (Platform.OS === 'web' || !NativeDateTimePicker) return;
+    const baseDate = selectedSaleDate || new Date();
+    setSaleDatePickerValue(baseDate);
+    if (Platform.OS === 'ios') {
+      setSaleDatePickerMode('datetime');
+      setSaleDatePickerOpen((prev) => !prev);
+      return;
+    }
+    setSaleDatePickerMode('date');
+    setSaleDatePickerOpen(true);
+  };
+
+  const handleSaleDateTimePickerChange = (event, pickedValue) => {
+    if (event?.type === 'dismissed') {
+      setSaleDatePickerOpen(false);
+      if (Platform.OS !== 'ios') {
+        setSaleDatePickerMode('date');
+      }
+      return;
+    }
+    if (!pickedValue) return;
+
+    if (Platform.OS === 'android') {
+      if (saleDatePickerMode === 'date') {
+        const previous = selectedSaleDate || new Date();
+        const nextDate = new Date(pickedValue);
+        nextDate.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
+        setSaleDatePickerValue(nextDate);
+        setSaleDatePickerMode('time');
+        setSaleDatePickerOpen(true);
+        return;
+      }
+
+      const merged = new Date(saleDatePickerValue || selectedSaleDate || new Date());
+      merged.setHours(pickedValue.getHours(), pickedValue.getMinutes(), 0, 0);
+      setSaleDateTimeTouched(true);
+      setSaleDateTime(toLocalDateTimeInputValue(merged));
+      setSaleDatePickerMode('date');
+      setSaleDatePickerOpen(false);
+      return;
+    }
+
+    setSaleDatePickerValue(pickedValue);
+    setSaleDateTimeTouched(true);
+    setSaleDateTime(toLocalDateTimeInputValue(pickedValue));
+  };
+
+  const upsertSinglePaymentIfNeeded = (nextTotal) => {
+    const rounded = applyRounding(nextTotal);
+    setPayments((prev) => {
+      if (prev.length === 1) {
+        return [{ ...prev[0], amount: rounded }];
+      }
+      return prev;
+    });
+  };
+
+  const upsertVariantInCart = async ({ variant, quantity = 1, unitPrice = null }) => {
+    setError('');
+    const qtyToAdd = Math.max(1, Math.round(Number(quantity || 1)));
+    const explicitUnitPrice = Number(unitPrice || 0);
+    const initialUnitPrice = explicitUnitPrice > 0 ? explicitUnitPrice : Number(variant.price || 0);
+    const taxResult = await getTaxInfoForVariant(tenant?.tenant_id, variant.variant_id);
+
+    setCart((prev) => {
+      const next = [...prev];
+      const existingIndex = next.findIndex((line) => line.variant_id === variant.variant_id);
+
+      if (existingIndex >= 0) {
+        let line = { ...next[existingIndex] };
+        line.productId = line.productId || variant.product?.product_id || null;
+        line.quantity += qtyToAdd;
+        if (explicitUnitPrice > 0) line.unit_price = explicitUnitPrice;
+        line = normalizeCartLineDiscount(line);
+        const lineSubtotal = line.quantity * line.unit_price;
+        const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
+        line.discount = discountAmount;
+        applyLineTaxes(
+          line,
+          { success: true, rate: line.tax_rate, code: line.tax_code, name: line.tax_name },
+          lineSubtotal - discountAmount,
+        );
+        next[existingIndex] = line;
+      } else {
+        const line = {
+          variant_id: variant.variant_id,
+          productId: variant.product?.product_id || null,
+          sku: variant.sku,
+          productName: variant.product?.name || '',
+          variantName: variant.variant_name || '',
+          quantity: qtyToAdd,
+          unit_price: initialUnitPrice,
+          unit_cost: Number(variant.cost || 0),
+          price_includes_tax: Boolean(variant.price_includes_tax),
+          discount_line: 0,
+          discount_line_type: 'AMOUNT',
+          discount: 0,
+          base_amount: 0,
+          tax_amount: 0,
+          tax_rate: 0,
+          tax_code: null,
+          tax_name: null,
+          line_total: initialUnitPrice,
+        };
+        const lineSubtotal = line.quantity * line.unit_price;
+        applyLineTaxes(line, taxResult, lineSubtotal);
+        next.push(line);
+      }
+
+      upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
+      return next;
+    });
+
+    playCartAddSound();
+  };
+
+  const addToCart = async (variant) => {
+    await upsertVariantInCart({ variant, quantity: 1 });
+    setSearch('');
+    setResults([]);
+  };
+
+  const isFavoriteVariant = (variantId) => {
+    return favoriteVariants.some((variant) => variant.variant_id === variantId);
+  };
+
+  const toggleFavoriteVariant = (variant) => {
+    if (!variant?.variant_id) return;
+    setFavoriteVariants((prev) => {
+      const exists = prev.some((item) => item.variant_id === variant.variant_id);
+      if (exists) {
+        return prev.filter((item) => item.variant_id !== variant.variant_id);
+      }
+      const payload = {
+        variant_id: variant.variant_id,
+        sku: variant.sku || '',
+        variant_name: variant.variant_name || '',
+        product: { name: variant.product?.name || '' },
+        cost: Number(variant.cost || 0),
+        price: Number(variant.price || 0),
+        price_includes_tax: Boolean(variant.price_includes_tax),
+      };
+      return [payload, ...prev].slice(0, 24);
+    });
+  };
+
+  const handleSearchInputSubmit = async () => {
+    const code = String(search || '').trim();
+    if (!isLikelyScannerInput(code)) return;
+    if (!tenant?.tenant_id) {
+      setError('Tenant inválido para búsqueda por código.');
+      return;
+    }
+    setError('');
+    setMessage('');
+    const locationId = currentSession?.cash_register?.location_id || null;
+    const result = await findVariantByCode(tenant?.tenant_id, code, locationId, { offlineMode });
+    if (!result.success || !result.data) {
+      setError(result.error || `No se encontró producto para el código ${code}.`);
+      return;
+    }
+    await upsertVariantInCart({ variant: result.data, quantity: 1 });
+    setMessage(`Producto agregado por código: ${result.data.product?.name || result.data.sku || code}.`);
+    setSearch('');
+    setResults([]);
+  };
+
+  const scanInvoiceWithAgent = async () => {
+    setError('');
+    setMessage('');
+    setInvoiceScanSummary(null);
+    setChatOrderSummary(null);
+
+    if (!tenant?.tenant_id) {
+      setError('Tenant inválido para escaneo.');
+      return;
+    }
+    const ocrStatus = await getNativeOcrStatus();
+    const nativeOcrAvailable = Boolean(ocrStatus?.available);
+    const cloudPreferred = !offlineMode;
+    if (!cloudPreferred && !nativeOcrAvailable) {
+      setError('OCR nativo no disponible en modo offline. Instala expo-text-extractor y recompila la app.');
+      return;
+    }
+    if (!(await ensureAiModelReady('escaneo de factura'))) {
+      return;
+    }
+
+    let ImagePicker;
+    try {
+      ImagePicker = require('expo-image-picker');
+    } catch (_e) {
+      setError('Falta dependencia expo-image-picker. Instala y recompila la app.');
+      return;
+    }
+
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission?.granted && Platform.OS !== 'web') {
+      setError('Permiso de cámara denegado.');
+      return;
+    }
+
+    const pickerOptions = {
+      mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? 'images',
+      allowsEditing: false,
+      quality: 1,
+      base64: false,
+      exif: false,
+    };
+
+    const capture = Platform.OS === 'web'
+      ? await ImagePicker.launchImageLibraryAsync(pickerOptions)
+      : await ImagePicker.launchCameraAsync(pickerOptions);
+
+    if (capture?.canceled) return;
+
+    const asset = capture?.assets?.[0];
+    if (!asset?.uri) {
+      setError('No se pudo obtener la imagen capturada.');
+      return;
+    }
+
+    setProcessingInvoice(true);
+    try {
+      setAiWorking(true);
+      let ocrText = '';
+      let ocrEngine = '';
+      let ocrFailureReason = '';
+
+      if (cloudPreferred) {
+        setAiWorkingLabel('Leyendo texto de imagen (OCR cloud)...');
+        const imageResult = await buildOptimizedImageForOcr(asset);
+        if (!imageResult.success) {
+          ocrFailureReason = imageResult.error || 'No fue posible optimizar la imagen para OCR cloud.';
+          setError(ocrFailureReason);
+        } else {
+          const cloudOcrResult = await analyzeInvoiceWithImage({
+            tenantId: tenant.tenant_id,
+            imageBase64: imageResult.data.base64,
+            mimeType: imageResult.data.mimeType || 'image/jpeg',
+          });
+          if (!cloudOcrResult.success) {
+            ocrFailureReason = cloudOcrResult.error || 'Fallo OCR cloud.';
+            showFloatingNotice(`${ocrFailureReason} Intentando OCR nativo...`, 'error', 4200);
+          } else {
+            ocrText = String(cloudOcrResult?.data?.ocr_text || '').trim();
+            if (!ocrText) {
+              const synthesized = (cloudOcrResult?.data?.line_items || [])
+                .map((line) => `${Math.max(1, Number(line?.quantity || 1))} ${String(line?.raw_name || '').trim()}`)
+                .filter(Boolean)
+                .join('\n')
+                .trim();
+              ocrText = synthesized;
+            }
+            ocrEngine = 'cloud_ocr_edge';
+          }
+        }
+      }
+
+      if (!ocrText && nativeOcrAvailable) {
+        setAiWorkingLabel('Leyendo texto de imagen (OCR nativo)...');
+        const enhancedResult = await buildEnhancedImageForNativeOcr(asset);
+        const candidateUris = [asset.uri];
+        if (enhancedResult?.success && enhancedResult?.data?.uri && enhancedResult.data.uri !== asset.uri) {
+          candidateUris.push(enhancedResult.data.uri);
+        }
+
+        let bestNative = null;
+        for (const uri of candidateUris) {
+          const passResult = await extractTextWithNativeOcr({ imageUri: uri });
+          if (!passResult?.success) continue;
+          const candidateText = String(passResult?.data?.text || '').trim();
+          if (!candidateText) continue;
+          const candidateScore = scoreOcrTextForInvoice(candidateText);
+          if (!bestNative || candidateScore > bestNative.score) {
+            bestNative = {
+              text: candidateText,
+              score: candidateScore,
+              engine: passResult?.data?.engine || 'native_ocr',
+            };
+          }
+        }
+
+        if (bestNative) {
+          ocrText = bestNative.text;
+          ocrEngine = bestNative.engine;
+        } else if (!cloudPreferred) {
+          ocrFailureReason = 'No fue posible extraer texto con OCR nativo.';
+          setError(ocrFailureReason);
+          return;
+        }
+      }
+
+      if (!ocrText) {
+        setError(ocrFailureReason || 'OCR no detecto texto util en la imagen.');
+        return;
+      }
+      setError('');
+
+      setInvoiceScanSummary({
+        ocrEngine: ocrEngine || null,
+        ocrChars: ocrText.length,
+        ocrLines: ocrText.split('\n').filter(Boolean).length,
+        ocrPreview: ocrText.slice(0, 180),
+      });
+      await runCommandToCart({
+        commandText: ocrText,
+        inputType: 'image',
+      });
+    } finally {
+      setAiWorking(false);
+      setAiWorkingLabel('');
+      setProcessingInvoice(false);
+    }
+  };
+
+  const refreshEngineMetrics = async () => {
+    if (!tenant?.tenant_id) return;
+    const metricsResult = await getCommandEngineMetrics(tenant.tenant_id);
+    if (metricsResult.success) {
+      setCommandEngineMetrics(metricsResult.data);
+    }
+  };
+
+  const refreshEmbeddedLlmStatus = async () => {
+    const [modelStatusResult, runtimeStatusResult] = await Promise.all([
+      getEmbeddedModelStatus(),
+      getEmbeddedLlmStatus(),
+    ]);
+
+    setEmbeddedLlmStatus({
+      model: modelStatusResult?.success ? modelStatusResult : null,
+      runtime: runtimeStatusResult?.success ? runtimeStatusResult?.data || null : null,
+    });
+  };
+
+  const ensureAiModelReady = async (triggerLabel = 'IA') => {
+    if (localLlmMode === 'endpoint') return true;
+    if (isEmbeddedModelPreparing) {
+      await refreshEmbeddedLlmStatus();
+      setError('El modelo local se está descargando en segundo plano. Espera a que termine para usar esta IA.');
+      return false;
+    }
+
+    const status = await getEmbeddedModelStatus();
+    if (status?.success && status.available) return true;
+    if (status?.downloading) {
+      setEmbeddedDownloadProgress(Number(status.download_progress || 0));
+      await refreshEmbeddedLlmStatus();
+      setError('El modelo local se está descargando en segundo plano. Espera a que termine para usar esta IA.');
+      return false;
+    }
+
+    setPreparingEmbeddedLlm(true);
+    setEmbeddedDownloadProgress(0);
+    setMessage(`Preparando modelo local para ${triggerLabel}...`);
+
+    try {
+      const result = await ensureEmbeddedModelReady({
+        onProgress: ({ progress }) => {
+          setEmbeddedDownloadProgress(Number(progress || 0));
+        },
+      });
+
+      if (!result.success) {
+        setError(result.error || 'No fue posible preparar el modelo local.');
+        return false;
+      }
+
+      if (result.downloaded) {
+        const modelMb = Number(
+          result.mb || (Number.isFinite(Number(result.bytes)) ? (Number(result.bytes) / (1024 * 1024)).toFixed(2) : 0),
+        );
+        setMessage(`Modelo local listo (${modelMb} MB).`);
+      }
+
+      return true;
+    } finally {
+      setPreparingEmbeddedLlm(false);
+      await refreshEmbeddedLlmStatus();
+    }
+  };
+
+  const runCommandToCart = async ({ commandText, inputType = 'text' }) => {
+    const text = String(commandText || '').trim();
+    if (!tenant?.tenant_id) {
+      setError('Tenant inválido para conversión de comando.');
+      return false;
+    }
+    if (!text) {
+      setError('No hay texto de comando para procesar.');
+      return false;
+    }
+
+    setAiWorking(true);
+    setAiWorkingLabel(`Procesando comando de ${getInputTypeLabel(inputType)} (parser/caché local)...`);
+
+    try {
+      const locationId = currentSession?.cash_register?.location_id || null;
+
+      const commandResolveParams = {
+        tenantId: tenant.tenant_id,
+        inputText: text,
+        inputType,
+        cacheInputType: 'text',
+        offlineMode,
+        catalogFingerprint: locationId || 'no-location',
+      };
+      const matchingOptions = inputType === 'image'
+        ? { minTokenConfidence: 0.66 }
+        : {};
+      const isMatchQualityAcceptable = ({ matched = [], unmatched = [] }) => {
+        if (!Array.isArray(matched) || !matched.length) return false;
+        if (inputType !== 'image') return true;
+
+        const tokenMatches = matched.filter((item) => item?.matchReason === 'name_tokens');
+        const weakTokenMatches = tokenMatches.filter((item) => Number(item?.confidence || 0) < 0.72);
+        const totalLines = Number(matched.length) + Number(unmatched.length || 0);
+        const matchRatio = totalLines > 0 ? Number(matched.length) / totalLines : 0;
+        const tooManyUnmatched = Number(unmatched.length || 0) >= Number(matched.length || 0);
+        return weakTokenMatches.length === 0 && !tooManyUnmatched && matchRatio >= 0.5;
+      };
+
+      const resolveAndMatchCommand = async (overrides = {}) => {
+        const aiResult = await resolveSaleCommandFromText({
+          ...commandResolveParams,
+          ...overrides,
+        });
+        if (!aiResult.success) {
+          return {
+            success: false,
+            error: aiResult.error || 'No fue posible convertir el comando.',
+          };
+        }
+
+        setAiWorkingLabel('Buscando candidatos en catálogo...');
+        const catalogResult = await listCatalogCandidatesForMatching(
+          tenant.tenant_id,
+          locationId,
+          aiResult.data.line_items,
+          {
+            offlineMode,
+            perTermLimit: inputType === 'image' ? 24 : 18,
+            maxCandidates: inputType === 'image' ? 260 : 180,
+            fallbackLimit: inputType === 'image' ? 1600 : 1200,
+          },
+        );
+        if (!catalogResult.success || !catalogResult.data?.length) {
+          return {
+            success: false,
+            error: catalogResult.error || 'No hay catálogo candidato disponible para matching.',
+          };
+        }
+
+        const { matched, unmatched } = matchInvoiceLinesToCatalog(
+          aiResult.data.line_items,
+          catalogResult.data,
+          matchingOptions,
+        );
+        const engineSummary = resolveEngineSummary(aiResult?.data?.engine);
+        return {
+          success: true,
+          aiResult,
+          matched,
+          unmatched,
+          engineSummary,
+          catalogSource: catalogResult.source || 'unknown',
+          catalogCandidateCount: Number(catalogResult.data?.length || 0),
+        };
+      };
+
+      let resolved = await resolveAndMatchCommand();
+      if (!resolved.success) {
+        setError(resolved.error || 'No fue posible convertir el comando.');
+        await refreshEngineMetrics();
+        return false;
+      }
+
+      let matchQualityAcceptable = isMatchQualityAcceptable(resolved);
+      let retryFailureDetail = '';
+      if (!offlineMode) {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (matchQualityAcceptable) break;
+          if (resolved.engineSummary.primarySource === 'cloud_llm') break;
+
+          const retryOptions = {
+            skipCache: true,
+          };
+          const primarySource = resolved.engineSummary.primarySource;
+
+          if (primarySource === 'deterministic_parser' || primarySource === 'local_cache') {
+            retryOptions.skipDeterministic = true;
+            setAiWorkingLabel(
+              resolved.matched.length
+                ? 'Match incierto del parser/caché. Probando LLM local...'
+                : 'Sin match en parser/caché. Probando LLM local...',
+            );
+          }
+          if (primarySource === 'local_llm') {
+            retryOptions.skipDeterministic = true;
+            retryOptions.skipLocalLlm = true;
+            setAiWorkingLabel(
+              resolved.matched.length
+                ? 'Match incierto del LLM local. Consultando LLM cloud...'
+                : 'Sin match en LLM local. Consultando LLM cloud...',
+            );
+          }
+
+          const retryResolved = await resolveAndMatchCommand(retryOptions);
+          if (!retryResolved.success) {
+            retryFailureDetail = retryResolved.error || '';
+            break;
+          }
+          resolved = retryResolved;
+          matchQualityAcceptable = isMatchQualityAcceptable(resolved);
+        }
+      }
+
+      const aiResult = resolved.aiResult;
+      const { matched, unmatched } = resolved;
+      const engineSummary = resolved.engineSummary;
+      const finalQualityAcceptable = isMatchQualityAcceptable(resolved);
+      setAiWorkingLabel('Finalizando y aplicando resultado...');
+
+      const customerName = String(aiResult?.data?.order?.customer_name || '').trim();
+      let customerSuggestion = null;
+      let customerAutoloaded = false;
+      if (customerName.length >= 2) {
+        const customerLookup = offlineMode
+          ? await searchCustomersOffline(tenant.tenant_id, customerName, 20)
+          : await searchCustomers(tenant.tenant_id, customerName, 20);
+        const customerList = customerLookup.success ? customerLookup.data || [] : [];
+        const bestCustomer = findBestCustomerMatch(customerName, customerList);
+        if (bestCustomer?.customer) {
+          customerSuggestion = bestCustomer.customer;
+          if (!selectedCustomer?.customer_id) {
+            setSelectedCustomer(bestCustomer.customer);
+            setSearchCustomer(bestCustomer.customer.full_name || '');
+            setCustomers([]);
+            customerAutoloaded = true;
+          }
+        } else if (!selectedCustomer?.customer_id && customerList.length) {
+          setSearchCustomer(customerName);
+          setCustomers(customerList.slice(0, 6));
+        }
+      }
+
+      if (!matched.length || (inputType === 'image' && !finalQualityAcceptable)) {
+        const retryHint = retryFailureDetail
+          ? ` Fallback adicional no disponible: ${retryFailureDetail}`
+          : '';
+        const qualityHint = inputType === 'image' && matched.length && !finalQualityAcceptable
+          ? ' El OCR devolvió texto con baja confianza; evita cargar productos automáticamente.'
+          : '';
+        const noMatchMessage = `El motor interpretó el comando, pero no encontró coincidencias en catálogo.${qualityHint}${retryHint}`;
+        setError(noMatchMessage);
+        showFloatingNotice(noMatchMessage, 'error', 5200);
+        setChatOrderSummary({
+          matchedCount: 0,
+          unmatched,
+          inputType: aiResult?.data?.engine?.input_type || inputType,
+          confidence: Number(aiResult?.data?.order?.confidence || 0),
+          showConfidence: engineSummary.showConfidence,
+          source: engineSummary.source,
+          originalSource: engineSummary.originalSource,
+          sourceLabel: engineSummary.sourceLabel,
+          fallbackChain: engineSummary.fallbackChain,
+          cacheCrossInput: engineSummary.cacheCrossInput,
+          catalogSource: resolved.catalogSource,
+          catalogCandidateCount: resolved.catalogCandidateCount,
+          customerSuggestion,
+          customerAutoloaded,
+          notes: aiResult?.data?.order?.notes || null,
+        });
+        await refreshEngineMetrics();
+        return false;
+      }
+
+      for (const item of matched) {
+        await upsertVariantInCart({
+          variant: item.variant,
+          quantity: item.line.quantity || 1,
+          unitPrice: null,
+        });
+      }
+
+      const aiNotes = String(aiResult?.data?.order?.notes || '').trim();
+      if (aiNotes) {
+        setSaleNote((prev) => {
+          const previous = String(prev || '').trim();
+          if (!previous) return aiNotes;
+          if (previous.includes(aiNotes)) return previous;
+          return `${previous}\n${aiNotes}`;
+        });
+      }
+
+      setChatOrderSummary({
+        matchedCount: matched.length,
+        unmatched,
+        inputType: aiResult?.data?.engine?.input_type || inputType,
+        confidence: Number(aiResult?.data?.order?.confidence || 0),
+        showConfidence: engineSummary.showConfidence,
+        source: engineSummary.source,
+        originalSource: engineSummary.originalSource,
+        sourceLabel: engineSummary.sourceLabel,
+        fallbackChain: engineSummary.fallbackChain,
+        cacheCrossInput: engineSummary.cacheCrossInput,
+        catalogSource: resolved.catalogSource,
+        catalogCandidateCount: resolved.catalogCandidateCount,
+        customerSuggestion,
+        customerAutoloaded,
+        notes: aiResult?.data?.order?.notes || null,
+      });
+      setMessage(
+        `Comando convertido (${inputType}): ${matched.length} item(s)${unmatched.length ? `, ${unmatched.length} sin match` : ''}${engineSummary.cacheCrossInput ? ' (cache cross-input)' : engineSummary.cacheHit ? ' (cache)' : ''} · via ${engineSummary.sourceLabel}.`,
+      );
+      await refreshEngineMetrics();
+      return true;
+    } finally {
+      setAiWorking(false);
+      setAiWorkingLabel('');
+    }
+  };
+
+  const parseChatOrderWithAgent = async () => {
+    setError('');
+    setMessage('');
+    setChatOrderSummary(null);
+
+    if (processingVoiceOrder) {
+      setError('Finaliza o cancela la captura de voz antes de convertir texto.');
+      return;
+    }
+    if (!chatOrderText.trim()) {
+      setError('Pega o escribe el pedido del chat.');
+      return;
+    }
+
+    setProcessingChatOrder(true);
+    try {
+      const didConvert = await runCommandToCart({
+        commandText: chatOrderText,
+        inputType: 'text',
+      });
+      if (didConvert) {
+        setChatOrderText('');
+      }
+    } finally {
+      setProcessingChatOrder(false);
+    }
+  };
+
+  const parseVoiceOrderWithVosk = async () => {
+    setError('');
+    setMessage('');
+    setChatOrderSummary(null);
+
+    const voskStatus = getVoskSttStatus();
+    setVoiceAvailable(Boolean(voskStatus?.available));
+    if (!voskStatus?.available) {
+      setError('Vosk no está disponible en este build. Requiere dev-client con módulo nativo.');
+      return;
+    }
+
+    if (processingVoiceOrder) {
+      await cancelVoskTranscription();
+      setProcessingVoiceOrder(false);
+      return;
+    }
+
+    setProcessingVoiceOrder(true);
+    setVoicePreviewText('');
+    try {
+      const voiceResult = await transcribeWithVosk({
+        timeoutMs: 12000,
+        onPartialText: (partial) => setVoicePreviewText(String(partial || '')),
+      });
+
+      if (!voiceResult.success) {
+        setError(voiceResult.error || 'No fue posible transcribir voz con Vosk.');
+        return;
+      }
+
+      const transcript = String(voiceResult?.data?.text || '').trim();
+      if (!transcript) {
+        setError('No se detectó comando de voz.');
+        return;
+      }
+
+      setVoicePreviewText(transcript);
+      setChatOrderText(transcript);
+      await runCommandToCart({
+        commandText: transcript,
+        inputType: 'voice',
+      });
+    } finally {
+      setVoiceAvailable(isVoskSttAvailable());
+      setProcessingVoiceOrder(false);
+    }
+  };
+
+  const updateLineQuantity = (index, raw) => {
+    const qty = Math.max(1, Number(raw || 1));
+    setCart((prev) => {
+      const next = [...prev];
+      let line = { ...next[index] };
+      line.quantity = qty;
+      line = normalizeCartLineDiscount(line);
+      const lineSubtotal = line.quantity * line.unit_price;
+      const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
+      line.discount = discountAmount;
+      applyLineTaxes(line, { success: true, rate: line.tax_rate, code: line.tax_code, name: line.tax_name }, lineSubtotal - discountAmount);
+      next[index] = line;
+      upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
+      return next;
+    });
+  };
+
+  const updateLineDiscount = (index, raw) => {
+    setCart((prev) => {
+      const next = [...prev];
+      const line = { ...next[index] };
+      const lineSubtotal = line.quantity * line.unit_price;
+      const value = clampLineDiscountValue(lineSubtotal, line.discount_line_type, raw);
+      line.discount_line = value;
+      const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
+      line.discount = discountAmount;
+      applyLineTaxes(line, { success: true, rate: line.tax_rate, code: line.tax_code, name: line.tax_name }, lineSubtotal - discountAmount);
+      next[index] = line;
+      upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
+      return next;
+    });
+  };
+
+  const toggleLineDiscountType = (index, type) => {
+    setCart((prev) => {
+      const next = [...prev];
+      const line = { ...next[index] };
+      line.discount_line_type = type;
+      const lineSubtotal = line.quantity * line.unit_price;
+      line.discount_line = clampLineDiscountValue(lineSubtotal, type, line.discount_line);
+      const discountAmount = calculateDiscount(lineSubtotal, line.discount_line, line.discount_line_type);
+      line.discount = discountAmount;
+      applyLineTaxes(line, { success: true, rate: line.tax_rate, code: line.tax_code, name: line.tax_name }, lineSubtotal - discountAmount);
+      next[index] = line;
+      upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
+      return next;
+    });
+  };
+
+  const removeLine = (index) => {
+    setCart((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
+      return next;
+    });
+  };
+
+  const addPayment = () => {
+    setPayments((prev) => [
+      ...prev,
+      { method: paymentMethods[0]?.code || '', amount: remaining, reference: '' },
+    ]);
+  };
+
+  const removePayment = (index) => {
+    setPayments((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const updatePayment = (index, patch) => {
+    setPayments((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+  };
+
+  const applyQuickCash = (amount) => {
+    const value = Math.max(0, Number(amount || 0));
+    if (value <= 0) return;
+    setPayments((prev) => {
+      if (!prev.length) return prev;
+      const cashIndex = prev.findIndex((payment) => isCashMethodCode(payment.method));
+      const index = cashIndex >= 0 ? cashIndex : 0;
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        amount: value,
+      };
+      return next;
+    });
+  };
+
+  const setCashExact = () => {
+    setPayments((prev) => {
+      if (!prev.length) return prev;
+      const cashIndex = prev.findIndex((payment) => isCashMethodCode(payment.method));
+      const index = cashIndex >= 0 ? cashIndex : 0;
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        amount: totals.total,
+      };
+      return next;
+    });
+  };
+
+  const holdCurrentTicket = () => {
+    if (!cart.length) {
+      showValidationError('No hay items para guardar en espera.');
+      return;
+    }
+    const draftId = createOperationId();
+    const draft = {
+      draft_id: draftId,
+      created_at: new Date().toISOString(),
+      customer: selectedCustomer
+        ? {
+          customer_id: selectedCustomer.customer_id,
+          full_name: selectedCustomer.full_name || '',
+          document: selectedCustomer.document || '',
+        }
+        : null,
+      search_customer: searchCustomer,
+      sale_note: saleNote,
+      sale_datetime: saleDateTime,
+      sale_datetime_touched: saleDateTimeTouched,
+      cart,
+      payments,
+    };
+    setTicketDrafts((prev) => [draft, ...prev].slice(0, 12));
+    clearSale();
+    setMessage(`Venta en espera guardada (${ticketDrafts.length + 1} borradores).`);
+  };
+
+  const resumeTicketDraft = (draftId) => {
+    const draft = ticketDrafts.find((item) => item.draft_id === draftId);
+    if (!draft) return;
+
+    setCart(
+      Array.isArray(draft.cart)
+        ? draft.cart.map((line) => {
+            let nextLine = normalizeCartLineDiscount(line);
+            const lineSubtotal = Number(nextLine.quantity || 0) * Number(nextLine.unit_price || 0);
+            const discountAmount = calculateDiscount(lineSubtotal, nextLine.discount_line, nextLine.discount_line_type);
+            nextLine.discount = discountAmount;
+            return nextLine;
+          })
+        : [],
+    );
+    setPayments(
+      Array.isArray(draft.payments) && draft.payments.length > 0
+        ? draft.payments.map((p) => ({
+          method: p.method || paymentMethods[0]?.code || '',
+          amount: Number(p.amount || 0),
+          reference: p.reference || '',
+        }))
+        : [{ method: paymentMethods[0]?.code || '', amount: 0, reference: '' }],
+    );
+    setSelectedCustomer(draft.customer || null);
+    setSearchCustomer(draft.search_customer || draft.customer?.full_name || '');
+    setSaleNote(draft.sale_note || '');
+    setSaleDateTime(draft.sale_datetime || '');
+    setSaleDateTimeTouched(draft.sale_datetime_touched === true);
+    setTicketDrafts((prev) => prev.filter((item) => item.draft_id !== draftId));
+    setMessage('Venta recuperada desde espera.');
+  };
+
+  const discardTicketDraft = (draftId) => {
+    setTicketDrafts((prev) => prev.filter((item) => item.draft_id !== draftId));
+  };
+
+  const clearSale = () => {
+    setCart([]);
+    setSaleNote('');
+    setSelectedCustomer(null);
+    setSearchCustomer('');
+    setCustomers([]);
+    setSearch('');
+    setResults([]);
+    setMessage('');
+    setError('');
+    setChatOrderText('');
+    setChatOrderSummary(null);
+    setVoicePreviewText('');
+    setSaleDateTime('');
+    setSaleDateTimeTouched(false);
+    setSaleDatePickerOpen(false);
+    setSaleDatePickerMode('date');
+    setPayments([{ method: paymentMethods[0]?.code || '', amount: 0, reference: '' }]);
+    // Clear autosaved cart so it doesn't restore an empty/completed sale
+    const tenantId = tenant?.tenant_id;
+    const userId = userProfile?.user_id;
+    if (tenantId && userId) {
+      saveSimpleCache(activeCartCacheKey(tenantId, userId), null);
+    }
+  };
+
+  const handleProcessSale = async () => {
+    setError('');
+    setMessage('');
+
+    if (!tenant?.tenant_id || !userProfile?.user_id) return;
+    if (cart.length === 0) {
+      showValidationError('Agrega productos para continuar.');
+      return;
+    }
+    if (remaining > 0) {
+      showValidationError(`Falta pago por ${formatMoney(remaining)}.`);
+      return;
+    }
+    if (!currentSession?.cash_session_id) {
+      showValidationError('Debe abrir una caja antes de vender.');
+      return;
+    }
+    if (sessionExpired && !offlineMode) {
+      showValidationError(
+        `La sesión de caja lleva ${sessionAgeHours}h abierta y superó el límite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
+      );
+      return;
+    }
+    if (saleDateTimeError) {
+      showValidationError(saleDateTimeError);
+      return;
+    }
+    if (payments.some((p) => !p.method || Number(p.amount || 0) <= 0)) {
+      showValidationError('Verifica métodos y montos de pago.');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const operationId = createOperationId();
+      const lines = cart.map((line) => {
+        const taxRate = line.tax_rate || 0;
+        const inclTax = line.price_includes_tax && taxRate > 0;
+        const factor = inclTax ? 1 + taxRate : 1;
+        return {
+          variant_id: line.variant_id,
+          sku: line.sku || null,
+          product_name: line.productName || null,
+          variant_name: line.variantName || null,
+          qty: line.quantity,
+          unit_price: inclTax ? Math.round(line.unit_price / factor) : line.unit_price,
+          discount: inclTax ? Math.round((line.discount || 0) / factor) : line.discount || 0,
+          discount_type: 'AMOUNT',
+        };
+      });
+
+      const adjustedPayments = [...payments];
+      if (change > 0 && adjustedPayments.length > 0) {
+        adjustedPayments[adjustedPayments.length - 1] = {
+          ...adjustedPayments[adjustedPayments.length - 1],
+          amount: Number(adjustedPayments[adjustedPayments.length - 1].amount || 0) - change,
+        };
+      }
+
+      const paymentsPayload = adjustedPayments.map((p) => ({
+        payment_method_code: p.method,
+        amount: Number(p.amount || 0),
+        reference: String(p.reference || '').trim() || null,
+      }));
+
+      const payload = {
+        location_id: currentSession?.cash_register?.location_id || null,
+        cash_session_id: currentSession?.cash_session_id || null,
+        customer_id: selectedCustomer?.customer_id || null,
+        third_party_id: effectiveThirdPartyId,
+        sold_by: userProfile.user_id,
+        sold_at: selectedSaleDate ? selectedSaleDate.toISOString() : null,
+        lines,
+        payments: paymentsPayload,
+        note: saleNote || null,
+      };
+
+      if (offlineMode) {
+        const deviceId = await getOrCreateDeviceId();
+        await enqueuePendingOp({
+          opId: operationId,
+          opType: 'CREATE_SALE',
+          tenantId: tenant.tenant_id,
+          userId: userProfile.user_id,
+          deviceId,
+          payload,
+        });
+        const pendingCount = await getPendingOpsCount({
+          tenantId: tenant?.tenant_id || null,
+          userId: userProfile?.user_id || null,
+        });
+        if (onPendingOpsChange) {
+          onPendingOpsChange(pendingCount);
+        }
+        if (onSaleCompleted) {
+          await onSaleCompleted(payload, { source: 'offline-queue' });
+        }
+        clearSale();
+        setMessage(`Venta guardada offline. Pendientes por sincronizar: ${pendingCount}`);
+        return;
+      }
+
+      const result = await createSale(tenant.tenant_id, {
+        ...payload,
+        operation_id: operationId,
+      });
+
+      if (!result.success) {
+        if (isTransientNetworkError(result.error)) {
+          const deviceId = await getOrCreateDeviceId();
+          await enqueuePendingOp({
+            opId: operationId,
+            opType: 'CREATE_SALE',
+            tenantId: tenant.tenant_id,
+            userId: userProfile.user_id,
+            deviceId,
+            payload,
+          });
+          const pendingCount = await getPendingOpsCount({
+            tenantId: tenant?.tenant_id || null,
+            userId: userProfile?.user_id || null,
+          });
+          if (onPendingOpsChange) {
+            onPendingOpsChange(pendingCount);
+          }
+          if (onSaleCompleted) {
+            await onSaleCompleted(payload, { source: 'queued-after-network-error' });
+          }
+          clearSale();
+          setMessage(
+            `Sin conexión estable. Venta encolada para sincronizar (${pendingCount} pendientes).`,
+          );
+          return;
+        }
+        setError(result.error || 'No se pudo procesar la venta.');
+        return;
+      }
+
+      clearSale();
+      const pendingCount = await getPendingOpsCount({
+        tenantId: tenant?.tenant_id || null,
+        userId: userProfile?.user_id || null,
+      });
+      if (onPendingOpsChange) {
+        onPendingOpsChange(pendingCount);
+      }
+      setMessage(`Venta registrada. ID: ${result.data.sale_id}`);
+      if (onSaleCompleted) {
+        await onSaleCompleted(payload, { source: 'server', saleId: result.data.sale_id });
+      }
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  if (loadingInit) {
+    return (
+      <View style={[styles.centered, isLightTheme && styles.centeredLight]}>
+        <ActivityIndicator size="large" color="#38bdf8" />
+        <Text style={[styles.centerText, isLightTheme && styles.centerTextLight]}>Inicializando POS...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.screenRoot, isLightTheme && styles.screenRootLight]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          isLightTheme && styles.containerLight,
+          { paddingBottom: 48 + androidBottomInset + 44 },
+        ]}
+      >
+      <View style={styles.headerRow}>
+        <Text style={[styles.title, isLightTheme && styles.titleLight]}>Punto de Venta</Text>
+        <Text style={currentSession && !sessionExpired ? styles.sessionOk : styles.sessionWarn}>
+          {currentSession
+            ? `Caja: ${currentSession?.cash_register?.name || 'Activa'}${sessionExpired ? ` (${sessionAgeHours}h)` : ''}`
+            : 'Sin caja abierta'}
+        </Text>
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={styles.aiHeaderRow}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="pricetags-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Items</Text>
+          </View>
+          <Pressable
+            onPress={() => setShowAiTools((prev) => !prev)}
+            style={[styles.aiToggleBtn, isLightTheme && styles.aiToggleBtnLight]}
+          >
+            <View style={styles.btnContentRow}>
+              <Ionicons
+                name={showAiTools ? 'sparkles' : 'sparkles-outline'}
+                size={14}
+                color={isLightTheme ? '#235ea9' : '#eff6ff'}
+              />
+              <Text style={[styles.aiToggleText, isLightTheme && styles.aiToggleTextLight]}>
+                {showAiTools ? 'IA Ocultar' : 'IA'}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+        {showAiTools ? (
+          <View style={[styles.aiToolsWrap, isLightTheme && styles.aiToolsWrapLight]}>
+            <View style={styles.aiActionsRow}>
+              <Pressable
+                onPress={scanInvoiceWithAgent}
+                disabled={processingInvoice || isEmbeddedModelPreparing}
+                style={[
+                  styles.aiIconBtn,
+                  (processingInvoice || isEmbeddedModelPreparing) && styles.btnDisabled,
+                  isLightTheme && styles.aiIconBtnLight,
+                ]}
+              >
+                <Ionicons name="camera-outline" size={20} color={isLightTheme ? '#235ea9' : '#eff6ff'} />
+                <Text style={[styles.aiIconBtnText, isLightTheme && styles.aiIconBtnTextLight]}>Camara</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowChatComposer((prev) => !prev)}
+                disabled={processingChatOrder || processingVoiceOrder}
+                style={[
+                  styles.aiIconBtn,
+                  (processingChatOrder || processingVoiceOrder) && styles.btnDisabled,
+                  isLightTheme && styles.aiIconBtnLight,
+                  showChatComposer && styles.aiIconBtnActive,
+                ]}
+              >
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={20}
+                  color={showChatComposer ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#eff6ff')}
+                />
+                <Text
+                  style={[
+                    styles.aiIconBtnText,
+                    isLightTheme && styles.aiIconBtnTextLight,
+                    showChatComposer && styles.aiIconBtnTextActive,
+                  ]}
+                >
+                  Natural
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={parseVoiceOrderWithVosk}
+                disabled={processingChatOrder}
+                style={[
+                  styles.aiIconBtn,
+                  processingChatOrder && styles.btnDisabled,
+                  isLightTheme && styles.aiIconBtnLight,
+                  processingVoiceOrder && styles.aiIconBtnActive,
+                ]}
+              >
+                <Ionicons
+                  name="mic-outline"
+                  size={20}
+                  color={processingVoiceOrder ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#eff6ff')}
+                />
+                <Text
+                  style={[
+                    styles.aiIconBtnText,
+                    isLightTheme && styles.aiIconBtnTextLight,
+                    processingVoiceOrder && styles.aiIconBtnTextActive,
+                  ]}
+                >
+                  Voz
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowAiLogs((prev) => !prev)}
+                style={[
+                  styles.aiIconBtn,
+                  isLightTheme && styles.aiIconBtnLight,
+                  showAiLogs && styles.aiIconBtnActive,
+                ]}
+              >
+                <Ionicons
+                  name={showAiLogs ? 'receipt' : 'receipt-outline'}
+                  size={20}
+                  color={showAiLogs ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#eff6ff')}
+                />
+                <Text
+                  style={[
+                    styles.aiIconBtnText,
+                    isLightTheme && styles.aiIconBtnTextLight,
+                    showAiLogs && styles.aiIconBtnTextActive,
+                  ]}
+                >
+                  Logs
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              onPress={() => setShowOpsQuickSheet(true)}
+              style={[styles.opsQuickLaunchBtn, isLightTheme && styles.opsQuickLaunchBtnLight]}
+            >
+              <View style={styles.opsQuickLaunchContent}>
+                <Ionicons
+                  name="flash-outline"
+                  size={18}
+                  color={isLightTheme ? '#235ea9' : '#fde68a'}
+                />
+                <View style={styles.opsQuickLaunchTextWrap}>
+                  <Text style={[styles.opsQuickLaunchTitle, isLightTheme && styles.opsQuickLaunchTitleLight]}>
+                    Consulta rápida
+                  </Text>
+                  <Text style={[styles.opsQuickLaunchHint, isLightTheme && styles.opsQuickLaunchHintLight]}>
+                    Responde con ventas, stock o caja sin salir del POS.
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={isLightTheme ? '#235ea9' : '#fde68a'}
+                />
+              </View>
+            </Pressable>
+
+            {showChatComposer ? (
+              <View style={styles.chatComposerWrap}>
+                <TextInput
+                  value={chatOrderText}
+                  onChangeText={setChatOrderText}
+                  placeholder="Ej: agrega 2 cocas 350 y 1 arroz diana para Ana"
+                  placeholderTextColor="#64748b"
+                  multiline
+                  numberOfLines={2}
+                  style={[styles.input, styles.chatOrderInputCompact, isLightTheme && styles.inputLight]}
+                />
+                <Pressable
+                  onPress={parseChatOrderWithAgent}
+                  disabled={processingChatOrder || processingVoiceOrder}
+                  style={[
+                    styles.chatSendBtn,
+                    (processingChatOrder || processingVoiceOrder) && styles.btnDisabled,
+                  ]}
+                >
+                  <Ionicons name="send-outline" size={18} color="#ecfeff" />
+                </Pressable>
+              </View>
+            ) : null}
+
+            {showChatComposer ? (
+              <Text style={[styles.chatComposerHint, isLightTheme && styles.chatComposerHintLight]}>
+                Lenguaje natural: agrega, cliente y notas. Ej: "2 cocas 350, 1 arroz diana, para Ana, entrega hoy".
+              </Text>
+            ) : null}
+
+            {aiWorking ? (
+              <View style={[styles.aiWorkingBanner, isLightTheme && styles.aiWorkingBannerLight]}>
+                <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#38bdf8'} />
+                <Text style={[styles.aiWorkingText, isLightTheme && styles.aiWorkingTextLight]}>
+                  {aiWorkingLabel || 'Procesando comando IA...'}
+                </Text>
+              </View>
+            ) : null}
+
+            {isEmbeddedModelPreparing ? (
+              <Text style={[styles.voicePreviewText, isLightTheme && styles.voicePreviewTextLight]}>
+                Preparando modelo local... {Math.round(embeddedModelDownloadProgress * 100)}%
+              </Text>
+            ) : null}
+
+            {voicePreviewText ? (
+              <Text style={[styles.voicePreviewText, isLightTheme && styles.voicePreviewTextLight]}>
+                Voz: {voicePreviewText}
+              </Text>
+            ) : null}
+
+            {showAiLogs ? (
+              <View style={[styles.embeddedLlmCard, isLightTheme && styles.embeddedLlmCardLight]}>
+                <Text style={[styles.embeddedLlmTitle, isLightTheme && styles.embeddedLlmTitleLight]}>
+                  Logs IA
+                </Text>
+                <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
+                  LLM local (modo: {localLlmMode})
+                </Text>
+                <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
+                  Runtime: {embeddedLlmStatus?.runtime?.runtime_available ? 'Disponible' : 'No disponible'}
+                </Text>
+                <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
+                  Modelo:{' '}
+                  {embeddedLlmStatus?.model?.available
+                    ? `${Number(embeddedLlmStatus?.model?.mb || 0)} MB listo`
+                    : 'No descargado'}
+                </Text>
+                <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
+                  Descarga automática: al iniciar sesión; si aún no existe, también se intenta al usar cámara/chat/voz IA.
+                </Text>
+                {isEmbeddedModelPreparing ? (
+                  <Text style={[styles.embeddedLlmMeta, isLightTheme && styles.embeddedLlmMetaLight]}>
+                    Descargando modelo... {Math.round(embeddedModelDownloadProgress * 100)}%
+                  </Text>
+                ) : null}
+
+                {invoiceScanSummary ? (
+                  <View style={[styles.invoiceSummaryCard, isLightTheme && styles.invoiceSummaryCardLight]}>
+                    <Text style={[styles.invoiceSummaryTitle, isLightTheme && styles.invoiceSummaryTitleLight]}>
+                      OCR imagen
+                    </Text>
+                    <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                      Motor: {invoiceScanSummary.ocrEngine || 'nativo'}
+                    </Text>
+                    <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                      Texto detectado: {Number(invoiceScanSummary.ocrChars || 0)} caracteres ({Number(invoiceScanSummary.ocrLines || 0)} líneas)
+                    </Text>
+                    {invoiceScanSummary?.ocrPreview ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Preview: {invoiceScanSummary.ocrPreview}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {chatOrderSummary ? (
+                  <View style={[styles.invoiceSummaryCard, isLightTheme && styles.invoiceSummaryCardLight]}>
+                    <Text style={[styles.invoiceSummaryTitle, isLightTheme && styles.invoiceSummaryTitleLight]}>
+                      Resultado IA
+                    </Text>
+                    <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                      Cargados: {chatOrderSummary.matchedCount || 0}
+                    </Text>
+                    <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                      Entrada: {getInputTypeLabel(chatOrderSummary.inputType || 'text')}
+                    </Text>
+                    <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                      Fuente: {chatOrderSummary.sourceLabel || 'engine'}
+                    </Text>
+                    {chatOrderSummary?.catalogSource ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Catálogo: {chatOrderSummary.catalogSource}
+                        {chatOrderSummary?.catalogCandidateCount
+                          ? ` (${chatOrderSummary.catalogCandidateCount} candidatos)`
+                          : ''}
+                      </Text>
+                    ) : null}
+                    {chatOrderSummary?.cacheCrossInput ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Caché cross-input: sí
+                      </Text>
+                    ) : null}
+                    {chatOrderSummary?.showConfidence ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Confianza IA: {Math.round(Number(chatOrderSummary.confidence || 0) * 100)}%
+                      </Text>
+                    ) : null}
+                    {chatOrderSummary?.fallbackChain?.length ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Ruta: {chatOrderSummary.fallbackChain.join(' -> ')}
+                      </Text>
+                    ) : null}
+                    {chatOrderSummary?.unmatched?.length ? (
+                      <Text style={styles.invoiceSummaryWarn}>
+                        Sin match: {chatOrderSummary.unmatched.slice(0, 3).map((x) => x.raw_name).join(' · ')}
+                      </Text>
+                    ) : null}
+                    {commandEngineMetrics?.totals?.requests > 0 ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Engine hit-rate caché: {Math.round(Number(commandEngineMetrics?.totals?.hit_rate || 0) * 100)}%
+                      </Text>
+                    ) : null}
+                    {commandEngineMetrics?.resolution?.total > 0 ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Uso caché: {getResolutionSourceUsage(commandEngineMetrics, 'local_cache').count} ({getResolutionSourceUsage(commandEngineMetrics, 'local_cache').sharePct}%)
+                      </Text>
+                    ) : null}
+                    {commandEngineMetrics?.resolution?.total > 0 ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Uso parser local: {getResolutionSourceUsage(commandEngineMetrics, 'deterministic_parser').count} ({getResolutionSourceUsage(commandEngineMetrics, 'deterministic_parser').sharePct}%)
+                      </Text>
+                    ) : null}
+                    {commandEngineMetrics?.resolution?.total > 0 ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Uso LLM local: {getResolutionSourceUsage(commandEngineMetrics, 'local_llm').count} ({getResolutionSourceUsage(commandEngineMetrics, 'local_llm').sharePct}%)
+                      </Text>
+                    ) : null}
+                    {commandEngineMetrics?.resolution?.total > 0 ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Uso LLM cloud: {getResolutionSourceUsage(commandEngineMetrics, 'cloud_llm').count} ({getResolutionSourceUsage(commandEngineMetrics, 'cloud_llm').sharePct}%)
+                      </Text>
+                    ) : null}
+                    {Number(commandEngineMetrics?.resolution?.cache_cross_input_hits || 0) > 0 ? (
+                      <Text style={[styles.invoiceSummaryLine, isLightTheme && styles.invoiceSummaryLineLight]}>
+                        Caché cross-input total: {Number(commandEngineMetrics?.resolution?.cache_cross_input_hits || 0)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Buscar por código, SKU o nombre"
+          placeholderTextColor="#64748b"
+          style={[styles.input, isLightTheme && styles.inputLight]}
+          onSubmitEditing={handleSearchInputSubmit}
+        />
+        <Text style={[styles.metaText, styles.searchHintText, isLightTheme && styles.metaTextLight]}>
+          Lector: escanea y presiona Enter.
+        </Text>
+        {favoriteVariants.length > 0 ? (
+          <View style={styles.favoritesWrap}>
+            <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Favoritos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.favoritesRow}>
+                {favoriteVariants.map((fav) => (
+                  <Pressable
+                    key={`fav-${fav.variant_id}`}
+                    style={[styles.favoriteChip, isLightTheme && styles.favoriteChipLight]}
+                    onPress={() => addToCart(fav)}
+                  >
+                    <Text style={[styles.favoriteChipText, isLightTheme && styles.favoriteChipTextLight]}>
+                      {fav.product?.name || fav.variant_name || fav.sku}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        ) : null}
+        {searchingProducts ? <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Buscando...</Text> : null}
+        {visibleResults.map((item) => {
+          const productId = item.product?.product_id || null;
+          const hasResolvedImage = productId
+            ? Object.prototype.hasOwnProperty.call(resultImageUrls, productId)
+            : true;
+          const coverImageUrl = productId ? resultImageUrls[productId] : null;
+          const showThumbnailLoader = !offlineMode && productId && !hasResolvedImage;
+          const hasCoverImage = typeof coverImageUrl === 'string' && coverImageUrl.length > 0;
+
+          return (
+            <View key={item.variant_id} style={[styles.resultRow, isLightTheme && styles.resultRowLight]}>
+              <Pressable onPress={() => addToCart(item)} style={styles.resultInfoCol}>
+                <View style={styles.resultContentRow}>
+                  <View style={[styles.resultThumb, isLightTheme && styles.resultThumbLight]}>
+                    {hasCoverImage ? (
+                      <Image
+                        source={{ uri: coverImageUrl }}
+                        style={styles.resultThumbImage}
+                        resizeMode="cover"
+                      />
+                    ) : showThumbnailLoader ? (
+                      <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+                    ) : (
+                      <Ionicons
+                        name="image-outline"
+                        size={16}
+                        color={isLightTheme ? '#64748b' : '#94a3b8'}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.resultTextCol}>
+                    <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
+                      {item.product?.name} {item.variant_name ? `- ${item.variant_name}` : ''}
+                    </Text>
+                    <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                      {item.sku} · {formatMoney(item.price)} · Stock: {item.stock_available ?? '-'}
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => toggleFavoriteVariant(item)}
+                style={[styles.favoriteBtn, isFavoriteVariant(item.variant_id) && styles.favoriteBtnActive]}
+              >
+                <Ionicons
+                  name={isFavoriteVariant(item.variant_id) ? 'star' : 'star-outline'}
+                  size={14}
+                  color={isFavoriteVariant(item.variant_id) ? '#fef08a' : '#cbd5e1'}
+                />
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={styles.sectionTitleRow}>
+          <Ionicons name="person-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+          <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Cliente (opcional)</Text>
+        </View>
+        <TextInput
+          value={searchCustomer}
+          onChangeText={setSearchCustomer}
+          placeholder="Buscar cliente"
+          placeholderTextColor="#64748b"
+          style={[styles.input, isLightTheme && styles.inputLight]}
+        />
+        {searchingCustomers ? <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Buscando cliente...</Text> : null}
+        {customers.slice(0, 6).map((c) => (
+          <Pressable
+            key={c.customer_id}
+            style={[styles.resultRow, styles.customerResultRow, isLightTheme && styles.resultRowLight]}
+            onPress={() => {
+              setSelectedCustomer(c);
+              setSearchCustomer(c.full_name || '');
+              setCustomers([]);
+            }}
+          >
+            <View style={styles.customerResultInfo}>
+              <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>{c.full_name}</Text>
+              <Text style={[styles.resultMeta, styles.customerResultMeta, isLightTheme && styles.resultMetaLight]}>{c.document || c.phone || '-'}</Text>
+            </View>
+          </Pressable>
+        ))}
+        <View style={styles.feSummaryRow}>
+          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
+            Documento a emitir: {effectiveThirdPartyId ? 'FE' : 'FV'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={styles.aiHeaderRow}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="pause-circle-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas en espera</Text>
+          </View>
+          <Pressable
+            onPress={holdCurrentTicket}
+            disabled={cart.length === 0}
+            style={[styles.holdBtn, cart.length === 0 && styles.btnDisabled]}
+          >
+            <View style={styles.btnContentRow}>
+              <Ionicons name="pause-circle-outline" size={14} color="#ecfeff" />
+              <Text style={styles.holdBtnText}>Guardar en espera</Text>
+            </View>
+          </Pressable>
+        </View>
+        {!ticketDrafts.length ? (
+          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
+            Sin borradores en espera.
+          </Text>
+        ) : (
+          ticketDrafts.slice(0, 4).map((draft) => (
+            <View key={draft.draft_id} style={[styles.draftRow, isLightTheme && styles.draftRowLight]}>
+              <View style={styles.draftInfo}>
+                <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
+                  {draft.customer?.full_name || 'Consumidor final'} · {draft.cart?.length || 0} item(s)
+                </Text>
+                <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                  {new Date(draft.created_at).toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.draftActions}>
+                <Pressable style={[styles.actionMiniBtn, styles.detailMiniBtn]} onPress={() => resumeTicketDraft(draft.draft_id)}>
+                  <View style={styles.btnContentRow}>
+                    <Ionicons name="play-forward-outline" size={12} color="#e2e8f0" />
+                    <Text style={styles.actionMiniText}>Retomar</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={[styles.actionMiniBtn, styles.removeMiniBtn]} onPress={() => discardTicketDraft(draft.draft_id)}>
+                  <View style={styles.btnContentRow}>
+                    <Ionicons name="trash-outline" size={12} color="#fee2e2" />
+                    <Text style={styles.actionMiniText}>Quitar</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={styles.sectionTitleRow}>
+          <Ionicons name="basket-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+          <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Carrito</Text>
+        </View>
+        {cart.length === 0 ? <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Agrega productos para iniciar.</Text> : null}
+        {cart.map((line, index) => {
+          const hasResolvedImage = line.productId
+            ? Object.prototype.hasOwnProperty.call(resultImageUrls, line.productId)
+            : true;
+          const coverImageUrl = line.productId ? resultImageUrls[line.productId] : null;
+          const showThumbnailLoader = !offlineMode && line.productId && !hasResolvedImage;
+          const hasCoverImage = typeof coverImageUrl === 'string' && coverImageUrl.length > 0;
+          const lineAmounts = getCartLineAccountingAmounts(line);
+          const lineSubtotal = lineAmounts.subtotal;
+          const lineDiscount = lineAmounts.discount;
+          const lineTax = lineAmounts.tax;
+          const hasTax = lineTax > 0;
+          const priceIncludesTax = lineAmounts.priceIncludesTax;
+          const taxRateLabel = formatTaxRateLabel(line.tax_rate);
+          const unitPriceLabel = priceIncludesTax
+            ? 'Unitario c/IVA'
+            : hasTax
+              ? 'Unitario s/IVA'
+              : 'Unitario';
+          const taxLabel = `${line.tax_name || 'IVA'}${taxRateLabel ? ` (${taxRateLabel})` : ''}`;
+          const discountLabel = hasTax ? 'Descuento s/IVA' : 'Descuento';
+
+          return (
+            <View key={line.variant_id} style={[styles.lineCard, isLightTheme && styles.lineCardLight]}>
+              <View style={styles.lineTop}>
+                <View style={styles.lineHeaderInfo}>
+                  <View style={[styles.resultThumb, styles.lineThumb, isLightTheme && styles.resultThumbLight]}>
+                    {hasCoverImage ? (
+                      <Image
+                        source={{ uri: coverImageUrl }}
+                        style={styles.resultThumbImage}
+                        resizeMode="cover"
+                      />
+                    ) : showThumbnailLoader ? (
+                      <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+                    ) : (
+                      <Ionicons
+                        name="image-outline"
+                        size={16}
+                        color={isLightTheme ? '#64748b' : '#94a3b8'}
+                      />
+                    )}
+                  </View>
+                  <Text style={[styles.lineTitle, isLightTheme && styles.lineTitleLight]}>{line.productName}</Text>
+                </View>
+                <Pressable onPress={() => removeLine(index)}>
+                  <Ionicons name="trash-outline" size={16} style={styles.removeBtnIcon} />
+                </Pressable>
+              </View>
+              <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>{line.variantName || 'Predeterminado'} · {line.sku}</Text>
+              <View style={styles.lineControls}>
+                <TextInput
+                  value={String(line.quantity)}
+                  onChangeText={(v) => updateLineQuantity(index, v)}
+                  keyboardType="numeric"
+                  style={[styles.qtyInput, isLightTheme && styles.qtyInputLight]}
+                />
+                <View style={styles.linePriceBlock}>
+                  <Text style={[styles.linePriceLabel, isLightTheme && styles.linePriceLabelLight]}>{unitPriceLabel}</Text>
+                  <Text style={[styles.linePriceValue, isLightTheme && styles.linePriceValueLight]}>{formatMoney(line.unit_price)}</Text>
+                  <Text style={[styles.linePriceHint, isLightTheme && styles.linePriceHintLight]}>
+                    {`${line.quantity} x ${formatMoney(line.unit_price)}`}
+                  </Text>
+                </View>
+                {canManageDiscounts ? (
+                  <View style={styles.discountBox}>
+                    <View style={styles.discountField}>
+                      <Text style={[styles.discountLabel, isLightTheme && styles.discountLabelLight]}>
+                        Dcto. {line.discount_line_type === 'PERCENT' ? '(max. 100%)' : `(max. ${formatMoney(line.quantity * line.unit_price)})`}
+                      </Text>
+                      <View style={styles.discountEditorRow}>
+                        <View style={styles.discountTypeRow}>
+                          <Pressable
+                            onPress={() => toggleLineDiscountType(index, 'AMOUNT')}
+                            style={[
+                              styles.discountTypeBtn,
+                              isLightTheme && styles.discountTypeBtnLight,
+                              line.discount_line_type === 'AMOUNT' && styles.discountTypeBtnActive,
+                            ]}
+                          >
+                            <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>$</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => toggleLineDiscountType(index, 'PERCENT')}
+                            style={[
+                              styles.discountTypeBtn,
+                              isLightTheme && styles.discountTypeBtnLight,
+                              line.discount_line_type === 'PERCENT' && styles.discountTypeBtnActive,
+                            ]}
+                          >
+                            <Text style={[styles.discountTypeText, isLightTheme && styles.discountTypeTextLight]}>%</Text>
+                          </Pressable>
+                        </View>
+                        <TextInput
+                          value={String(line.discount_line || 0)}
+                          onChangeText={(v) => updateLineDiscount(index, v)}
+                          keyboardType="numeric"
+                          style={[
+                            styles.discountInput,
+                            line.discount_line_type === 'PERCENT'
+                              ? styles.discountInputPercent
+                              : styles.discountInputAmount,
+                            isLightTheme && styles.discountInputLight,
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+              <View style={[styles.lineBreakdownCard, isLightTheme && styles.lineBreakdownCardLight]}>
+                <View style={styles.lineBreakdownRow}>
+                  <Text style={[styles.lineBreakdownLabel, isLightTheme && styles.lineBreakdownLabelLight]}>
+                    {hasTax ? 'Subtotal s/IVA' : 'Subtotal línea'}
+                  </Text>
+                  <Text style={[styles.lineBreakdownValue, isLightTheme && styles.lineBreakdownValueLight]}>{formatMoney(lineSubtotal)}</Text>
+                </View>
+                {lineDiscount > 0 ? (
+                  <View style={styles.lineBreakdownRow}>
+                    <Text style={[styles.lineBreakdownLabel, isLightTheme && styles.lineBreakdownLabelLight]}>{discountLabel}</Text>
+                    <Text style={[styles.lineBreakdownValue, styles.lineBreakdownValueDiscount]}>-{formatMoney(lineDiscount)}</Text>
+                  </View>
+                ) : null}
+                {hasTax ? (
+                  <View style={styles.lineBreakdownRow}>
+                    <Text style={[styles.lineBreakdownLabel, isLightTheme && styles.lineBreakdownLabelLight]}>{taxLabel}</Text>
+                    <Text style={[styles.lineBreakdownValue, isLightTheme && styles.lineBreakdownValueLight]}>
+                      {formatMoney(lineTax)}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={[styles.lineBreakdownDivider, isLightTheme && styles.lineBreakdownDividerLight]} />
+                <View style={styles.lineBreakdownRow}>
+                  <Text style={[styles.lineBreakdownTotalLabel, isLightTheme && styles.lineBreakdownTotalLabelLight]}>Total línea</Text>
+                  <Text style={[styles.lineBreakdownTotalValue, isLightTheme && styles.lineBreakdownTotalValueLight]}>
+                    {formatMoney(line.line_total)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={styles.sectionTitleRow}>
+          <Ionicons name="calculator-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+          <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Totales</Text>
+        </View>
+        <View style={[styles.totalsCard, isLightTheme && styles.totalsCardLight]}>
+          <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>{totals.hasTax ? 'Subtotal s/IVA' : 'Subtotal'}</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>{formatMoney(totals.subtotal)}</Text></View>
+          {totals.discount > 0 ? (
+            <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>{totals.hasTax ? 'Descuento s/IVA' : 'Descuento'}</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>-{formatMoney(totals.discount)}</Text></View>
+          ) : null}
+          <View style={styles.totalRow}><Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>IVA</Text><Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>{formatMoney(totals.tax)}</Text></View>
+          {totals.roundingAdjustment !== 0 ? (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, isLightTheme && styles.totalLabelLight]}>Ajuste redondeo</Text>
+              <Text style={[styles.totalValue, isLightTheme && styles.totalValueLight]}>{formatMoney(totals.roundingAdjustment)}</Text>
+            </View>
+          ) : null}
+          <View style={[styles.totalRowStrong, isLightTheme && styles.totalRowStrongLight]}>
+            <Text style={[styles.totalStrong, isLightTheme && styles.totalStrongLight]}>TOTAL</Text>
+            <Text style={[styles.totalStrongValue, isLightTheme && styles.totalStrongValueLight]}>{formatMoney(totals.total)}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        <View style={styles.sectionTitleRow}>
+          <Ionicons name="card-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
+          <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Formas de Pago</Text>
+        </View>
+        {payments.map((p, i) => (
+          <View key={`payment-${i}`} style={[styles.paymentRow, isLightTheme && styles.paymentRowLight]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodScroller}>
+              <View style={styles.methodRow}>
+                {paymentMethods.map((m) => (
+                  <Pressable
+                    key={`${i}-${m.code}`}
+                    style={[styles.methodBtn, p.method === m.code && styles.methodBtnActive]}
+                    onPress={() => updatePayment(i, { method: m.code })}
+                  >
+                    <Text style={[styles.methodBtnText, isLightTheme && styles.methodBtnTextLight]}>{m.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <TextInput
+              value={String(p.amount || 0)}
+              onChangeText={(v) => updatePayment(i, { amount: Number(v || 0) })}
+              keyboardType="numeric"
+              style={[styles.paymentInput, isLightTheme && styles.paymentInputLight]}
+            />
+            <TextInput
+              value={String(p.reference || '')}
+              onChangeText={(v) => updatePayment(i, { reference: v })}
+              placeholder="Referencia (opcional)"
+              placeholderTextColor="#64748b"
+              style={[styles.paymentRefInput, isLightTheme && styles.paymentInputLight]}
+            />
+            <Pressable onPress={() => removePayment(i)} style={styles.paymentRemove}>
+              <Ionicons name="trash-outline" size={15} style={styles.removeBtnIcon} />
+            </Pressable>
+          </View>
+        ))}
+        <Pressable onPress={addPayment} style={styles.addPaymentBtn}>
+          <View style={styles.btnContentRow}>
+            <Ionicons name="add-circle-outline" size={16} color={isLightTheme ? '#334155' : '#e2e8f0'} />
+            <Text style={[styles.addPaymentText, isLightTheme && styles.addPaymentTextLight]}>Agregar pago</Text>
+          </View>
+        </Pressable>
+        <Text style={[styles.quickCashLabel, isLightTheme && styles.quickCashLabelLight]}>Monto recibido rápido</Text>
+        <View style={styles.quickCashWrap}>
+          <Pressable
+            onPress={setCashExact}
+            style={[
+              styles.quickCashBtn,
+              quickCashSelectedAmount === totals.total && styles.quickCashBtnActive,
+              isLightTheme && styles.quickCashBtnLight,
+              quickCashSelectedAmount === totals.total && isLightTheme && styles.quickCashBtnActiveLight,
+            ]}
+          >
+            <Text
+              style={[
+                styles.quickCashText,
+                isLightTheme && styles.quickCashTextLight,
+                quickCashSelectedAmount === totals.total && styles.quickCashTextActive,
+              ]}
+            >
+              Exacto
+            </Text>
+          </Pressable>
+          {quickCashOptions.map((value) => (
+            <Pressable
+              key={`cash-${value}`}
+              onPress={() => applyQuickCash(value)}
+              style={[
+                styles.quickCashBtn,
+                quickCashSelectedAmount === value && styles.quickCashBtnActive,
+                isLightTheme && styles.quickCashBtnLight,
+                quickCashSelectedAmount === value && isLightTheme && styles.quickCashBtnActiveLight,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.quickCashText,
+                  isLightTheme && styles.quickCashTextLight,
+                  quickCashSelectedAmount === value && styles.quickCashTextActive,
+                ]}
+              >
+                {formatMoney(value)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {change > 0 ? <Text style={styles.okText}>Vuelto: {formatMoney(change)}</Text> : null}
+        {remaining > 0 ? <Text style={styles.warnText}>Falta: {formatMoney(remaining)}</Text> : null}
+      </View>
+
+      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
+        {canSelectSaleDateTime ? (
+          <View style={styles.saleDateTimeBlock}>
+            <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Fecha y hora de la venta</Text>
+            {Platform.OS === 'web' ? (
+              <View style={[styles.input, styles.webDateTimeField, isLightTheme && styles.inputLight]}>
+                <input
+                  type="datetime-local"
+                  value={saleDateTimeInputValue}
+                  onChange={(event) => {
+                    setSaleDateTimeTouched(true);
+                    setSaleDateTime(event?.target?.value || '');
+                  }}
+                  style={isLightTheme ? WEB_DATE_TIME_INPUT_LIGHT_STYLE : WEB_DATE_TIME_INPUT_DARK_STYLE}
+                />
+              </View>
+            ) : NativeDateTimePicker ? (
+              <Pressable onPress={openSaleDateTimePicker} style={[styles.input, isLightTheme && styles.inputLight]}>
+                <Text style={[styles.saleDateTimeValue, isLightTheme && styles.saleDateTimeValueLight]}>
+                  {formatSaleDateTimeDisplay(saleDateTimeInputValue)}
+                </Text>
+              </Pressable>
+            ) : (
+              <TextInput
+                value={saleDateTimeInputValue}
+                onChangeText={(value) => {
+                  setSaleDateTimeTouched(true);
+                  setSaleDateTime(value);
+                }}
+                placeholder="AAAA-MM-DDTHH:mm"
+                placeholderTextColor="#64748b"
+                style={[styles.input, isLightTheme && styles.inputLight]}
+              />
+            )}
+            {saleDateTimeError ? <Text style={styles.warnText}>{saleDateTimeError}</Text> : null}
+            <Text style={[styles.metaText, styles.saleDateTimeHelpText, isLightTheme && styles.metaTextLight]}>
+              {`Si no cambias este campo, la venta usará la fecha y hora actual. La retrofecha máxima permitida es de ${Number.isFinite(posMaxBackdateHours) && posMaxBackdateHours > 0 ? posMaxBackdateHours : 24} hora(s).`}
+            </Text>
+          </View>
+        ) : null}
+        <TextInput
+          value={saleNote}
+          onChangeText={setSaleNote}
+          placeholder="Nota (opcional)"
+          placeholderTextColor="#64748b"
+          style={[styles.input, isLightTheme && styles.inputLight]}
+        />
+        {!canSelectSaleDateTime ? (
+          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
+            La venta se registra con la fecha y hora actual. El POS solo permite cambiarla manualmente a administradores o gerentes cuando el tenant lo habilita.
+          </Text>
+        ) : null}
+      </View>
+
+      {saleDatePickerOpen && NativeDateTimePicker && Platform.OS !== 'web' ? (
+        <View style={[styles.panel, styles.dateTimePickerPanel, isLightTheme && styles.panelLight]}>
+          <NativeDateTimePicker
+            value={saleDatePickerValue}
+            mode={Platform.OS === 'ios' ? 'datetime' : saleDatePickerMode}
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={handleSaleDateTimePickerChange}
+          />
+        </View>
+      ) : null}
+
+      {sessionExpired ? (
+        <View style={[styles.panel, isLightTheme && styles.panelLight, offlineMode && styles.panelWarnOffline]}>
+          <Text style={styles.warnText}>
+            {offlineMode
+              ? `Sesión vencida (${sessionAgeHours}h). Sin red no puedes abrir una nueva caja — la venta se guardará offline y el servidor validará al sincronizar.`
+              : `Sesión vencida: la caja lleva ${sessionAgeHours}h abierta y el límite del tenant es ${cashSessionMaxHours}h.`}
+          </Text>
+        </View>
+      ) : null}
+
+      <Pressable
+        onPress={handleProcessSale}
+        disabled={processing || cart.length === 0 || remaining > 0}
+        style={[
+          styles.chargeBtn,
+          { marginTop: 8 + Math.max(8, androidBottomInset * 0.35) },
+          (processing || cart.length === 0 || remaining > 0) && styles.btnDisabled,
+        ]}
+      >
+        <View style={styles.btnContentRow}>
+          <Ionicons name={offlineMode ? 'cloud-upload-outline' : 'card-outline'} size={18} color="#eff6ff" />
+          <Text style={styles.chargeText}>
+            {processing
+              ? 'Procesando...'
+              : offlineMode
+                ? `Guardar offline ${formatMoney(totals.total)}`
+                : `Cobrar ${formatMoney(totals.total)}`}
+          </Text>
+        </View>
+      </Pressable>
+
+      <Pressable onPress={clearSale} disabled={cart.length === 0} style={[styles.clearBtn, { marginBottom: 8 + androidBottomInset }, cart.length === 0 && styles.btnDisabled]}>
+        <View style={styles.btnContentRow}>
+          <Ionicons name="trash-outline" size={16} color="#fca5a5" />
+          <Text style={styles.clearText}>Limpiar</Text>
+        </View>
+      </Pressable>
+      </ScrollView>
+      <BottomSheetModal
+        visible={showOpsQuickSheet}
+        onClose={() => setShowOpsQuickSheet(false)}
+        themeMode={themeMode}
+        maxHeight="78%"
+        footer={(
+          <View style={styles.opsQuickFooter}>
+            {(opsQuickResult || opsQuickError) ? (
+              <Pressable
+                style={[styles.opsQuickFooterBtn, isLightTheme && styles.opsQuickFooterBtnLight]}
+                onPress={resetOpsQuickState}
+              >
+                <Text style={[styles.opsQuickFooterBtnText, isLightTheme && styles.opsQuickFooterBtnTextLight]}>
+                  Limpiar
+                </Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
+            <Pressable
+              style={[styles.opsQuickFooterPrimaryBtn, isLightTheme && styles.opsQuickFooterPrimaryBtnLight]}
+              onPress={() => setShowOpsQuickSheet(false)}
+            >
+              <Text style={styles.opsQuickFooterPrimaryBtnText}>Cerrar</Text>
+            </Pressable>
+          </View>
+        )}
+      >
+        <Text style={[styles.opsQuickSheetTitle, isLightTheme && styles.opsQuickSheetTitleLight]}>
+          Consulta rápida de caja
+        </Text>
+        <Text style={[styles.opsQuickSheetSubtitle, isLightTheme && styles.opsQuickSheetSubtitleLight]}>
+          Atajos operativos para responder desde la sede actual sin salir del flujo de venta.
+        </Text>
+
+        <View style={[styles.opsQuickContextCard, isLightTheme && styles.opsQuickContextCardLight]}>
+          <Text style={[styles.opsQuickContextLine, isLightTheme && styles.opsQuickContextLineLight]}>
+            {currentLocationName ? `Sede actual: ${currentLocationName}` : 'Sede actual: no detectada'}
+          </Text>
+          <Text style={[styles.opsQuickContextLine, isLightTheme && styles.opsQuickContextLineLight]}>
+            {currentSession?.cash_register?.name ? `Caja: ${currentSession.cash_register.name}` : 'Caja: sin sesión abierta'}
+          </Text>
+          <Text style={[styles.opsQuickContextHint, isLightTheme && styles.opsQuickContextHintLight]}>
+            {offlineMode
+              ? 'Modo offline: la consulta rápida necesita conexión.'
+              : 'Usa hoy o el turno actual como contexto según la acción elegida.'}
+          </Text>
+        </View>
+
+        <View style={styles.opsQuickActionsGrid}>
+          {POS_OPS_QUICK_ACTIONS.map((action) => {
+            const active = opsQuickActionId === action.id;
+            return (
+              <Pressable
+                key={action.id}
+                onPress={() => runOpsQuickAction(action)}
+                disabled={opsQuickLoading || offlineMode}
+                style={[
+                  styles.opsQuickActionBtn,
+                  isLightTheme && styles.opsQuickActionBtnLight,
+                  active && styles.opsQuickActionBtnActive,
+                  (opsQuickLoading || offlineMode) && styles.opsQuickActionBtnDisabled,
+                ]}
+              >
+                <Ionicons
+                  name={action.icon}
+                  size={18}
+                  color={active ? '#ecfeff' : (isLightTheme ? '#235ea9' : '#fde68a')}
+                />
+                <Text
+                  style={[
+                    styles.opsQuickActionBtnText,
+                    isLightTheme && styles.opsQuickActionBtnTextLight,
+                    active && styles.opsQuickActionBtnTextActive,
+                  ]}
+                >
+                  {action.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {opsQuickLoading ? (
+          <View style={[styles.opsQuickLoadingCard, isLightTheme && styles.opsQuickLoadingCardLight]}>
+            <ActivityIndicator size="small" color={isLightTheme ? '#235ea9' : '#fde68a'} />
+            <Text style={[styles.opsQuickLoadingText, isLightTheme && styles.opsQuickLoadingTextLight]}>
+              Consultando agente operativo...
+            </Text>
+          </View>
+        ) : null}
+
+        {opsQuickError ? <Text style={styles.opsQuickErrorText}>{opsQuickError}</Text> : null}
+
+        {opsQuickResult ? (
+          <View style={[styles.opsQuickResultCard, isLightTheme && styles.opsQuickResultCardLight]}>
+            {opsQuickMeta?.label ? (
+              <Text style={[styles.opsQuickResultTitle, isLightTheme && styles.opsQuickResultTitleLight]}>
+                {opsQuickMeta.label}
+              </Text>
+            ) : null}
+
+            {opsQuickMeta?.rangeLabel || opsQuickMeta?.locationName ? (
+              <Text style={[styles.opsQuickResultMeta, isLightTheme && styles.opsQuickResultMetaLight]}>
+                {[opsQuickMeta?.rangeLabel, opsQuickMeta?.locationName ? `Sede ${opsQuickMeta.locationName}` : null]
+                  .filter(Boolean)
+                  .join(' | ')}
+              </Text>
+            ) : null}
+
+            {opsQuickResult.summary ? (
+              <Text style={[styles.opsQuickResultSummary, isLightTheme && styles.opsQuickResultSummaryLight]}>
+                {opsQuickResult.summary}
+              </Text>
+            ) : null}
+
+            <Text style={[styles.opsQuickResultAnswer, isLightTheme && styles.opsQuickResultAnswerLight]}>
+              {opsQuickResult.answer}
+            </Text>
+
+            {opsQuickResult.clarifyingQuestion ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Pregunta de precision
+                </Text>
+                <Text style={[styles.opsQuickBlockLine, isLightTheme && styles.opsQuickBlockLineLight]}>
+                  {opsQuickResult.clarifyingQuestion}
+                </Text>
+              </View>
+            ) : null}
+
+            {opsQuickResult.suggestedActions.length > 0 ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Acciones sugeridas
+                </Text>
+                {opsQuickResult.suggestedActions.map((item, index) => (
+                  <Text
+                    key={`${opsQuickActionId || 'ops'}-action-${index}`}
+                    style={[styles.opsQuickBlockLine, isLightTheme && styles.opsQuickBlockLineLight]}
+                  >
+                    - {item}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {opsQuickResult.citations.length > 0 ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Citas
+                </Text>
+                <View style={styles.opsQuickCitationRow}>
+                  {opsQuickResult.citations.map((item) => (
+                    <View key={item} style={[styles.opsQuickCitationChip, isLightTheme && styles.opsQuickCitationChipLight]}>
+                      <Text style={[styles.opsQuickCitationChipText, isLightTheme && styles.opsQuickCitationChipTextLight]}>
+                        {item}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {opsQuickResult.retrievalErrors.length > 0 ? (
+              <View style={styles.opsQuickBlock}>
+                <Text style={[styles.opsQuickBlockTitle, isLightTheme && styles.opsQuickBlockTitleLight]}>
+                  Observaciones
+                </Text>
+                {opsQuickResult.retrievalErrors.map((item, index) => (
+                  <Text
+                    key={`${opsQuickActionId || 'ops'}-error-${index}`}
+                    style={[styles.opsQuickBlockLine, isLightTheme && styles.opsQuickBlockLineLight]}
+                  >
+                    - {item}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            <Text style={[styles.opsQuickResultMeta, isLightTheme && styles.opsQuickResultMetaLight]}>
+              Dominios: {opsQuickResult.domains.length ? opsQuickResult.domains.join(', ') : 'inferidos'}
+              {opsQuickResult.confidence != null ? ` | Confianza ${Math.round(opsQuickResult.confidence * 100)}%` : ''}
+              {opsQuickResult.model ? ` | Modelo ${opsQuickResult.model}` : ''}
+              {` | Cache ${opsQuickResult.cacheHit ? 'si' : 'no'}`}
+            </Text>
+          </View>
+        ) : null}
+      </BottomSheetModal>
+      {floatingNotice ? (
+        <View
+          style={[
+            styles.floatingNotice,
+            floatingNotice.type === 'error' ? styles.floatingNoticeError : styles.floatingNoticeInfo,
+            isLightTheme && styles.floatingNoticeLight,
+          ]}
+        >
+          <Ionicons
+            name={floatingNotice.type === 'error' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+            size={16}
+            color={floatingNotice.type === 'error' ? '#fecaca' : '#bbf7d0'}
+          />
+          <Text style={styles.floatingNoticeText} numberOfLines={3}>
+            {floatingNotice.text}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screenRoot: {
+    flex: 1,
+    backgroundColor: '#060b16',
+  },
+  screenRootLight: {
+    backgroundColor: '#f8fafc',
+  },
+  container: {
+    padding: 12,
+    paddingBottom: 24,
+    backgroundColor: '#060b16',
+  },
+  containerLight: {
+    backgroundColor: '#f8fafc',
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#060b16',
+  },
+  centeredLight: {
+    backgroundColor: '#f8fafc',
+  },
+  centerText: {
+    marginTop: 10,
+    color: '#cbd5e1',
+  },
+  centerTextLight: {
+    color: '#475569',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  title: {
+    color: '#f8fafc',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  titleLight: {
+    color: '#0f172a',
+  },
+  sessionOk: {
+    color: '#4ade80',
+    fontSize: 12,
+  },
+  sessionWarn: {
+    color: '#f59e0b',
+    fontSize: 12,
+  },
+  panel: {
+    marginBottom: 10,
+    borderRadius: 12,
+    backgroundColor: '#171b23',
+    borderWidth: 1,
+    borderColor: '#2a3240',
+    padding: 10,
+  },
+  panelLight: {
+    backgroundColor: '#ffffff',
+    borderColor: '#dbe4ef',
+  },
+  panelWarnOffline: {
+    borderColor: '#92400e',
+    backgroundColor: '#1c1208',
+  },
+  btnContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  aiHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  aiToggleBtn: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#0f172a',
+  },
+  aiToggleBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  aiToggleText: {
+    color: '#eff6ff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  aiToggleTextLight: {
+    color: '#235ea9',
+  },
+  aiToolsWrap: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 8,
+    backgroundColor: '#0f172a',
+  },
+  aiToolsWrapLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fbff',
+  },
+  aiActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  opsQuickLaunchBtn: {
+    borderWidth: 1,
+    borderColor: '#7c5a10',
+    borderRadius: 10,
+    backgroundColor: '#1f1a0a',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  opsQuickLaunchBtnLight: {
+    borderColor: '#e6c36a',
+    backgroundColor: '#fff7db',
+  },
+  opsQuickLaunchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  opsQuickLaunchTextWrap: {
+    flex: 1,
+  },
+  opsQuickLaunchTitle: {
+    color: '#fde68a',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  opsQuickLaunchTitleLight: {
+    color: '#8a5a00',
+  },
+  opsQuickLaunchHint: {
+    color: '#fef3c7',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  opsQuickLaunchHintLight: {
+    color: '#946200',
+  },
+  aiIconBtn: {
+    flex: 1,
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    backgroundColor: '#172554',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  aiIconBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#eff6ff',
+  },
+  aiIconBtnActive: {
+    backgroundColor: '#0f766e',
+    borderColor: '#0f766e',
+  },
+  aiIconBtnText: {
+    marginTop: 2,
+    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  aiIconBtnTextLight: {
+    color: '#0c4a6e',
+  },
+  aiIconBtnTextActive: {
+    color: '#ecfeff',
+  },
+  chatComposerWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    marginBottom: 8,
+  },
+  chatOrderInputCompact: {
+    flex: 1,
+    minHeight: 52,
+    maxHeight: 90,
+    textAlignVertical: 'top',
+    marginBottom: 0,
+  },
+  chatComposerHint: {
+    color: '#93c5fd',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  chatComposerHintLight: {
+    color: '#475569',
+  },
+  chatSendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#0f766e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  invoiceAgentRow: {
+    marginBottom: 8,
+  },
+  invoiceAgentBtn: {
+    backgroundColor: '#235ea9',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  invoiceAgentBtnText: {
+    color: '#eff6ff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  chatOrderInput: {
+    minHeight: 74,
+    textAlignVertical: 'top',
+  },
+  chatOrderBtn: {
+    backgroundColor: '#0f766e',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chatOrderBtnText: {
+    color: '#ecfeff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  voiceOrderBtn: {
+    backgroundColor: '#0f3f76',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  voiceOrderBtnActive: {
+    backgroundColor: '#7c2d12',
+  },
+  voiceOrderBtnText: {
+    color: '#ecfeff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  voicePreviewText: {
+    color: '#eff6ff',
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  voicePreviewTextLight: {
+    color: '#235ea9',
+  },
+  aiWorkingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#155e75',
+    borderRadius: 8,
+    backgroundColor: '#082f49',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  aiWorkingBannerLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#eff6ff',
+  },
+  aiWorkingText: {
+    flex: 1,
+    color: '#e0f2fe',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  aiWorkingTextLight: {
+    color: '#0c4a6e',
+  },
+  embeddedLlmCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: '#0b1b2f',
+    marginBottom: 6,
+  },
+  embeddedLlmCardLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#eef6ff',
+  },
+  embeddedLlmTitle: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  embeddedLlmTitleLight: {
+    color: '#1e3a8a',
+  },
+  embeddedLlmMeta: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  embeddedLlmMetaLight: {
+    color: '#334155',
+  },
+  opsQuickSheetTitle: {
+    color: '#eff6ff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  opsQuickSheetTitleLight: {
+    color: '#0f172a',
+  },
+  opsQuickSheetSubtitle: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  opsQuickSheetSubtitleLight: {
+    color: '#475569',
+  },
+  opsQuickContextCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    padding: 10,
+    marginBottom: 10,
+  },
+  opsQuickContextCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fafc',
+  },
+  opsQuickContextLine: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  opsQuickContextLineLight: {
+    color: '#0f172a',
+  },
+  opsQuickContextHint: {
+    color: '#93c5fd',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  opsQuickContextHintLight: {
+    color: '#475569',
+  },
+  opsQuickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  opsQuickActionBtn: {
+    width: '48%',
+    minHeight: 74,
+    borderWidth: 1,
+    borderColor: '#7c5a10',
+    borderRadius: 12,
+    backgroundColor: '#1f1a0a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  opsQuickActionBtnLight: {
+    borderColor: '#e6c36a',
+    backgroundColor: '#fff7db',
+  },
+  opsQuickActionBtnActive: {
+    borderColor: '#0f766e',
+    backgroundColor: '#0f766e',
+  },
+  opsQuickActionBtnDisabled: {
+    opacity: 0.6,
+  },
+  opsQuickActionBtnText: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  opsQuickActionBtnTextLight: {
+    color: '#8a5a00',
+  },
+  opsQuickActionBtnTextActive: {
+    color: '#ecfeff',
+  },
+  opsQuickLoadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#7c5a10',
+    borderRadius: 10,
+    backgroundColor: '#1f1a0a',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  opsQuickLoadingCardLight: {
+    borderColor: '#e6c36a',
+    backgroundColor: '#fff7db',
+  },
+  opsQuickLoadingText: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  opsQuickLoadingTextLight: {
+    color: '#8a5a00',
+  },
+  opsQuickErrorText: {
+    color: '#ef4444',
+    marginBottom: 10,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  opsQuickResultCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    padding: 12,
+    marginBottom: 10,
+  },
+  opsQuickResultCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  opsQuickResultTitle: {
+    color: '#eff6ff',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  opsQuickResultTitleLight: {
+    color: '#0f172a',
+  },
+  opsQuickResultMeta: {
+    color: '#94a3b8',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  opsQuickResultMetaLight: {
+    color: '#64748b',
+  },
+  opsQuickResultSummary: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  opsQuickResultSummaryLight: {
+    color: '#1d4ed8',
+  },
+  opsQuickResultAnswer: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  opsQuickResultAnswerLight: {
+    color: '#0f172a',
+  },
+  opsQuickBlock: {
+    marginTop: 10,
+  },
+  opsQuickBlockTitle: {
+    color: '#eff6ff',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  opsQuickBlockTitleLight: {
+    color: '#0f172a',
+  },
+  opsQuickBlockLine: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  opsQuickBlockLineLight: {
+    color: '#334155',
+  },
+  opsQuickCitationRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  opsQuickCitationChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  opsQuickCitationChipLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  opsQuickCitationChipText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  opsQuickCitationChipTextLight: {
+    color: '#334155',
+  },
+  opsQuickFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  opsQuickFooterBtn: {
+    minWidth: 92,
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  opsQuickFooterBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  opsQuickFooterBtnText: {
+    color: '#cbd5e1',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  opsQuickFooterBtnTextLight: {
+    color: '#334155',
+  },
+  opsQuickFooterPrimaryBtn: {
+    minWidth: 110,
+    borderRadius: 10,
+    backgroundColor: '#235ea9',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  opsQuickFooterPrimaryBtnLight: {
+    backgroundColor: '#235ea9',
+  },
+  opsQuickFooterPrimaryBtnText: {
+    color: '#eff6ff',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  favoritesWrap: {
+    marginBottom: 6,
+  },
+  favoritesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingTop: 4,
+  },
+  favoriteChip: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#1e293b',
+  },
+  favoriteChipLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  favoriteChipText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  favoriteChipTextLight: {
+    color: '#334155',
+  },
+  invoiceSummaryCard: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 8,
+    backgroundColor: '#0f172a',
+  },
+  invoiceSummaryCardLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  invoiceSummaryTitle: {
+    color: '#eff6ff',
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  invoiceSummaryTitleLight: {
+    color: '#235ea9',
+  },
+  invoiceSummaryLine: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  invoiceSummaryLineLight: {
+    color: '#334155',
+  },
+  invoiceSummaryWarn: {
+    color: '#fca5a5',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    color: '#e2e8f0',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitleLight: {
+    color: '#0f172a',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    backgroundColor: '#0f172a',
+    color: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 6,
+  },
+  inputLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
+  },
+  webDateTimeField: {
+    paddingVertical: 6,
+  },
+  saleDateTimeBlock: {
+    marginBottom: 6,
+  },
+  saleDateTimeHelpText: {
+    marginTop: 2,
+  },
+  saleDateTimeValue: {
+    color: '#f8fafc',
+    fontSize: 14,
+  },
+  saleDateTimeValueLight: {
+    color: '#0f172a',
+  },
+  dateTimePickerPanel: {
+    paddingVertical: 6,
+  },
+  metaText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  metaTextLight: {
+    color: '#64748b',
+  },
+  resultRow: {
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#243041',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultRowLight: {
+    borderTopColor: '#e2e8f0',
+  },
+  resultInfoCol: {
+    flex: 1,
+  },
+  resultContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultThumb: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  resultThumbLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#eff6ff',
+  },
+  resultThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  resultTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  favoriteBtn: {
+    marginLeft: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1e293b',
+  },
+  favoriteBtnActive: {
+    borderColor: '#eab308',
+    backgroundColor: '#422006',
+  },
+  resultTitle: {
+    color: '#f8fafc',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resultTitleLight: {
+    color: '#0f172a',
+  },
+  resultMeta: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  searchHintText: {
+    marginTop: -2,
+    marginBottom: 8,
+  },
+  resultMetaLight: {
+    color: '#64748b',
+  },
+  customerResultRow: {
+    alignItems: 'flex-start',
+  },
+  customerResultInfo: {
+    flex: 1,
+  },
+  customerResultMeta: {
+    marginTop: 6,
+  },
+  feSummaryRow: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#243041',
+    paddingTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  holdBtn: {
+    borderWidth: 1,
+    borderColor: '#0f766e',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: '#115e59',
+  },
+  holdBtnText: {
+    color: '#ccfbf1',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  draftRow: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    backgroundColor: '#0f172a',
+    padding: 8,
+    marginBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  draftRowLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fafc',
+  },
+  draftInfo: {
+    flex: 1,
+  },
+  draftActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  actionMiniBtn: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  detailMiniBtn: {
+    backgroundColor: '#235ea9',
+  },
+  removeMiniBtn: {
+    backgroundColor: '#7f1d1d',
+  },
+  actionMiniText: {
+    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  lineCard: {
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 8,
+    backgroundColor: '#111827',
+  },
+  lineCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fafc',
+  },
+  lineTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lineHeaderInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    paddingRight: 8,
+  },
+  lineThumb: {
+    width: 44,
+    height: 44,
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  lineTitle: {
+    color: '#f8fafc',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  lineTitleLight: {
+    color: '#0f172a',
+  },
+  removeBtn: {
+    color: '#f87171',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  removeBtnIcon: {
+    color: '#f87171',
+  },
+  lineControls: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  qtyInput: {
+    width: 58,
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    color: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#0f172a',
+  },
+  qtyInputLight: {
+    borderColor: '#cbd5e1',
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
+  },
+  linePriceBlock: {
+    width: 112,
+    paddingTop: 2,
+  },
+  linePriceLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  linePriceLabelLight: {
+    color: '#64748b',
+  },
+  linePriceValue: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+  },
+  linePriceValueLight: {
+    color: '#0f172a',
+  },
+  linePriceHint: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  linePriceHintLight: {
+    color: '#475569',
+  },
+  discountBox: {
+    alignItems: 'stretch',
+    flex: 1,
+  },
+  discountField: {
+    flex: 1,
+  },
+  discountLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  discountLabelLight: {
+    color: '#64748b',
+  },
+  discountEditorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  discountTypeRow: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  discountTypeBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#0f172a',
+  },
+  discountTypeBtnLight: {
+    backgroundColor: '#ffffff',
+  },
+  discountTypeBtnActive: {
+    backgroundColor: '#235ea9',
+  },
+  discountTypeText: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  discountTypeTextLight: {
+    color: '#334155',
+  },
+  discountInput: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    color: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#0f172a',
+  },
+  discountInputPercent: {
+    width: 64,
+  },
+  discountInputAmount: {
+    width: 92,
+  },
+  discountInputLight: {
+    borderColor: '#cbd5e1',
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
+  },
+  lineBreakdownCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#0f172a',
+  },
+  lineBreakdownCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  lineBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  lineBreakdownLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+    flex: 1,
+  },
+  lineBreakdownLabelLight: {
+    color: '#64748b',
+  },
+  lineBreakdownValue: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  lineBreakdownValueLight: {
+    color: '#0f172a',
+  },
+  lineBreakdownValueDiscount: {
+    color: '#f87171',
+  },
+  lineBreakdownDivider: {
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    marginTop: 4,
+    paddingTop: 6,
+  },
+  lineBreakdownDividerLight: {
+    borderTopColor: '#dbe4ef',
+  },
+  lineBreakdownTotalLabel: {
+    color: '#f8fafc',
+    fontWeight: '700',
+  },
+  lineBreakdownTotalLabelLight: {
+    color: '#0f172a',
+  },
+  lineBreakdownTotalValue: {
+    color: '#f8fafc',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  lineBreakdownTotalValueLight: {
+    color: '#0f172a',
+  },
+  totalsCard: {
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  totalsCardLight: {
+    backgroundColor: '#ffffff',
+    borderColor: '#dbe4ef',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  totalRowStrong: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    paddingTop: 8,
+  },
+  totalRowStrongLight: {
+    borderTopColor: '#cbd5e1',
+  },
+  totalLabel: {
+    color: '#cbd5e1',
+  },
+  totalLabelLight: {
+    color: '#475569',
+  },
+  totalValue: {
+    color: '#f8fafc',
+  },
+  totalValueLight: {
+    color: '#0f172a',
+  },
+  totalStrong: {
+    color: '#f8fafc',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  totalStrongLight: {
+    color: '#0f172a',
+  },
+  totalStrongValue: {
+    color: '#38bdf8',
+    fontSize: 34,
+    fontWeight: '800',
+    lineHeight: 38,
+  },
+  totalStrongValueLight: {
+    color: '#0b63f3',
+  },
+  paymentRow: {
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: '#0f172a',
+  },
+  paymentRowLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#f8fafc',
+  },
+  methodScroller: {
+    marginBottom: 8,
+  },
+  methodRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  methodBtn: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  methodBtnActive: {
+    backgroundColor: '#235ea9',
+    borderColor: '#235ea9',
+  },
+  methodBtnText: {
+    color: '#f8fafc',
+    fontSize: 12,
+  },
+  methodBtnTextLight: {
+    color: '#334155',
+  },
+  paymentInput: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    color: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: '#111827',
+  },
+  paymentRefInput: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    color: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: '#111827',
+    marginTop: 6,
+  },
+  paymentInputLight: {
+    borderColor: '#cbd5e1',
+    color: '#0f172a',
+    backgroundColor: '#ffffff',
+  },
+  paymentRemove: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+  },
+  addPaymentBtn: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  addPaymentText: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+  },
+  addPaymentTextLight: {
+    color: '#334155',
+  },
+  quickCashWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  quickCashLabel: {
+    color: '#94a3b8',
+    marginTop: 8,
+    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  quickCashLabelLight: {
+    color: '#475569',
+  },
+  quickCashBtn: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#0f172a',
+  },
+  quickCashBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  quickCashBtnActive: {
+    borderColor: '#235ea9',
+    backgroundColor: '#0c4a6e',
+  },
+  quickCashBtnActiveLight: {
+    borderColor: '#235ea9',
+    backgroundColor: '#dbeafe',
+  },
+  quickCashText: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  quickCashTextLight: {
+    color: '#334155',
+  },
+  quickCashTextActive: {
+    color: '#eff6ff',
+  },
+  okText: {
+    color: '#4ade80',
+    marginBottom: 8,
+  },
+  warnText: {
+    color: '#f87171',
+    marginBottom: 8,
+  },
+  chargeBtn: {
+    backgroundColor: '#235ea9',
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chargeText: {
+    color: '#eff6ff',
+    fontWeight: '800',
+    fontSize: 17,
+  },
+  clearBtn: {
+    backgroundColor: '#3f1d2e',
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  clearText: {
+    color: '#fca5a5',
+    fontWeight: '700',
+  },
+  floatingNotice: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    top: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    zIndex: 25,
+  },
+  floatingNoticeError: {
+    backgroundColor: '#7f1d1d',
+    borderColor: '#ef4444',
+  },
+  floatingNoticeInfo: {
+    backgroundColor: '#14532d',
+    borderColor: '#22c55e',
+  },
+  floatingNoticeLight: {
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  floatingNoticeText: {
+    flex: 1,
+    color: '#f8fafc',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  btnDisabled: {
+    opacity: 0.5,
+  },
+});
