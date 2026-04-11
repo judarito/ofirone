@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
+import ThirdPartyWizardSheet from '../components/ThirdPartyWizardSheet';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
@@ -25,6 +26,10 @@ import {
   removeThirdParty,
   updateThirdParty,
 } from '../services/thirdParties.service';
+import {
+  DOCUMENT_TYPE_CODES as DOCUMENT_TYPES,
+  TAX_REGIME_OPTIONS_MOBILE as TAX_REGIME_OPTIONS,
+} from '../../../shared/constants/thirdParty';
 
 const TYPE_FILTERS = ['', 'customer', 'supplier'];
 const TYPE_FILTER_OPTIONS = TYPE_FILTERS.filter(Boolean).map((value) => ({
@@ -32,27 +37,9 @@ const TYPE_FILTER_OPTIONS = TYPE_FILTERS.filter(Boolean).map((value) => ({
   label: value === 'customer' ? 'Clientes' : value === 'supplier' ? 'Proveedores' : value,
 }));
 
-const DOCUMENT_TYPES = [
-  'CC',
-  'NIT',
-  'CE',
-  'TI',
-  'PASSPORT',
-  'PEP',
-  'NUI',
-  'RUT',
-];
-
-const TAX_REGIME_OPTIONS = [
-  { value: '48', label: 'Responsable IVA (48)' },
-  { value: '49', label: 'No Responsable IVA (49)' },
-  { value: 'O-13', label: 'Gran Contribuyente (O-13)' },
-  { value: 'ZZ', label: 'Régimen Simple (ZZ)' },
-];
-
 const EMPTY_FORM = {
   third_party_id: null,
-  type: 'both',
+  type: 'customer',
   legal_name: '',
   trade_name: '',
   document_type: 'CC',
@@ -112,6 +99,8 @@ export default function ThirdPartiesScreen({
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editingThirdParty, setEditingThirdParty] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_FORM, type: lockedType || EMPTY_FORM.type });
 
   const {
@@ -146,40 +135,13 @@ export default function ThirdPartiesScreen({
   });
 
   const openCreate = () => {
-    setForm({ ...EMPTY_FORM, type: lockedType || EMPTY_FORM.type });
-    setModalOpen(true);
+    setEditingThirdParty(null);
+    setWizardOpen(true);
   };
 
   const openEdit = (item) => {
-    setForm({
-      third_party_id: item.third_party_id,
-      type: lockedType || item.type || 'both',
-      legal_name: item.legal_name || '',
-      trade_name: item.trade_name || '',
-      document_type: item.document_type || 'CC',
-      document_number: item.document_number || '',
-      dv: item.dv || '',
-      phone: item.phone || '',
-      email: item.email || '',
-      fiscal_email: item.fiscal_email || '',
-      department: item.department || '',
-      city: item.city || '',
-      city_code: item.city_code || '',
-      address_text:
-        typeof item.address === 'string'
-          ? item.address
-          : item.address?.street || item.address?.text || '',
-      tax_regime: item.tax_regime || '',
-      ciiu_code: item.ciiu_code || '',
-      is_responsible_for_iva: item.is_responsible_for_iva === true,
-      obligated_accounting: item.obligated_accounting === true,
-      electronic_invoicing_enabled: item.electronic_invoicing_enabled === true,
-      max_credit_amount: String(item.max_credit_amount || 0),
-      default_payment_terms: String(item.default_payment_terms || 0),
-      default_currency: item.default_currency || 'COP',
-      is_active: item.is_active !== false,
-    });
-    setModalOpen(true);
+    setEditingThirdParty(item);
+    setWizardOpen(true);
   };
 
   const save = async () => {
@@ -202,7 +164,7 @@ export default function ThirdPartiesScreen({
     const payload = {
       tenant_id: tenant.tenant_id,
       third_party_id: form.third_party_id || undefined,
-      type: lockedType || form.type || 'both',
+      type: lockedType || form.type || 'customer',
       legal_name: legalName,
       trade_name: (form.trade_name || '').trim() || null,
       document_type: (form.document_type || 'CC').trim(),
@@ -277,6 +239,27 @@ export default function ThirdPartiesScreen({
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
+      <ThirdPartyWizardSheet
+        visible={wizardOpen}
+        onClose={() => {
+          setWizardOpen(false);
+          setEditingThirdParty(null);
+        }}
+        themeMode={themeMode}
+        tenantId={tenant?.tenant_id}
+        mode={editingThirdParty ? 'edit' : 'create'}
+        initialThirdParty={editingThirdParty}
+        forcedType={lockedType}
+        onSaved={async ({ message }) => {
+          await loadPage(page, filters);
+          Alert.alert(
+            editingThirdParty ? 'Tercero actualizado' : 'Tercero creado',
+            message || 'El tercero fue guardado correctamente.',
+          );
+          setEditingThirdParty(null);
+        }}
+      />
+
       <View style={styles.toolbar}>
         <TextInput
           style={[styles.searchInput, isLightTheme && styles.searchInputLight]}
@@ -640,7 +623,7 @@ export default function ThirdPartiesScreen({
                 </Pressable>
               </ScrollView>
 
-              <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+              <Pressable onPress={() => setModalOpen(false)} style={styles.closeBtn}>
                 <View style={styles.btnContentRow}>
                   <Ionicons name="chevron-down-circle-outline" size={15} color="#fff" />
                   <Text style={styles.closeBtnText}>Cerrar</Text>

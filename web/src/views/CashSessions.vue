@@ -345,6 +345,7 @@ import supabaseService from '@/services/supabase.service'
 import { humanizeAppError } from '@/utils/appErrors'
 import { formatMoney, formatDateTimeFull as formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
+import { getCashSessionState } from '../../../shared/utils/cashSessionUtils'
 
 const { t } = useI18n()
 
@@ -385,8 +386,9 @@ const forceCloseDialogVisible = ref(false)
 const forcingClose = ref(false)
 
 const isAdmin = computed(() => userProfile.value?.roles?.some(r => r.name === 'ADMINISTRADOR') ?? false)
-const isExpired = (item) => item?.status === 'OPEN' && (Date.now() - new Date(item.opened_at)) / 3600000 >= cashSessionMaxHours.value
-const sessionHours = (item) => Math.floor((Date.now() - new Date(item?.opened_at)) / 3600000)
+const getSessionState = (item) => getCashSessionState(item, cashSessionMaxHours.value)
+const isExpired = (item) => item?.status === 'OPEN' && getSessionState(item).expired
+const sessionHours = (item) => getSessionState(item).ageHours
 
 const rules = {
   required: v => (v !== '' && v !== null && v !== undefined) || 'Campo requerido',

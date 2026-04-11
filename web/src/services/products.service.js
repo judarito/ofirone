@@ -1,6 +1,7 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
 import { serviceErrorResult } from '@/utils/appErrors'
+import { attachProductMediaSummary } from './productMedia.service'
 
 const VARIANT_SEARCH_TTL_MS = 45 * 1000
 const ACTIVE_VARIANTS_TTL_MS = 2 * 60 * 1000
@@ -115,7 +116,8 @@ class ProductsService {
 
       const { data, error, count } = await query
       if (error) throw error
-      return { success: true, data: data || [], total: count || 0 }
+      const enriched = await attachProductMediaSummary(tenantId, data || [])
+      return { success: true, data: enriched, total: count || 0 }
     } catch (error) {
       return serviceErrorResult(error, { data: [], total: 0 })
     }
@@ -194,7 +196,8 @@ class ProductsService {
         .single()
 
       if (error) throw error
-      return { success: true, data }
+      const [enriched] = await attachProductMediaSummary(tenantId, [data])
+      return { success: true, data: enriched || data }
     } catch (error) {
       return serviceErrorResult(error)
     }

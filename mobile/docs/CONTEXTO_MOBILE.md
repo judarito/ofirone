@@ -15,6 +15,140 @@ Regla de trabajo:
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
 
+## Actualizacion reciente (2026-04-10) — validacion de caja vencida centralizada con web
+
+- La regla de vencimiento de sesiones de caja ahora queda consolidada en `shared/utils/cashSessionUtils.js`.
+- Nuevas utilidades compartidas activas:
+  - `getCashSessionState(session, maxHours)`
+  - `buildCashSessionExpiredMessage(state)`
+  - `validateCashSessionForOperation(session, maxHours, options)`
+- `src/lib/cashSession.js` sigue existiendo como capa de compatibilidad, pero ahora reexporta tambien esas funciones nuevas.
+- Mobile ya consume esta validacion compartida en:
+  - `src/screens/PointOfSaleScreen.js`
+  - `src/screens/LayawayScreen.js`
+- Regla vigente:
+  - si la operacion requiere caja y no existe sesion, la validacion devuelve `NO_OPEN_SESSION`
+  - si la sesion supero `cash_session_max_hours`, devuelve `EXPIRED_SESSION`
+- el mensaje de sesion vencida queda alineado con web para no divergir entre apps
+
+## Actualizacion reciente (2026-04-10) — venta guiada alternativa en POS mobile
+
+- `src/screens/PointOfSaleScreen.js` ahora incluye una entrada `Venta guiada` como flujo alternativo, sin reemplazar el POS rapido.
+- El wizard vive en un `BottomSheetModal` y reutiliza el mismo motor de:
+  - carrito
+  - pagos
+  - ventas en espera
+  - nota y fecha manual
+  - cobro final
+- La logica minima de pasos y bloqueos viene de `shared/utils/saleWizard.js`.
+- Pasos vigentes:
+  - cliente y contexto
+  - productos
+  - pago
+  - confirmar
+- Reglas vigentes:
+  - si ya existe carrito, abre en `Productos`
+  - no deja avanzar a pago sin items
+  - no deja confirmar si la caja no existe o esta vencida
+  - no deja confirmar si falta dinero o si la fecha manual es invalida
+- Al retomar una venta en espera, mobile puede abrir directamente el wizard en el paso de productos.
+- `Ventas en espera` ya no se muestra en la mitad del POS rapido:
+  - ahora se accede desde una fila superior de accesos rapidos, en horizontal, para no saturar el header del POS
+  - el acceso `Ventas en espera` ahora muestra un indicador numerico con la cantidad de borradores guardados
+  - la accion de guardar el ticket actual ya no queda ambigua como `Guardar`; se expone como `Guardar en espera`
+  - `Guardar en espera` y `Limpiar` quedan agrupados cerca de `Cobrar` dentro del bloque operativo final del POS rapido
+  - dentro del wizard aparece en el paso inicial, que es donde mejor encaja retomar una venta
+- Cobertura agregada:
+  - `src/__tests__/saleWizard.test.js`
+
+## Actualizacion reciente (2026-04-10) — wizard guiado de creacion de productos
+
+### Alcance
+
+Se simplifico el alta de productos en mobile y se alineo con la logica guiada de web:
+- nuevo componente `src/components/ProductCreationWizardSheet.js`
+- `src/screens/ProductsScreen.js` usa el wizard para crear productos nuevos
+- el bottom sheet legacy queda enfocado en edicion y fotos del producto
+
+### Diseno aplicado
+
+- el wizard trabaja con 3 pasos:
+  - datos basicos
+  - perfil del producto
+  - configuracion minima
+- los perfiles y reglas no viven hardcodeados solo en mobile; ahora vienen de `shared/utils/productCreationWizard.js`
+- perfiles activos:
+  - producto simple
+  - producto con variantes
+  - insumo/componente
+  - producto fabricado
+  - combo/bundle
+  - servicio
+- regla UX vigente:
+  - el wizard muestra por defecto solo lo esencial segun el perfil elegido
+  - las combinaciones completas viven bajo `Opciones avanzadas`
+  - asi se mantiene la funcionalidad sin recargar la pantalla principal
+  - el wizard comunica explicitamente que `producto simple` = una sola variante y `componente` = insumo para otros productos
+  - el campo de stock mostrado en la configuracion minima ahora se presenta como `alerta minima de stock`
+  - `0` en ese campo significa `sin alerta minima`, no `sin control de inventario`
+  - `track_inventory` ya no queda encendido por defecto para los perfiles fisicos del wizard
+
+### Correccion importante de paridad
+
+- se corrigio el bug donde `Componente` podia terminar con `inventory_behavior='MANUFACTURED'`
+- la regla vigente queda alineada con web:
+  - componente = `RESELL + is_component=true`
+  - manufacturado = producto final fabricado, no insumo
+
+### Variantes en wizard
+
+- como la BD auto-crea una variante `Predeterminado` al insertar un producto, el wizard reutiliza esa variante cuando el perfil es `producto con variantes`
+- para soportarlo se agrego en `src/services/productsCatalog.service.js`:
+  - `createVariant(payload)`
+  - `updateVariant(variantId, tenantId, updates)`
+  - `getProductById(productId, tenantId)`
+  - `removeVariant(variantId, tenantId)`
+- nuevo componente `src/components/ProductVariantWizardSheet.js` para crear y editar variantes con el mismo patron guiado
+- `src/components/ProductCreationWizardSheet.js` ahora tambien soporta edicion (`mode="edit"`)
+- `src/screens/ProductsScreen.js` abre el wizard para editar productos y deja el bottom sheet anterior como complemento de fotos/IA
+
+### Cobertura
+
+- nuevo test: `src/__tests__/productCreationWizard.test.js`
+- nuevo test: `src/__tests__/productVariantWizard.test.js`
+
+## Actualizacion reciente (2026-04-10) — wizard guiado de terceros
+
+### Alcance
+
+Se llevo el mismo patron guiado al modulo de terceros:
+- por defecto el wizard inicia en tipo `cliente`; `proveedor` y `ambos` quedan como seleccion explicita
+- nuevo componente `src/components/ThirdPartyWizardSheet.js`
+- `src/screens/ThirdPartiesScreen.js` ahora usa el wizard para crear y editar terceros
+
+### Diseno aplicado
+
+- el wizard trabaja en 3 pasos:
+  - rol e identidad
+  - contacto y ubicacion
+  - resumen y ajustes fiscales/comerciales
+- la logica comun vive en `shared/utils/thirdPartyWizard.js`
+- regla UX vigente:
+  - primero se captura el rol (`cliente`, `proveedor` o `ambos`) y la identificacion
+  - lo fiscal y comercial queda en una seccion avanzada, no en la pantalla principal
+
+### Cobertura
+
+- nuevo test: `src/__tests__/thirdPartyWizard.test.js`
+
+## Actualizacion reciente (2026-04-10) — paridad de fotos de producto con web
+
+- El flujo de fotos/portada/IA de productos ya no es exclusivo de mobile; web ahora consume la misma base `product_media` y la misma edge function `product-photo-analyzer`.
+- Esto reduce la brecha entre apps:
+  - mobile sigue usando `src/screens/ProductsScreen.js`
+  - web ahora lo replica con `web/src/components/ProductMediaManager.vue`
+- La referencia operativa de storage/RLS/edge function sigue siendo la misma documentada en `docs/PRODUCT_PHOTOS_AI_SETUP.md`.
+
 ## Actualizacion reciente (2026-04-04) — Base de agente RAG operativo reusable para mobile/web
 
 ### Ajuste posterior (2026-04-05) — notificaciones con copy mas claro y priorizado en espanol

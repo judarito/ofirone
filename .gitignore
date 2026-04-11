@@ -42,6 +42,14 @@ ios/app/GoogleService-Info.plist
 .env
 .env.local
 .env*.local
+/.env.*
+/web/.env
+/web/.env.*
+/mobile/.env
+/mobile/.env.*
+!.env.example
+!/web/.env.example
+!/mobile/.env.example
 
 # ─── Editor ─────────────────────────────────────────────
 .vscode/*

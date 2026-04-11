@@ -1564,7 +1564,7 @@ export default function PurchasesScreen({
         themeMode={resolvedThemeMode}
         maxHeight="94%"
         footer={(
-          <View style={[styles.modalFooter, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+          <View style={styles.modalFooter}>
             <Pressable
               style={[styles.modalFooterBtn, styles.ghostBtn, isLightTheme && styles.ghostBtnLight]}
               onPress={closeCreateModal}
@@ -2090,7 +2090,7 @@ export default function PurchasesScreen({
         themeMode={resolvedThemeMode}
         maxHeight="74%"
         footer={(
-          <View style={[styles.modalFooter, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+          <View style={styles.modalFooter}>
             <Pressable
               style={[styles.modalFooterBtn, styles.ghostBtn, isLightTheme && styles.ghostBtnLight]}
               onPress={() => setCreatePayableModalOpen(false)}
@@ -2158,7 +2158,7 @@ export default function PurchasesScreen({
         themeMode={resolvedThemeMode}
         maxHeight="74%"
         footer={(
-          <View style={[styles.modalFooter, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+          <View style={styles.modalFooter}>
             <Pressable
               style={[styles.modalFooterBtn, styles.ghostBtn, isLightTheme && styles.ghostBtnLight]}
               onPress={() => setPaymentModalOpen(false)}

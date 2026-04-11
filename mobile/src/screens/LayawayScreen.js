@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +15,12 @@ import { Ionicons } from '@expo/vector-icons';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
-import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
+import {
+  getCashSessionAgeHours,
+  isCashSessionExpired,
+  resolveCashSessionMaxHours,
+  validateCashSessionForOperation,
+} from '../lib/cashSession';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -141,14 +148,13 @@ export default function LayawayScreen({
       setError('Verifica monto y usuario para registrar el abono.');
       return;
     }
-    if (!currentSession?.cash_session_id) {
-      setError('Debes abrir una caja antes de registrar abonos de plan separe.');
-      return;
-    }
-    if (sessionExpired) {
-      setError(
-        `La sesión de caja lleva ${sessionAgeHours}h abierta y superó el límite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
-      );
+    const sessionValidation = validateCashSessionForOperation(
+      currentSession,
+      cashSessionMaxHours,
+      { missingMessage: 'Debes abrir una caja antes de registrar abonos de plan separe.' },
+    );
+    if (!sessionValidation.valid) {
+      setError(sessionValidation.message);
       return;
     }
 
@@ -268,6 +274,7 @@ export default function LayawayScreen({
 
       <Modal visible={Boolean(detail) || loadingDetail} transparent animationType="slide" onRequestClose={() => setDetail(null)}>
         <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             {loadingDetail ? (
               <ActivityIndicator color="#4ade80" />
@@ -354,13 +361,14 @@ export default function LayawayScreen({
               </ScrollView>
             )}
 
-            <Pressable onPress={() => setDetail(null)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+            <Pressable onPress={() => setDetail(null)} style={styles.closeBtn}>
               <View style={styles.btnContentRow}>
                 <Ionicons name="chevron-down-circle-outline" size={16} color="#fff" />
                 <Text style={styles.closeBtnText}>Cerrar</Text>
               </View>
             </Pressable>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -460,6 +468,7 @@ const styles = StyleSheet.create({
   secondaryBtnText: { color: '#dbeafe', fontWeight: '700' },
   dangerBtn: { flex: 1, backgroundColor: '#7f1d1d', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   dangerBtnText: { color: '#fee2e2', fontWeight: '700' },
-  closeBtn: { marginTop: 12, alignSelf: 'flex-end', backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  closeBtn: { marginTop: 12, alignSelf: 'flex-end', backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  modalAvoider: { width: '100%' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
 });

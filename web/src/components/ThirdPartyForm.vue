@@ -155,6 +155,7 @@
 <script setup>
 import { reactive, toRefs, watch, computed, ref, onMounted, defineExpose } from 'vue'
 import lookupsService from '@/services/lookups.service'
+import { TAX_REGIME_OPTIONS_WEB } from '../../../shared/constants/thirdParty'
 
 const props = defineProps({ model: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['save', 'cancel'])
@@ -194,12 +195,7 @@ const form = reactive({
 
 const rules = { required: v => !!v || 'Campo requerido' }
 
-const taxRegimeOptions = [
-  { title: 'Responsable de IVA (Régimen Ordinario) - 48', value: '48' },
-  { title: 'No Responsable de IVA - 49', value: '49' },
-  { title: 'Gran Contribuyente - O-13', value: 'O-13' },
-  { title: 'Régimen Simple de Tributación - ZZ', value: 'ZZ' }
-]
+const taxRegimeOptions = TAX_REGIME_OPTIONS_WEB
 
 // Inicializar con modelo si viene
 if (props.model && Object.keys(props.model).length > 0) {

@@ -12,7 +12,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheetModal from '../components/BottomSheetModal';
-import { getCashSessionAgeHours, isCashSessionExpired, resolveCashSessionMaxHours } from '../lib/cashSession';
+import {
+  getCashSessionAgeHours,
+  isCashSessionExpired,
+  resolveCashSessionMaxHours,
+  validateCashSessionForOperation,
+} from '../lib/cashSession';
+import {
+  deriveSaleWizardStartStep,
+  getSaleWizardStepBlocker as getSaleWizardStepBlockerState,
+} from '../../../shared/utils/saleWizard';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import {
@@ -596,6 +605,10 @@ export default function PointOfSaleScreen({
   const [showAiLogs, setShowAiLogs] = useState(false);
   const [showChatComposer, setShowChatComposer] = useState(false);
   const [showOpsQuickSheet, setShowOpsQuickSheet] = useState(false);
+  const [showHeldDraftsSheet, setShowHeldDraftsSheet] = useState(false);
+  const [showSaleWizard, setShowSaleWizard] = useState(false);
+  const [saleWizardStep, setSaleWizardStep] = useState(1);
+  const [saleWizardError, setSaleWizardError] = useState('');
   const [opsQuickLoading, setOpsQuickLoading] = useState(false);
   const [opsQuickError, setOpsQuickError] = useState('');
   const [opsQuickResult, setOpsQuickResult] = useState(null);
@@ -696,6 +709,22 @@ export default function PointOfSaleScreen({
     () => isCashSessionExpired(currentSession, cashSessionMaxHours),
     [currentSession?.opened_at, cashSessionMaxHours],
   );
+  const saleSessionValidation = useMemo(() => {
+    if (offlineMode) {
+      return { valid: true, message: '', code: null };
+    }
+    return validateCashSessionForOperation(
+      currentSession,
+      cashSessionMaxHours,
+      { missingMessage: 'Debe abrir una caja antes de vender.' },
+    );
+  }, [offlineMode, currentSession?.opened_at, currentSession?.cash_session_id, cashSessionMaxHours]);
+  const saleWizardSteps = useMemo(() => ([
+    { value: 1, label: 'Cliente' },
+    { value: 2, label: 'Productos' },
+    { value: 3, label: 'Pago' },
+    { value: 4, label: 'Confirmar' },
+  ]), []);
   const canSelectSaleDateTime = canManageDiscounts && tenantSettings?.pos_allow_manual_sale_datetime === true;
   const saleDateTimeInputValue = saleDateTimeTouched ? saleDateTime : getCurrentSaleDateTimeLocalValue();
   const selectedSaleDate = useMemo(() => {
@@ -2010,6 +2039,7 @@ export default function PointOfSaleScreen({
     };
     setTicketDrafts((prev) => [draft, ...prev].slice(0, 12));
     clearSale();
+    closeSaleWizard();
     setMessage(`Venta en espera guardada (${ticketDrafts.length + 1} borradores).`);
   };
 
@@ -2043,6 +2073,10 @@ export default function PointOfSaleScreen({
     setSaleDateTime(draft.sale_datetime || '');
     setSaleDateTimeTouched(draft.sale_datetime_touched === true);
     setTicketDrafts((prev) => prev.filter((item) => item.draft_id !== draftId));
+    setShowHeldDraftsSheet(false);
+    setShowSaleWizard(true);
+    setSaleWizardStep(2);
+    setSaleWizardError('');
     setMessage('Venta recuperada desde espera.');
   };
 
@@ -2068,6 +2102,7 @@ export default function PointOfSaleScreen({
     setSaleDatePickerOpen(false);
     setSaleDatePickerMode('date');
     setPayments([{ method: paymentMethods[0]?.code || '', amount: 0, reference: '' }]);
+    setSaleWizardError('');
     // Clear autosaved cart so it doesn't restore an empty/completed sale
     const tenantId = tenant?.tenant_id;
     const userId = userProfile?.user_id;
@@ -2076,7 +2111,59 @@ export default function PointOfSaleScreen({
     }
   };
 
-  const handleProcessSale = async () => {
+  const openSaleWizard = () => {
+    setSaleWizardError('');
+    setSaleWizardStep(deriveSaleWizardStartStep({ cartLength: cart.length }));
+    setShowSaleWizard(true);
+  };
+
+  const closeSaleWizard = () => {
+    setShowSaleWizard(false);
+    setSaleWizardError('');
+    setSaleWizardStep(deriveSaleWizardStartStep({ cartLength: cart.length }));
+  };
+
+  const getSaleWizardStepBlocker = (targetStep) => getSaleWizardStepBlockerState({
+    targetStep,
+    cartLength: cart.length,
+    remaining,
+    creditError: '',
+    saleDateTimeError,
+    cashSessionError: saleSessionValidation.valid ? '' : saleSessionValidation.message,
+  });
+
+  const goNextSaleWizard = () => {
+    const nextStep = saleWizardStep + 1;
+    const validationError = getSaleWizardStepBlocker(nextStep);
+    if (validationError) {
+      setSaleWizardError(validationError);
+      return;
+    }
+    setSaleWizardError('');
+    setSaleWizardStep(Math.min(4, nextStep));
+  };
+
+  const goToSaleWizardStep = (step) => {
+    const targetStep = Number(step || 1);
+    if (targetStep <= saleWizardStep) {
+      setSaleWizardError('');
+      setSaleWizardStep(targetStep);
+      return;
+    }
+
+    for (let current = saleWizardStep + 1; current <= targetStep; current += 1) {
+      const validationError = getSaleWizardStepBlocker(current);
+      if (validationError) {
+        setSaleWizardError(validationError);
+        return;
+      }
+    }
+
+    setSaleWizardError('');
+    setSaleWizardStep(targetStep);
+  };
+
+  const handleProcessSale = async (options = {}) => {
     setError('');
     setMessage('');
 
@@ -2089,14 +2176,8 @@ export default function PointOfSaleScreen({
       showValidationError(`Falta pago por ${formatMoney(remaining)}.`);
       return;
     }
-    if (!currentSession?.cash_session_id) {
-      showValidationError('Debe abrir una caja antes de vender.');
-      return;
-    }
-    if (sessionExpired && !offlineMode) {
-      showValidationError(
-        `La sesión de caja lleva ${sessionAgeHours}h abierta y superó el límite de ${cashSessionMaxHours}h. Cierra y abre una nueva para continuar.`,
-      );
+    if (!saleSessionValidation.valid) {
+      showValidationError(saleSessionValidation.message);
       return;
     }
     if (saleDateTimeError) {
@@ -2174,6 +2255,9 @@ export default function PointOfSaleScreen({
           await onSaleCompleted(payload, { source: 'offline-queue' });
         }
         clearSale();
+        if (options.closeWizardOnSuccess) {
+          closeSaleWizard();
+        }
         setMessage(`Venta guardada offline. Pendientes por sincronizar: ${pendingCount}`);
         return;
       }
@@ -2205,6 +2289,9 @@ export default function PointOfSaleScreen({
             await onSaleCompleted(payload, { source: 'queued-after-network-error' });
           }
           clearSale();
+          if (options.closeWizardOnSuccess) {
+            closeSaleWizard();
+          }
           setMessage(
             `Sin conexión estable. Venta encolada para sincronizar (${pendingCount} pendientes).`,
           );
@@ -2215,6 +2302,9 @@ export default function PointOfSaleScreen({
       }
 
       clearSale();
+      if (options.closeWizardOnSuccess) {
+        closeSaleWizard();
+      }
       const pendingCount = await getPendingOpsCount({
         tenantId: tenant?.tenant_id || null,
         userId: userProfile?.user_id || null,
@@ -2230,6 +2320,12 @@ export default function PointOfSaleScreen({
       setProcessing(false);
     }
   };
+
+  useEffect(() => {
+    if (showSaleWizard && cart.length === 0 && saleWizardStep > 2) {
+      setSaleWizardStep(2);
+    }
+  }, [cart.length, saleWizardStep, showSaleWizard]);
 
   if (loadingInit) {
     return (
@@ -2250,12 +2346,56 @@ export default function PointOfSaleScreen({
         ]}
       >
       <View style={styles.headerRow}>
-        <Text style={[styles.title, isLightTheme && styles.titleLight]}>Punto de Venta</Text>
-        <Text style={currentSession && !sessionExpired ? styles.sessionOk : styles.sessionWarn}>
-          {currentSession
-            ? `Caja: ${currentSession?.cash_register?.name || 'Activa'}${sessionExpired ? ` (${sessionAgeHours}h)` : ''}`
-            : 'Sin caja abierta'}
-        </Text>
+        <View style={styles.headerInfoWrap}>
+          <Text style={[styles.title, isLightTheme && styles.titleLight]}>Punto de Venta</Text>
+          <Text style={currentSession && !sessionExpired ? styles.sessionOk : styles.sessionWarn}>
+            {currentSession
+              ? `Caja: ${currentSession?.cash_register?.name || 'Activa'}${sessionExpired ? ` (${sessionAgeHours}h)` : ''}`
+              : 'Sin caja abierta'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.headerQuickActionsRow}>
+        <Pressable
+          onPress={() => setShowHeldDraftsSheet(true)}
+          style={[
+            styles.headerQuickActionBtn,
+            styles.secondaryHeaderBtn,
+            isLightTheme && styles.secondaryHeaderBtnLight,
+            isLightTheme && styles.headerQuickActionBtnLight,
+          ]}
+        >
+          <View style={styles.headerQuickActionInner}>
+            <View style={styles.btnContentRow}>
+              <Ionicons name="pause-circle-outline" size={14} color={isLightTheme ? '#475569' : '#e2e8f0'} />
+              <Text style={[styles.secondaryHeaderBtnText, isLightTheme && styles.secondaryHeaderBtnTextLight]}>
+                Ventas en espera
+              </Text>
+            </View>
+            <View style={[styles.headerCountBadge, isLightTheme && styles.headerCountBadgeLight]}>
+              <Text style={[styles.headerCountBadgeText, isLightTheme && styles.headerCountBadgeTextLight]}>
+                {ticketDrafts.length}
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={openSaleWizard}
+          style={[
+            styles.headerQuickActionBtn,
+            styles.saleWizardLaunchBtn,
+            isLightTheme && styles.saleWizardLaunchBtnLight,
+            isLightTheme && styles.headerQuickActionBtnLight,
+          ]}
+        >
+          <View style={styles.btnContentRow}>
+            <Ionicons name="map-outline" size={14} color={isLightTheme ? '#235ea9' : '#eff6ff'} />
+            <Text style={[styles.saleWizardLaunchText, isLightTheme && styles.saleWizardLaunchTextLight]}>
+              Venta guiada
+            </Text>
+          </View>
+        </Pressable>
       </View>
 
       <View style={[styles.panel, isLightTheme && styles.panelLight]}>
@@ -2697,57 +2837,6 @@ export default function PointOfSaleScreen({
       </View>
 
       <View style={[styles.panel, isLightTheme && styles.panelLight]}>
-        <View style={styles.aiHeaderRow}>
-          <View style={styles.sectionTitleRow}>
-            <Ionicons name="pause-circle-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
-            <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Ventas en espera</Text>
-          </View>
-          <Pressable
-            onPress={holdCurrentTicket}
-            disabled={cart.length === 0}
-            style={[styles.holdBtn, cart.length === 0 && styles.btnDisabled]}
-          >
-            <View style={styles.btnContentRow}>
-              <Ionicons name="pause-circle-outline" size={14} color="#ecfeff" />
-              <Text style={styles.holdBtnText}>Guardar en espera</Text>
-            </View>
-          </Pressable>
-        </View>
-        {!ticketDrafts.length ? (
-          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
-            Sin borradores en espera.
-          </Text>
-        ) : (
-          ticketDrafts.slice(0, 4).map((draft) => (
-            <View key={draft.draft_id} style={[styles.draftRow, isLightTheme && styles.draftRowLight]}>
-              <View style={styles.draftInfo}>
-                <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
-                  {draft.customer?.full_name || 'Consumidor final'} · {draft.cart?.length || 0} item(s)
-                </Text>
-                <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
-                  {new Date(draft.created_at).toLocaleString()}
-                </Text>
-              </View>
-              <View style={styles.draftActions}>
-                <Pressable style={[styles.actionMiniBtn, styles.detailMiniBtn]} onPress={() => resumeTicketDraft(draft.draft_id)}>
-                  <View style={styles.btnContentRow}>
-                    <Ionicons name="play-forward-outline" size={12} color="#e2e8f0" />
-                    <Text style={styles.actionMiniText}>Retomar</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={[styles.actionMiniBtn, styles.removeMiniBtn]} onPress={() => discardTicketDraft(draft.draft_id)}>
-                  <View style={styles.btnContentRow}>
-                    <Ionicons name="trash-outline" size={12} color="#fee2e2" />
-                    <Text style={styles.actionMiniText}>Quitar</Text>
-                  </View>
-                </Pressable>
-              </View>
-            </View>
-          ))
-        )}
-      </View>
-
-      <View style={[styles.panel, isLightTheme && styles.panelLight]}>
         <View style={styles.sectionTitleRow}>
           <Ionicons name="basket-outline" size={15} color={isLightTheme ? '#235ea9' : '#93c5fd'} />
           <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Carrito</Text>
@@ -3088,12 +3177,36 @@ export default function PointOfSaleScreen({
         </View>
       ) : null}
 
+      <View style={styles.checkoutSecondaryActionsRow}>
+        <Pressable
+          onPress={holdCurrentTicket}
+          disabled={cart.length === 0}
+          style={[styles.checkoutSecondaryBtn, styles.holdBtn, cart.length === 0 && styles.btnDisabled]}
+        >
+          <View style={styles.btnContentRow}>
+            <Ionicons name="pause-circle-outline" size={14} color="#ecfeff" />
+            <Text style={styles.holdBtnText}>Guardar en espera</Text>
+          </View>
+        </Pressable>
+
+        <Pressable
+          onPress={clearSale}
+          disabled={cart.length === 0}
+          style={[styles.checkoutSecondaryBtn, styles.clearBtn, cart.length === 0 && styles.btnDisabled]}
+        >
+          <View style={styles.btnContentRow}>
+            <Ionicons name="trash-outline" size={16} color="#fca5a5" />
+            <Text style={styles.clearText}>Limpiar</Text>
+          </View>
+        </Pressable>
+      </View>
+
       <Pressable
         onPress={handleProcessSale}
         disabled={processing || cart.length === 0 || remaining > 0}
         style={[
           styles.chargeBtn,
-          { marginTop: 8 + Math.max(8, androidBottomInset * 0.35) },
+          { marginTop: 8, marginBottom: 8 + androidBottomInset },
           (processing || cart.length === 0 || remaining > 0) && styles.btnDisabled,
         ]}
       >
@@ -3108,14 +3221,574 @@ export default function PointOfSaleScreen({
           </Text>
         </View>
       </Pressable>
-
-      <Pressable onPress={clearSale} disabled={cart.length === 0} style={[styles.clearBtn, { marginBottom: 8 + androidBottomInset }, cart.length === 0 && styles.btnDisabled]}>
-        <View style={styles.btnContentRow}>
-          <Ionicons name="trash-outline" size={16} color="#fca5a5" />
-          <Text style={styles.clearText}>Limpiar</Text>
-        </View>
-      </Pressable>
       </ScrollView>
+      <BottomSheetModal
+        visible={showSaleWizard}
+        onClose={closeSaleWizard}
+        themeMode={themeMode}
+        maxHeight="90%"
+        footer={(
+          <View style={styles.saleWizardFooter}>
+            <Pressable
+              style={[styles.saleWizardFooterBtn, isLightTheme && styles.saleWizardFooterBtnLight]}
+              onPress={closeSaleWizard}
+            >
+              <Text style={[styles.saleWizardFooterBtnText, isLightTheme && styles.saleWizardFooterBtnTextLight]}>
+                Cerrar
+              </Text>
+            </Pressable>
+            {cart.length > 0 ? (
+              <Pressable
+                style={[styles.saleWizardFooterBtn, isLightTheme && styles.saleWizardFooterBtnLight]}
+                onPress={holdCurrentTicket}
+              >
+                <Text style={[styles.saleWizardFooterBtnText, isLightTheme && styles.saleWizardFooterBtnTextLight]}>
+                  Guardar en espera
+                </Text>
+              </Pressable>
+            ) : <View style={styles.saleWizardFooterSpacer} />}
+            {cart.length > 0 ? (
+              <Pressable
+                style={[styles.saleWizardFooterBtn, styles.saleWizardFooterDangerBtn]}
+                onPress={clearSale}
+              >
+                <Text style={styles.saleWizardFooterDangerText}>Limpiar</Text>
+              </Pressable>
+            ) : <View style={styles.saleWizardFooterSpacer} />}
+            {saleWizardStep > 1 ? (
+              <Pressable
+                style={[styles.saleWizardFooterBtn, isLightTheme && styles.saleWizardFooterBtnLight]}
+                onPress={() => setSaleWizardStep((prev) => Math.max(1, prev - 1))}
+              >
+                <Text style={[styles.saleWizardFooterBtnText, isLightTheme && styles.saleWizardFooterBtnTextLight]}>
+                  Atrás
+                </Text>
+              </Pressable>
+            ) : <View style={styles.saleWizardFooterSpacer} />}
+            {saleWizardStep < 4 ? (
+              <Pressable
+                style={[styles.saleWizardFooterPrimaryBtn, styles.saleWizardFooterPrimaryHalf]}
+                onPress={goNextSaleWizard}
+              >
+                <Text style={styles.saleWizardFooterPrimaryText}>Continuar</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[
+                  styles.saleWizardFooterPrimaryBtn,
+                  (processing || cart.length === 0 || remaining > 0 || !saleSessionValidation.valid) && styles.btnDisabled,
+                ]}
+                disabled={processing || cart.length === 0 || remaining > 0 || !saleSessionValidation.valid}
+                onPress={() => handleProcessSale({ closeWizardOnSuccess: true })}
+              >
+                <Text style={styles.saleWizardFooterPrimaryText}>
+                  {processing ? 'Procesando...' : `Cobrar ${formatMoney(totals.total)}`}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      >
+        <Text style={[styles.saleWizardTitle, isLightTheme && styles.saleWizardTitleLight]}>
+          Venta guiada
+        </Text>
+        <Text style={[styles.saleWizardSubtitle, isLightTheme && styles.saleWizardSubtitleLight]}>
+          Flujo alternativo para ventas asistidas. El POS actual sigue disponible como modo rápido.
+        </Text>
+
+        <View style={styles.saleWizardStepsRow}>
+          {saleWizardSteps.map((step) => (
+            <Pressable
+              key={`sale-wizard-step-${step.value}`}
+              style={[
+                styles.saleWizardStepChip,
+                isLightTheme && styles.saleWizardStepChipLight,
+                saleWizardStep >= step.value && styles.saleWizardStepChipActive,
+              ]}
+              onPress={() => goToSaleWizardStep(step.value)}
+            >
+              <Text
+                style={[
+                  styles.saleWizardStepChipText,
+                  isLightTheme && styles.saleWizardStepChipTextLight,
+                  saleWizardStep >= step.value && styles.saleWizardStepChipTextActive,
+                ]}
+              >
+                {step.value}. {step.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {saleWizardError ? (
+          <View style={[styles.saleWizardAlert, styles.saleWizardAlertError]}>
+            <Text style={styles.saleWizardAlertText}>{saleWizardError}</Text>
+          </View>
+        ) : null}
+
+        {saleWizardStep === 1 ? (
+          <View>
+            <Text style={[styles.saleWizardSectionTitle, isLightTheme && styles.saleWizardSectionTitleLight]}>
+              Cliente y contexto
+            </Text>
+            <Text style={[styles.saleWizardSectionHint, isLightTheme && styles.saleWizardSectionHintLight]}>
+              Empieza con el cliente y los datos base de la venta. Lo demás lo resolvemos en los siguientes pasos.
+            </Text>
+
+            <TextInput
+              value={searchCustomer}
+              onChangeText={setSearchCustomer}
+              placeholder="Buscar cliente"
+              placeholderTextColor="#64748b"
+              style={[styles.input, isLightTheme && styles.inputLight]}
+            />
+            {customers.slice(0, 6).map((customer) => (
+              <Pressable
+                key={`wizard-customer-${customer.customer_id}`}
+                style={[styles.resultRow, styles.customerResultRow, isLightTheme && styles.resultRowLight]}
+                onPress={() => {
+                  setSelectedCustomer(customer);
+                  setSearchCustomer(customer.full_name || '');
+                  setCustomers([]);
+                }}
+              >
+                <View style={styles.customerResultInfo}>
+                  <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>{customer.full_name}</Text>
+                  <Text style={[styles.resultMeta, styles.customerResultMeta, isLightTheme && styles.resultMetaLight]}>
+                    {customer.document || customer.phone || '-'}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+
+            <View style={[styles.saleWizardSummaryCard, isLightTheme && styles.saleWizardSummaryCardLight]}>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Cliente: {selectedCustomer?.full_name || 'Consumidor final'}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Caja: {currentSession?.cash_register?.name || 'Sin caja abierta'}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Documento a emitir: {effectiveThirdPartyId ? 'FE' : 'FV'}
+              </Text>
+            </View>
+
+            <View style={[styles.saleWizardSummaryCard, isLightTheme && styles.saleWizardSummaryCardLight]}>
+              <View style={styles.saleWizardInlineHeader}>
+                <Text style={[styles.saleWizardSectionTitle, isLightTheme && styles.saleWizardSectionTitleLight]}>
+                  Ventas en espera
+                </Text>
+                <Pressable
+                  onPress={() => setShowHeldDraftsSheet(true)}
+                  style={[styles.saleWizardMiniLinkBtn, isLightTheme && styles.saleWizardMiniLinkBtnLight]}
+                >
+                  <Text style={[styles.saleWizardMiniLinkText, isLightTheme && styles.saleWizardMiniLinkTextLight]}>
+                    Ver todas
+                  </Text>
+                </Pressable>
+              </View>
+              {!ticketDrafts.length ? (
+                <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                  No hay borradores en espera.
+                </Text>
+              ) : (
+                ticketDrafts.slice(0, 2).map((draft) => (
+                  <View key={`wizard-draft-${draft.draft_id}`} style={[styles.draftRow, isLightTheme && styles.draftRowLight]}>
+                    <View style={styles.draftInfo}>
+                      <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
+                        {draft.customer?.full_name || 'Consumidor final'} · {draft.cart?.length || 0} item(s)
+                      </Text>
+                      <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                        {new Date(draft.created_at).toLocaleString()}
+                      </Text>
+                    </View>
+                    <View style={styles.draftActions}>
+                      <Pressable style={[styles.actionMiniBtn, styles.detailMiniBtn]} onPress={() => resumeTicketDraft(draft.draft_id)}>
+                        <View style={styles.btnContentRow}>
+                          <Ionicons name="play-forward-outline" size={12} color="#e2e8f0" />
+                          <Text style={styles.actionMiniText}>Retomar</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))
+              )}
+              <Pressable
+                onPress={holdCurrentTicket}
+                disabled={cart.length === 0}
+                style={[styles.holdBtn, cart.length === 0 && styles.btnDisabled]}
+              >
+                <View style={styles.btnContentRow}>
+                  <Ionicons name="pause-circle-outline" size={14} color="#ecfeff" />
+                  <Text style={styles.holdBtnText}>Guardar en espera</Text>
+                </View>
+              </Pressable>
+            </View>
+
+            {canSelectSaleDateTime ? (
+              <View style={styles.saleDateTimeBlock}>
+                <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Fecha y hora de la venta</Text>
+                {Platform.OS === 'web' ? (
+                  <View style={[styles.input, styles.webDateTimeField, isLightTheme && styles.inputLight]}>
+                    <input
+                      type="datetime-local"
+                      value={saleDateTimeInputValue}
+                      onChange={(event) => {
+                        setSaleDateTimeTouched(true);
+                        setSaleDateTime(event?.target?.value || '');
+                      }}
+                      style={isLightTheme ? WEB_DATE_TIME_INPUT_LIGHT_STYLE : WEB_DATE_TIME_INPUT_DARK_STYLE}
+                    />
+                  </View>
+                ) : NativeDateTimePicker ? (
+                  <Pressable onPress={openSaleDateTimePicker} style={[styles.input, isLightTheme && styles.inputLight]}>
+                    <Text style={[styles.saleDateTimeValue, isLightTheme && styles.saleDateTimeValueLight]}>
+                      {formatSaleDateTimeDisplay(saleDateTimeInputValue)}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <TextInput
+                    value={saleDateTimeInputValue}
+                    onChangeText={(value) => {
+                      setSaleDateTimeTouched(true);
+                      setSaleDateTime(value);
+                    }}
+                    placeholder="AAAA-MM-DDTHH:mm"
+                    placeholderTextColor="#64748b"
+                    style={[styles.input, isLightTheme && styles.inputLight]}
+                  />
+                )}
+                {saleDateTimeError ? <Text style={styles.warnText}>{saleDateTimeError}</Text> : null}
+              </View>
+            ) : null}
+
+            <TextInput
+              value={saleNote}
+              onChangeText={setSaleNote}
+              placeholder="Nota (opcional)"
+              placeholderTextColor="#64748b"
+              multiline
+              style={[styles.input, styles.chatOrderInputCompact, isLightTheme && styles.inputLight]}
+            />
+          </View>
+        ) : null}
+
+        {saleWizardStep === 2 ? (
+          <View>
+            <Text style={[styles.saleWizardSectionTitle, isLightTheme && styles.saleWizardSectionTitleLight]}>
+              Productos
+            </Text>
+            <Text style={[styles.saleWizardSectionHint, isLightTheme && styles.saleWizardSectionHintLight]}>
+              Agrega productos uno a uno o usa el pedido por chat si ya tienes el mensaje del cliente.
+            </Text>
+
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar por código, SKU o nombre"
+              placeholderTextColor="#64748b"
+              style={[styles.input, isLightTheme && styles.inputLight]}
+              onSubmitEditing={handleSearchInputSubmit}
+            />
+
+            <TextInput
+              value={chatOrderText}
+              onChangeText={setChatOrderText}
+              placeholder="Pedido por chat"
+              placeholderTextColor="#64748b"
+              multiline
+              numberOfLines={2}
+              style={[styles.input, styles.chatOrderInputCompact, isLightTheme && styles.inputLight]}
+            />
+            <Pressable
+              onPress={parseChatOrderWithAgent}
+              disabled={processingChatOrder || processingVoiceOrder}
+              style={[styles.chatOrderBtn, (processingChatOrder || processingVoiceOrder) && styles.btnDisabled]}
+            >
+              <View style={styles.btnContentRow}>
+                <Ionicons name="sparkles-outline" size={16} color="#ecfeff" />
+                <Text style={styles.chatOrderBtnText}>Convertir chat a venta</Text>
+              </View>
+            </Pressable>
+
+            {visibleResults.map((item) => (
+              <View key={`wizard-result-${item.variant_id}`} style={[styles.resultRow, isLightTheme && styles.resultRowLight]}>
+                <Pressable onPress={() => addToCart(item)} style={styles.resultInfoCol}>
+                  <View style={styles.resultTextCol}>
+                    <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
+                      {item.product?.name} {item.variant_name ? `- ${item.variant_name}` : ''}
+                    </Text>
+                    <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                      {item.sku} · {formatMoney(item.price)} · Stock: {item.stock_available ?? '-'}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => addToCart(item)}
+                  style={[styles.saleWizardMiniPrimaryBtn, isLightTheme && styles.saleWizardMiniPrimaryBtnLight]}
+                >
+                  <Text style={styles.saleWizardMiniPrimaryText}>Agregar</Text>
+                </Pressable>
+              </View>
+            ))}
+
+            {cart.length === 0 ? (
+              <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>Aún no hay productos en la venta.</Text>
+            ) : null}
+
+            {cart.map((line, index) => (
+              <View key={`wizard-line-${line.variant_id}-${index}`} style={[styles.lineCard, isLightTheme && styles.lineCardLight]}>
+                <View style={styles.lineTop}>
+                  <View style={styles.lineHeaderInfo}>
+                    <Text style={[styles.lineTitle, isLightTheme && styles.lineTitleLight]}>{line.productName}</Text>
+                  </View>
+                  <Pressable onPress={() => removeLine(index)}>
+                    <Ionicons name="trash-outline" size={16} style={styles.removeBtnIcon} />
+                  </Pressable>
+                </View>
+                <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                  {line.variantName || 'Predeterminado'} · {line.sku}
+                </Text>
+                <View style={styles.saleWizardLineRow}>
+                  <TextInput
+                    value={String(line.quantity)}
+                    onChangeText={(value) => updateLineQuantity(index, value)}
+                    keyboardType="numeric"
+                    style={[styles.qtyInput, isLightTheme && styles.qtyInputLight]}
+                  />
+                  <Text style={[styles.saleWizardLineValue, isLightTheme && styles.saleWizardLineValueLight]}>
+                    {formatMoney(line.line_total)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {saleWizardStep === 3 ? (
+          <View>
+            <Text style={[styles.saleWizardSectionTitle, isLightTheme && styles.saleWizardSectionTitleLight]}>
+              Pago
+            </Text>
+            <Text style={[styles.saleWizardSectionHint, isLightTheme && styles.saleWizardSectionHintLight]}>
+              Define cómo te paga el cliente. El wizard usa las mismas validaciones del POS actual.
+            </Text>
+
+            {payments.map((payment, index) => (
+              <View key={`wizard-payment-${index}`} style={[styles.paymentRow, isLightTheme && styles.paymentRowLight]}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodScroller}>
+                  <View style={styles.methodRow}>
+                    {paymentMethods.map((method) => (
+                      <Pressable
+                        key={`wizard-${index}-${method.code}`}
+                        style={[styles.methodBtn, payment.method === method.code && styles.methodBtnActive]}
+                        onPress={() => updatePayment(index, { method: method.code })}
+                      >
+                        <Text style={[styles.methodBtnText, isLightTheme && styles.methodBtnTextLight]}>{method.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+                <TextInput
+                  value={String(payment.amount || 0)}
+                  onChangeText={(value) => updatePayment(index, { amount: Number(value || 0) })}
+                  keyboardType="numeric"
+                  style={[styles.paymentInput, isLightTheme && styles.paymentInputLight]}
+                />
+                <TextInput
+                  value={String(payment.reference || '')}
+                  onChangeText={(value) => updatePayment(index, { reference: value })}
+                  placeholder="Referencia (opcional)"
+                  placeholderTextColor="#64748b"
+                  style={[styles.paymentRefInput, isLightTheme && styles.paymentInputLight]}
+                />
+                <Pressable onPress={() => removePayment(index)} style={styles.paymentRemove}>
+                  <Ionicons name="trash-outline" size={15} style={styles.removeBtnIcon} />
+                </Pressable>
+              </View>
+            ))}
+
+            <Pressable onPress={addPayment} style={styles.addPaymentBtn}>
+              <View style={styles.btnContentRow}>
+                <Ionicons name="add-circle-outline" size={16} color={isLightTheme ? '#334155' : '#e2e8f0'} />
+                <Text style={[styles.addPaymentText, isLightTheme && styles.addPaymentTextLight]}>Agregar pago</Text>
+              </View>
+            </Pressable>
+
+            <Text style={[styles.quickCashLabel, isLightTheme && styles.quickCashLabelLight]}>Monto recibido rápido</Text>
+            <View style={styles.quickCashWrap}>
+              <Pressable
+                onPress={setCashExact}
+                style={[
+                  styles.quickCashBtn,
+                  quickCashSelectedAmount === totals.total && styles.quickCashBtnActive,
+                  isLightTheme && styles.quickCashBtnLight,
+                  quickCashSelectedAmount === totals.total && isLightTheme && styles.quickCashBtnActiveLight,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.quickCashText,
+                    isLightTheme && styles.quickCashTextLight,
+                    quickCashSelectedAmount === totals.total && styles.quickCashTextActive,
+                  ]}
+                >
+                  Exacto
+                </Text>
+              </Pressable>
+              {quickCashOptions.map((value) => (
+                <Pressable
+                  key={`wizard-cash-${value}`}
+                  onPress={() => applyQuickCash(value)}
+                  style={[
+                    styles.quickCashBtn,
+                    quickCashSelectedAmount === value && styles.quickCashBtnActive,
+                    isLightTheme && styles.quickCashBtnLight,
+                    quickCashSelectedAmount === value && isLightTheme && styles.quickCashBtnActiveLight,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.quickCashText,
+                      isLightTheme && styles.quickCashTextLight,
+                      quickCashSelectedAmount === value && styles.quickCashTextActive,
+                    ]}
+                  >
+                    {formatMoney(value)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={[styles.saleWizardSummaryCard, isLightTheme && styles.saleWizardSummaryCardLight]}>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Total: {formatMoney(totals.total)}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Pagado: {formatMoney(paidTotal)}
+              </Text>
+              {remaining > 0 ? <Text style={styles.warnText}>Falta: {formatMoney(remaining)}</Text> : null}
+              {change > 0 ? <Text style={styles.okText}>Vuelto: {formatMoney(change)}</Text> : null}
+            </View>
+          </View>
+        ) : null}
+
+        {saleWizardStep === 4 ? (
+          <View>
+            <Text style={[styles.saleWizardSectionTitle, isLightTheme && styles.saleWizardSectionTitleLight]}>
+              Confirmar venta
+            </Text>
+            <Text style={[styles.saleWizardSectionHint, isLightTheme && styles.saleWizardSectionHintLight]}>
+              Revisa el resumen final. Al confirmar usamos exactamente la misma creación de venta del POS actual.
+            </Text>
+
+            <View style={[styles.saleWizardSummaryCard, isLightTheme && styles.saleWizardSummaryCardLight]}>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Cliente: {selectedCustomer?.full_name || 'Consumidor final'}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Items: {cart.length}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Cantidad total: {cart.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Nota: {saleNote || 'Sin nota'}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Caja: {currentSession?.cash_register?.name || 'Sin caja abierta'}
+              </Text>
+            </View>
+
+            <View style={[styles.saleWizardSummaryCard, isLightTheme && styles.saleWizardSummaryCardLight]}>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Subtotal: {formatMoney(totals.subtotal)}
+              </Text>
+              {totals.discount > 0 ? (
+                <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                  Descuento: -{formatMoney(totals.discount)}
+                </Text>
+              ) : null}
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                IVA: {formatMoney(totals.tax)}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLineStrong, isLightTheme && styles.saleWizardSummaryLineStrongLight]}>
+                Total: {formatMoney(totals.total)}
+              </Text>
+              <Text style={[styles.saleWizardSummaryLine, isLightTheme && styles.saleWizardSummaryLineLight]}>
+                Pagado: {formatMoney(paidTotal)}
+              </Text>
+              {remaining > 0 ? <Text style={styles.warnText}>Falta: {formatMoney(remaining)}</Text> : null}
+              {change > 0 ? <Text style={styles.okText}>Vuelto: {formatMoney(change)}</Text> : null}
+            </View>
+
+            {!saleSessionValidation.valid ? (
+              <View style={[styles.saleWizardAlert, styles.saleWizardAlertError]}>
+                <Text style={styles.saleWizardAlertText}>{saleSessionValidation.message}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </BottomSheetModal>
+      <BottomSheetModal
+        visible={showHeldDraftsSheet}
+        onClose={() => setShowHeldDraftsSheet(false)}
+        themeMode={themeMode}
+        maxHeight="74%"
+        footer={(
+          <View style={styles.saleWizardFooter}>
+            <View style={styles.saleWizardFooterSpacer} />
+            <Pressable
+              style={[styles.saleWizardFooterBtn, isLightTheme && styles.saleWizardFooterBtnLight]}
+              onPress={() => setShowHeldDraftsSheet(false)}
+            >
+              <Text style={[styles.saleWizardFooterBtnText, isLightTheme && styles.saleWizardFooterBtnTextLight]}>
+                Cerrar
+              </Text>
+            </Pressable>
+          </View>
+        )}
+      >
+        <Text style={[styles.saleWizardTitle, isLightTheme && styles.saleWizardTitleLight]}>
+          Ventas en espera
+        </Text>
+        <Text style={[styles.saleWizardSubtitle, isLightTheme && styles.saleWizardSubtitleLight]}>
+          Retoma una venta guardada sin interrumpir el flujo principal del POS.
+        </Text>
+
+        {!ticketDrafts.length ? (
+          <Text style={[styles.metaText, isLightTheme && styles.metaTextLight]}>
+            No hay borradores en espera.
+          </Text>
+        ) : (
+          ticketDrafts.map((draft) => (
+            <View key={`draft-sheet-${draft.draft_id}`} style={[styles.draftRow, isLightTheme && styles.draftRowLight]}>
+              <View style={styles.draftInfo}>
+                <Text style={[styles.resultTitle, isLightTheme && styles.resultTitleLight]}>
+                  {draft.customer?.full_name || 'Consumidor final'} · {draft.cart?.length || 0} item(s)
+                </Text>
+                <Text style={[styles.resultMeta, isLightTheme && styles.resultMetaLight]}>
+                  {new Date(draft.created_at).toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.draftActions}>
+                <Pressable style={[styles.actionMiniBtn, styles.detailMiniBtn]} onPress={() => resumeTicketDraft(draft.draft_id)}>
+                  <View style={styles.btnContentRow}>
+                    <Ionicons name="play-forward-outline" size={12} color="#e2e8f0" />
+                    <Text style={styles.actionMiniText}>Retomar</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={[styles.actionMiniBtn, styles.removeMiniBtn]} onPress={() => discardTicketDraft(draft.draft_id)}>
+                  <View style={styles.btnContentRow}>
+                    <Ionicons name="trash-outline" size={12} color="#fee2e2" />
+                    <Text style={styles.actionMiniText}>Quitar</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+          ))
+        )}
+      </BottomSheetModal>
       <BottomSheetModal
         visible={showOpsQuickSheet}
         onClose={() => setShowOpsQuickSheet(false)}
@@ -3365,6 +4038,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
+  headerInfoWrap: {
+    flex: 1,
+  },
+  headerQuickActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  headerQuickActionBtn: {
+    flex: 1,
+    minHeight: 42,
+    justifyContent: 'center',
+  },
+  headerQuickActionBtnLight: {
+    backgroundColor: '#ffffff',
+  },
+  headerQuickActionInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  headerCountBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 999,
+    backgroundColor: '#0f766e',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCountBadgeLight: {
+    backgroundColor: '#d1fae5',
+  },
+  headerCountBadgeText: {
+    color: '#ecfeff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  headerCountBadgeTextLight: {
+    color: '#0f766e',
+  },
   title: {
     color: '#f8fafc',
     fontSize: 24,
@@ -3380,6 +4095,46 @@ const styles = StyleSheet.create({
   sessionWarn: {
     color: '#f59e0b',
     fontSize: 12,
+  },
+  saleWizardLaunchBtn: {
+    borderWidth: 1,
+    borderColor: '#235ea9',
+    borderRadius: 999,
+    backgroundColor: '#172554',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  saleWizardLaunchBtnLight: {
+    borderColor: '#93c5fd',
+    backgroundColor: '#eff6ff',
+  },
+  secondaryHeaderBtn: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 999,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  secondaryHeaderBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  secondaryHeaderBtnText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  secondaryHeaderBtnTextLight: {
+    color: '#475569',
+  },
+  saleWizardLaunchText: {
+    color: '#eff6ff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  saleWizardLaunchTextLight: {
+    color: '#235ea9',
   },
   panel: {
     marginBottom: 10,
@@ -3669,6 +4424,177 @@ const styles = StyleSheet.create({
   },
   opsQuickSheetSubtitleLight: {
     color: '#475569',
+  },
+  saleWizardTitle: {
+    color: '#eff6ff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  saleWizardTitleLight: {
+    color: '#0f172a',
+  },
+  saleWizardSubtitle: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  saleWizardSubtitleLight: {
+    color: '#475569',
+  },
+  saleWizardStepsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  saleWizardStepChip: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#0f172a',
+  },
+  saleWizardStepChipLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  saleWizardStepChipActive: {
+    borderColor: '#0f766e',
+    backgroundColor: '#0f766e',
+  },
+  saleWizardStepChipText: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  saleWizardStepChipTextLight: {
+    color: '#334155',
+  },
+  saleWizardStepChipTextActive: {
+    color: '#ecfeff',
+  },
+  saleWizardAlert: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 10,
+  },
+  saleWizardAlertError: {
+    borderColor: '#ef4444',
+    backgroundColor: '#7f1d1d',
+  },
+  saleWizardAlertText: {
+    color: '#fee2e2',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  saleWizardSectionTitle: {
+    color: '#eff6ff',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  saleWizardSectionTitleLight: {
+    color: '#0f172a',
+  },
+  saleWizardSectionHint: {
+    color: '#94a3b8',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  saleWizardSectionHintLight: {
+    color: '#475569',
+  },
+  saleWizardSummaryCard: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    padding: 10,
+    marginBottom: 10,
+  },
+  saleWizardSummaryCardLight: {
+    borderColor: '#dbe4ef',
+    backgroundColor: '#ffffff',
+  },
+  saleWizardInlineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
+  },
+  saleWizardSummaryLine: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  saleWizardSummaryLineLight: {
+    color: '#334155',
+  },
+  saleWizardSummaryLineStrong: {
+    color: '#eff6ff',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  saleWizardSummaryLineStrongLight: {
+    color: '#0f172a',
+  },
+  saleWizardMiniPrimaryBtn: {
+    borderRadius: 8,
+    backgroundColor: '#235ea9',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginLeft: 8,
+    alignSelf: 'center',
+  },
+  saleWizardMiniPrimaryBtnLight: {
+    backgroundColor: '#235ea9',
+  },
+  saleWizardMiniPrimaryText: {
+    color: '#eff6ff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  saleWizardMiniLinkBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#172554',
+  },
+  saleWizardMiniLinkBtnLight: {
+    backgroundColor: '#eff6ff',
+  },
+  saleWizardMiniLinkText: {
+    color: '#dbeafe',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  saleWizardMiniLinkTextLight: {
+    color: '#235ea9',
+  },
+  saleWizardLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 8,
+  },
+  saleWizardLineValue: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  saleWizardLineValueLight: {
+    color: '#0f172a',
   },
   opsQuickContextCard: {
     borderWidth: 1,
@@ -4610,6 +5536,75 @@ const styles = StyleSheet.create({
   clearText: {
     color: '#fca5a5',
     fontWeight: '700',
+  },
+  checkoutSecondaryActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  checkoutSecondaryBtn: {
+    flex: 1,
+  },
+  saleWizardFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  saleWizardFooterSpacer: {
+    flex: 1,
+    minWidth: 64,
+  },
+  saleWizardFooterBtn: {
+    minWidth: 74,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saleWizardFooterBtnLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  saleWizardFooterBtnText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  saleWizardFooterBtnTextLight: {
+    color: '#334155',
+  },
+  saleWizardFooterDangerBtn: {
+    borderColor: '#7f1d1d',
+    backgroundColor: '#3f1d2e',
+  },
+  saleWizardFooterDangerText: {
+    color: '#fca5a5',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  saleWizardFooterPrimaryBtn: {
+    flex: 1,
+    minWidth: 124,
+    borderRadius: 10,
+    backgroundColor: '#235ea9',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saleWizardFooterPrimaryHalf: {
+    flex: 1.4,
+  },
+  saleWizardFooterPrimaryText: {
+    color: '#eff6ff',
+    fontSize: 13,
+    fontWeight: '800',
   },
   floatingNotice: {
     position: 'absolute',

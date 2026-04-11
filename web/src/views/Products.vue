@@ -72,6 +72,15 @@
             {{ item.category ? item.category.name : 'Sin categoría' }}
           </template>
           <template #content="{ item }">
+            <div class="mt-2 d-flex align-center ga-3">
+              <v-avatar rounded="lg" size="56" class="product-photo-thumb">
+                <v-img v-if="item.cover_image_url" :src="item.cover_image_url" cover />
+                <v-icon v-else size="24" color="medium-emphasis">mdi-image-outline</v-icon>
+              </v-avatar>
+              <div class="text-body-2 text-medium-emphasis">
+                {{ item.media_count ? `${item.media_count} foto(s) registradas` : 'Sin fotos todavía' }}
+              </div>
+            </div>
             <div class="mt-2 d-flex flex-wrap ga-2">
               <v-chip :color="item.is_active ? 'success' : 'error'" size="small" variant="flat">
                 {{ item.is_active ? 'Activo' : 'Inactivo' }}
@@ -81,6 +90,9 @@
               </v-chip>
               <v-chip v-if="item.track_inventory" size="small" variant="tonal" color="info" prepend-icon="mdi-archive">
                 Inventario
+              </v-chip>
+              <v-chip v-if="item.media_count" size="small" variant="tonal" color="warning" prepend-icon="mdi-image-multiple-outline">
+                {{ item.media_count }} foto(s)
               </v-chip>
             </div>
           </template>
@@ -141,6 +153,15 @@
             {{ item.category ? item.category.name : 'Sin categoría' }}
           </template>
           <template #content="{ item }">
+            <div class="mt-2 d-flex align-center ga-3">
+              <v-avatar rounded="lg" size="56" class="product-photo-thumb">
+                <v-img v-if="item.cover_image_url" :src="item.cover_image_url" cover />
+                <v-icon v-else size="24" color="medium-emphasis">mdi-image-outline</v-icon>
+              </v-avatar>
+              <div class="text-body-2 text-medium-emphasis">
+                {{ item.media_count ? `${item.media_count} foto(s) registradas` : 'Sin fotos todavía' }}
+              </div>
+            </div>
             <div class="mt-2 d-flex flex-wrap ga-2">
               <v-chip color="orange" size="small" variant="flat">
                 Es componente
@@ -150,6 +171,9 @@
               </v-chip>
               <v-chip size="small" variant="tonal" prepend-icon="mdi-cube-outline">
                 {{ item.product_variants?.length || 0 }} variante(s)
+              </v-chip>
+              <v-chip v-if="item.media_count" size="small" variant="tonal" color="warning" prepend-icon="mdi-image-multiple-outline">
+                {{ item.media_count }} foto(s)
               </v-chip>
             </div>
           </template>
@@ -185,6 +209,103 @@
         </ListView>
       </v-window-item>
     </v-window>
+
+    <ProductCreationWizardDialog
+      v-model="createWizardOpen"
+      :tenant-id="tenantId"
+      :categories="categoryOptions"
+      :units="unitOptions"
+      :default-profile-id="defaultCreateProfile"
+      @saved="handleWizardSaved"
+    />
+
+    <ProductCreationWizardDialog
+      v-model="editWizardOpen"
+      :tenant-id="tenantId"
+      :categories="categoryOptions"
+      :units="unitOptions"
+      mode="edit"
+      :initial-product="editingProduct"
+      @saved="handleEditWizardSaved"
+    >
+      <template #supplementary="{ formData: wizardFormData }">
+        <v-card variant="outlined" class="mt-2">
+          <v-card-text>
+            <div class="d-flex align-center mb-2">
+              <span class="text-subtitle-2 font-weight-bold">Complementos del producto</span>
+              <v-spacer />
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                prepend-icon="mdi-plus"
+                @click="openCreateVariantForEditingProduct"
+              >
+                Agregar variante
+              </v-btn>
+            </div>
+            <div class="text-body-2 text-medium-emphasis mb-3">
+              Las variantes usan el mismo patrón guiado. Si el producto es manufacturado, el BOM sigue disponible aquí.
+            </div>
+
+            <v-alert
+              v-if="!editingProduct?.product_variants?.length"
+              type="info"
+              variant="tonal"
+              class="mb-3"
+            >
+              Aún no hay variantes registradas para este producto.
+            </v-alert>
+
+            <v-list v-else density="compact">
+              <v-list-item
+                v-for="variant in editingProduct.product_variants"
+                :key="variant.variant_id"
+              >
+                <v-list-item-title>{{ variant.variant_name || 'Predeterminada' }} · {{ variant.sku || 'Sin SKU' }}</v-list-item-title>
+                <v-list-item-subtitle>
+                  Precio {{ variant.price || 0 }} · Costo {{ variant.cost || 0 }} · Alerta mínima {{ variant.min_stock || 0 }}
+                </v-list-item-subtitle>
+                <template #append>
+                  <v-btn icon="mdi-pencil" size="x-small" variant="text" @click="openEditVariantFromEditingProduct(variant)" />
+                  <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="confirmDeleteVariantAndRefresh(variant)" />
+                </template>
+              </v-list-item>
+            </v-list>
+
+            <v-btn
+              v-if="editingProduct?.inventory_behavior === 'MANUFACTURED'"
+              class="mt-3"
+              color="primary"
+              variant="tonal"
+              block
+              prepend-icon="mdi-file-tree"
+              @click="openBOMEditorForProduct(editingProduct)"
+            >
+              {{ editingProduct?.active_bom_id ? 'Editar BOM' : 'Configurar BOM' }}
+            </v-btn>
+          </v-card-text>
+        </v-card>
+
+        <ProductMediaManager
+          :key="`${editingProduct?.product_id || 'none'}:${editWizardOpen}`"
+          class="mt-3"
+          :tenant-id="tenantId"
+          :product-id="editingProduct?.product_id"
+          @updated="handleProductMediaUpdated"
+          @apply-suggestion="applyPhotoAiSuggestion($event, wizardFormData)"
+        />
+      </template>
+    </ProductCreationWizardDialog>
+
+    <ProductVariantWizardDialog
+      v-model="variantWizardOpen"
+      :tenant-id="tenantId"
+      :product="variantWizardProduct"
+      :variant="variantWizardVariant"
+      :units="unitOptions"
+      @saved="handleVariantWizardSaved"
+    />
 
     <!-- Dialog Crear/Editar Producto -->
     <v-dialog v-model="dialog" max-width="700" scrollable>
@@ -715,12 +836,15 @@ import { useTenant } from '@/composables/useTenant'
 import { useTenantSettings } from '@/composables/useTenantSettings'
 import ListView from '@/components/ListView.vue'
 import BOMEditor from '@/components/BOMEditor.vue'
+import ProductCreationWizardDialog from '@/components/ProductCreationWizardDialog.vue'
+import ProductMediaManager from '@/components/ProductMediaManager.vue'
+import ProductVariantWizardDialog from '@/components/ProductVariantWizardDialog.vue'
 import productsService from '@/services/products.service'
 import categoriesService from '@/services/categories.service'
 import manufacturingService from '@/services/manufacturing.service'
 import unitsOfMeasureService from '@/services/unitsOfMeasure.service'
 import { humanizeAppError } from '@/utils/appErrors'
-import { generateSKU, generateShortSKU } from '@/utils/skuGenerator'
+import { generateSKU } from '@/utils/skuGenerator'
 import { utils, writeFileXLSX } from 'xlsx'
 import { useI18n } from '@/i18n'
 
@@ -742,6 +866,12 @@ const components = ref([])
 const componentsTotal = ref(0)
 const componentsLoading = ref(false)
 
+const createWizardOpen = ref(false)
+const editWizardOpen = ref(false)
+const editingProduct = ref(null)
+const variantWizardOpen = ref(false)
+const variantWizardProduct = ref(null)
+const variantWizardVariant = ref(null)
 const dialog = ref(false)
 const deleteDialog = ref(false)
 const variantDialog = ref(false)
@@ -922,6 +1052,10 @@ const productsHintConfig = computed(() => {
   return null
 })
 
+const defaultCreateProfile = computed(() => (
+  currentTab.value === 'components' ? 'component' : 'sale_simple'
+))
+
 // Lógica condicional para habilitar/deshabilitar campos según tipo de inventario
 const canTrackInventory = computed(() => {
   // Solo RESELL y MANUFACTURED pueden controlar inventario
@@ -1054,89 +1188,147 @@ const handleGuidedAction = () => {
 }
 
 const openCreateDialog = () => {
-  const onboarding = String(route.query.onboarding || '').trim()
-  const shouldTrackInventoryByDefault = ['sales-products', 'purchases-products', 'inventory-products'].includes(onboarding)
-
-  isEditing.value = false
-  formData.value = { 
-    product_id: null, 
-    name: '', 
-    description: '', 
-    category_id: null, 
-    unit_id: null,
-    variant_mode: 'single',
-    base_cost: 0,
-    base_price: 0,
-    base_min_stock: 0,
-    is_active: true, 
-    track_inventory: shouldTrackInventoryByDefault,
-    requires_expiration: false,
-    inventory_behavior: 'RESELL',
-    production_type: null,
-    is_component: false
-  }
-  variants.value = []
   loadCategories()
   loadUnits()
-  dialog.value = true
+  createWizardOpen.value = true
+}
+
+const handleWizardSaved = ({ product, message, color = 'success' }) => {
+  showMsg(message, color)
+  if (product?.is_component) {
+    loadComponents({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value })
+    return
+  }
+  loadProducts({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value })
+}
+
+const refreshCatalogLists = async () => {
+  await Promise.all([
+    loadProducts({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value }),
+    loadComponents({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value }),
+  ])
+}
+
+const refreshEditingProduct = async (productId = editingProduct.value?.product_id) => {
+  if (!tenantId.value || !productId) return
+  const result = await productsService.getProductById(tenantId.value, productId)
+  if (result.success) {
+    editingProduct.value = result.data
+  }
+}
+
+const handleEditWizardSaved = async ({ product, message, color = 'success' }) => {
+  editingProduct.value = product || editingProduct.value
+  showMsg(message, color)
+  await refreshCatalogLists()
+}
+
+const handleProductMediaUpdated = async () => {
+  await refreshEditingProduct()
+  await refreshCatalogLists()
 }
 
 const openEditDialog = async (item) => {
-  isEditing.value = true
   loadCategories()
   loadUnits()
   const r = await productsService.getProductById(tenantId.value, item.product_id)
   if (r.success) {
-    const variantsData = r.data.product_variants || []
-    
-    // Detectar si es variante única o múltiple
-    const isSingleVariant = variantsData.length === 1 && 
-                           (variantsData[0].variant_name === 'Predeterminado' || 
-                            variantsData[0].variant_name === null)
-    
-    formData.value = { 
-      product_id: r.data.product_id, 
-      name: r.data.name, 
-      description: r.data.description, 
-      category_id: r.data.category_id,
-      unit_id: r.data.unit_id || null,
-      variant_mode: isSingleVariant ? 'single' : 'multiple',
-      base_cost: isSingleVariant ? (variantsData[0]?.cost || 0) : 0,
-      base_price: isSingleVariant ? (variantsData[0]?.price || 0) : 0,
-      base_min_stock: isSingleVariant ? (variantsData[0]?.min_stock || 0) : 0,
-      is_active: r.data.is_active, 
-      track_inventory: r.data.track_inventory,
-      requires_expiration: r.data.requires_expiration || false,
-      inventory_behavior: r.data.inventory_behavior || 'RESELL',
-      production_type: r.data.production_type || null,
-      is_component: r.data.is_component || false,
-      active_bom_id: r.data.active_bom_id || null
-    }
-    variants.value = variantsData
-    dialog.value = true
+    editingProduct.value = r.data
+    editWizardOpen.value = true
   } else showMsg('Error al cargar producto', 'error')
 }
 
+const normalizeAiText = (value) => String(value || '').trim()
+
+const buildAiDescription = (currentDescription, media) => {
+  const current = normalizeAiText(currentDescription)
+  if (current) return current
+
+  const suggested = normalizeAiText(media?.ai_suggested_description)
+  if (suggested) return suggested
+
+  const brand = normalizeAiText(media?.ai_detected_brand)
+  if (brand) return `Marca sugerida por IA: ${brand}`
+
+  return currentDescription
+}
+
+const applyPhotoAiSuggestion = async (media, wizardFormData) => {
+  if (!media || !wizardFormData) return
+
+  let nextCategoryId = wizardFormData.category_id
+  let createdCategory = null
+  const suggestedCategory = normalizeAiText(media.ai_detected_category)
+
+  if (suggestedCategory && tenantId.value) {
+    const existingCategory = categoryOptions.value.find(
+      (item) => normalizeAiText(item.name).toLowerCase() === suggestedCategory.toLowerCase(),
+    )
+
+    if (existingCategory) {
+      nextCategoryId = existingCategory.category_id
+    } else {
+      const result = await categoriesService.createCategory(tenantId.value, {
+        name: suggestedCategory,
+        parent_category_id: null,
+      })
+      if (result.success && result.data?.category_id) {
+        createdCategory = result.data
+        nextCategoryId = result.data.category_id
+        categoryOptions.value = [...categoryOptions.value, result.data].sort((a, b) => (
+          String(a?.name || '').localeCompare(String(b?.name || ''), 'es', { sensitivity: 'base' })
+        ))
+      }
+    }
+  }
+
+  wizardFormData.name = normalizeAiText(media.ai_detected_name) || wizardFormData.name
+  wizardFormData.category_id = nextCategoryId
+  wizardFormData.description = buildAiDescription(wizardFormData.description, media)
+
+  showMsg(
+    createdCategory
+      ? `Sugerencia IA aplicada. También se creó la categoría "${createdCategory.name}".`
+      : 'Sugerencia IA aplicada al formulario. Revisa y guarda el producto.',
+    createdCategory ? 'success' : 'info',
+  )
+}
+
 const openVariantDialogFromList = async (item) => {
-  // Cargar el producto y abrir directamente el diálogo de agregar variante
-  isEditing.value = true
   loadCategories()
+  loadUnits()
   const r = await productsService.getProductById(tenantId.value, item.product_id)
   if (r.success) {
-    formData.value = { 
-      product_id: r.data.product_id, 
-      name: r.data.name, 
-      description: r.data.description, 
-      category_id: r.data.category_id,
-      unit_id: r.data.unit_id || null,
-      is_active: r.data.is_active, 
-      track_inventory: r.data.track_inventory,
-      requires_expiration: r.data.requires_expiration || false
-    }
-    variants.value = r.data.product_variants || []
-    // Abrir inmediatamente el diálogo de agregar variante
-    addVariant()
+    variantWizardProduct.value = r.data
+    variantWizardVariant.value = null
+    variantWizardOpen.value = true
   } else showMsg('Error al cargar producto', 'error')
+}
+
+const openCreateVariantForEditingProduct = () => {
+  if (!editingProduct.value) return
+  variantWizardProduct.value = editingProduct.value
+  variantWizardVariant.value = null
+  variantWizardOpen.value = true
+}
+
+const openEditVariantFromEditingProduct = (variant) => {
+  if (!editingProduct.value || !variant) return
+  variantWizardProduct.value = editingProduct.value
+  variantWizardVariant.value = variant
+  variantWizardOpen.value = true
+}
+
+const handleVariantWizardSaved = async ({ message }) => {
+  showMsg(message || 'Variante guardada')
+  await refreshEditingProduct(variantWizardProduct.value?.product_id)
+  await refreshCatalogLists()
+}
+
+const confirmDeleteVariantAndRefresh = async (variant) => {
+  await confirmDeleteVariant(variant)
+  await refreshEditingProduct(editingProduct.value?.product_id)
+  await refreshCatalogLists()
 }
 
 const save = async () => {
@@ -1303,6 +1495,27 @@ const confirmDeleteVariant = async (v) => {
     showMsg('Variante eliminada')
     variants.value = variants.value.filter(x => x.variant_id !== v.variant_id)
   } else showMsg(r.error, 'error')
+}
+
+const openBOMEditorForProduct = async (product) => {
+  if (!product?.product_id) return
+
+  if (product.active_bom_id) {
+    try {
+      const result = await manufacturingService.getBOMById(tenantId.value, product.active_bom_id)
+      if (result.success && bomEditor.value) {
+        bomEditor.value.open(product.product_id, null, result.data)
+      }
+    } catch (error) {
+      console.error('Error loading BOM:', error)
+      showMsg('Error al cargar BOM', 'error')
+    }
+    return
+  }
+
+  if (bomEditor.value) {
+    bomEditor.value.open(product.product_id, null, null)
+  }
 }
 
 const openBOMEditor = async () => {
@@ -1477,5 +1690,9 @@ watch(
 
 .products-page :deep(.v-dialog .v-card-title) {
   font-weight: 700;
+}
+
+.product-photo-thumb {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 </style>

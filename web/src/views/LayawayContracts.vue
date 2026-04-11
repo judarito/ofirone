@@ -317,12 +317,13 @@ import taxesService from '@/services/taxes.service'
 import { calculateDiscount } from '@/utils/discountCalculator'
 import { formatMoney, formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
+import { validateCashSessionForOperation } from '../../../shared/utils/cashSessionUtils'
 
 const { t } = useI18n()
 
 const router = useRouter()
 const { tenantId } = useTenant()
-const { defaultPageSize, loadSettings } = useTenantSettings()
+const { defaultPageSize, loadSettings, cashSessionMaxHours } = useTenantSettings()
 const { userProfile, hasPermission } = useAuth()
 
 const canCreate = hasPermission('LAYAWAY.CREATE')
@@ -593,12 +594,20 @@ const createContract = async () => {
   const { valid } = await createForm.value.validate()
   if (!valid || formData.value.items.length === 0) return
 
-  // Validar que haya una caja abierta si hay abono inicial
-  if (hasInitialPayment.value && initialPayment.value.amount > 0 && !currentSession.value) {
-    snackbarMessage.value = 'Debe abrir una caja antes de registrar pagos'
-    snackbarColor.value = 'error'
-    snackbar.value = true
-    return
+  // Validar caja si hay abono inicial
+  if (hasInitialPayment.value && initialPayment.value.amount > 0) {
+    const sessionValidation = validateCashSessionForOperation(
+      currentSession.value,
+      cashSessionMaxHours.value,
+      { missingMessage: 'Debe abrir una caja antes de registrar pagos' }
+    )
+
+    if (!sessionValidation.valid) {
+      snackbarMessage.value = sessionValidation.message
+      snackbarColor.value = 'error'
+      snackbar.value = true
+      return
+    }
   }
 
   creating.value = true

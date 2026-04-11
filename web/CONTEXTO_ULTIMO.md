@@ -1,8 +1,8 @@
 # CONTEXTO_ULTIMO
 
-Fecha de actualizacion: 2026-04-05
+Fecha de actualizacion: 2026-04-10
 Owner: Equipo POSLite
-Ultimo cambio registrado: se agrego un sanitizador central de errores de negocio (`humanizeAppError`) y se conecto en servicios/vistas clave para evitar exponer UUIDs, nombres de constraints o mensajes crudos de base de datos
+Ultimo cambio registrado: se centralizo la validacion de sesiones de caja vencidas en `shared/utils/cashSessionUtils.js` y web paso a consumir esa regla en POS, Home, CashSessions y Plan Separe
 
 ## Regla de versionado de contexto (obligatoria)
 
@@ -28,6 +28,115 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 ```
 
 ## Estado tecnico actual
+
+### Ajuste reciente de caja (2026-04-10) — validacion de sesion vencida centralizada
+
+- La regla de expiracion de caja ya no vive repartida en calculos manuales dentro de vistas web.
+- La fuente canonica ahora es `../shared/utils/cashSessionUtils.js`, con:
+  - `getCashSessionState(session, maxHours)`
+  - `buildCashSessionExpiredMessage(state)`
+  - `validateCashSessionForOperation(session, maxHours, options)`
+- Web la consume ahora en:
+  - `src/composables/useTenantSettings.js`
+  - `src/views/PointOfSale.vue`
+  - `src/views/CashSessions.vue`
+  - `src/views/Home.vue`
+  - `src/views/LayawayDetail.vue`
+  - `src/views/LayawayContracts.vue`
+- Efecto visible:
+  - mismo criterio de expiracion en todas las pantallas
+  - mismo mensaje base cuando la caja supero el limite configurado
+  - `Home.vue` ya no fija el copy en `24 horas`; usa el limite real del tenant
+- Cobertura agregada:
+  - `src/utils/__tests__/cashSessionUtils.test.js`
+
+### Ajuste reciente de POS (2026-04-10) — venta guiada alternativa
+
+- `src/views/PointOfSale.vue` ahora tiene una entrada nueva `Venta guiada` sin reemplazar el POS clasico.
+- La estrategia vigente es:
+  - mantener el POS actual como flujo rapido
+  - ofrecer un flujo guiado para ventas asistidas o usuarios nuevos
+  - evitar duplicar logica de negocio; el wizard usa el mismo carrito, los mismos pagos, las mismas validaciones y la misma llamada final a `salesService.createSale`
+- El wizard opera en 4 pasos:
+  - cliente y contexto
+  - productos
+  - pago
+  - confirmar
+- Navegacion y bloqueos centralizados:
+  - `src/utils/saleWizard.js` como wrapper de `../shared/utils/saleWizard.js`
+  - regla: si ya existe carrito, el wizard abre en `Productos`
+  - regla: no se puede avanzar a pago sin items
+  - regla: no se puede confirmar si la caja no existe o esta vencida
+  - regla: no se puede confirmar con saldo faltante, error de credito o fecha manual invalida
+- Integraciones operativas:
+  - `Guardar en espera` y `Retomar` conviven con el wizard
+  - retomar una venta en espera puede abrir directamente el flujo guiado en el paso de productos
+  - si la venta se cobra desde el wizard, se reutiliza `processSale()` y el wizard se cierra al finalizar
+- Cobertura agregada:
+  - `src/utils/__tests__/saleWizard.test.js`
+
+### Ajuste reciente de catalogo (2026-04-10) — creacion guiada de productos
+
+- `src/views/Products.vue` ya no abre el formulario legacy para creacion nueva; ahora dispara `src/components/ProductCreationWizardDialog.vue`
+- el wizard resume el arranque del producto en 3 pasos:
+  - datos basicos
+  - perfil del producto
+  - configuracion minima
+- el flujo guiado usa reglas compartidas desde `../shared/utils/productCreationWizard.js`
+- perfiles disponibles:
+  - producto simple
+  - producto con variantes
+  - insumo/componente
+  - producto fabricado
+  - combo/bundle
+  - servicio
+- regla UX vigente:
+  - el wizard muestra por defecto solo campos esenciales del perfil elegido
+  - las combinaciones manuales completas quedaron bajo `Opciones avanzadas`
+  - esto preserva cobertura funcional sin convertir el wizard en el formulario legacy completo
+  - el wizard comunica explicitamente que `producto simple` = una sola variante y `componente` = insumo para otros productos
+  - el campo de stock mostrado en el paso minimo ahora se presenta como `alerta minima de stock`
+  - `0` en ese campo significa `sin alerta minima`, no `sin control de inventario`
+  - `track_inventory` ya no queda encendido por defecto para los perfiles fisicos del wizard
+- el mismo `ProductCreationWizardDialog.vue` ahora se usa tambien para edicion (`mode="edit"`)
+- se agrego `src/components/ProductVariantWizardDialog.vue` para crear/editar variantes con el mismo lenguaje visual del wizard
+- en la edicion guiada del producto, variantes y BOM quedan como complementos dentro del mismo flujo
+- para `sale_variants` el wizard reutiliza la variante `Predeterminado` auto-creada por BD y la convierte en la primera variante guiada, evitando duplicados
+- el dialogo legacy de `Products.vue` se mantiene para edicion avanzada, manejo de variantes posteriores y BOM
+- cobertura agregada:
+  - `src/utils/__tests__/productCreationWizard.test.js`
+  - `src/utils/__tests__/productVariantWizard.test.js`
+
+### Ajuste reciente de terceros (2026-04-10) — creacion y edicion guiadas
+
+- `src/views/ThirdParties.vue` ahora usa `src/components/ThirdPartyWizardDialog.vue` para crear y editar terceros
+- por defecto el wizard inicia en tipo `cliente`; `proveedor` y `ambos` quedan como seleccion explicita
+- el wizard de terceros trabaja en 3 pasos:
+  - rol e identidad
+  - contacto y ubicacion
+  - resumen y ajustes fiscales/comerciales
+- la logica comun vive en `../shared/utils/thirdPartyWizard.js`
+- objetivo UX:
+  - reducir carga cognitiva en nombre, documento y contacto
+  - mover regimen, credito y toggles fiscales a ajustes avanzados
+- cobertura agregada:
+  - `src/utils/__tests__/thirdPartyWizard.test.js`
+
+### Ajuste reciente de catalogo (2026-04-10) — fotos de producto en web
+
+- `src/views/Products.vue` ahora incluye `src/components/ProductMediaManager.vue` como complemento del wizard de edicion.
+- `src/services/productMedia.service.js` implementa para web el mismo flujo base de mobile:
+  - `product_media`
+  - bucket privado `productmedia`
+  - signed URLs
+  - edge function `product-photo-analyzer`
+- El complemento permite cargar foto, cambiar portada, eliminar y aplicar sugerencias IA al formulario del producto.
+- Si la IA sugiere una categoria inexistente, `Products.vue` la crea y la selecciona en el wizard.
+- `src/services/products.service.js` ahora devuelve `media_count` y `cover_image_url` para mostrar miniatura/cantidad de fotos en la lista y al refrescar el detalle del producto.
+- nueva variable esperada en `.env` de web:
+  - `VITE_PRODUCT_PHOTO_ANALYZER_EDGE_FUNCTION`
+- cobertura agregada:
+  - `src/utils/__tests__/productMediaHelpers.test.js`
 
 ### Ajustes recientes de operacion y UX (actualizado 2026-04-05)
 

@@ -898,6 +898,7 @@ import { useTenantBilling } from '@/composables/useTenantBilling'
 import tenantSettingsService from '@/services/tenantSettings.service'
 import electronicInvoicingService from '@/services/electronicInvoicing.service'
 import { useI18n } from '@/i18n'
+import { TAX_REGIME_OPTIONS_WEB } from '../../../shared/constants/thirdParty'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -997,12 +998,7 @@ const activeResolution = ref({
   technical_key: '', is_active: true
 })
 
-const taxRegimeOptions = [
-  { title: 'Responsable de IVA (Régimen Ordinario)', value: '48' },
-  { title: 'No Responsable de IVA', value: '49' },
-  { title: 'Gran Contribuyente', value: 'O-13' },
-  { title: 'Régimen Simple de Tributación (SIMPLE)', value: 'ZZ' }
-]
+const taxRegimeOptions = TAX_REGIME_OPTIONS_WEB
 
 const feEnvironmentOptions = [
   { title: 'Habilitación (Pruebas)', value: 'habilitacion' },

@@ -536,7 +536,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
                 </View>
               ))}
             </ScrollView>
-            <Pressable onPress={() => setErrorsModal(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+            <Pressable onPress={() => setErrorsModal(false)} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>
@@ -634,7 +634,7 @@ export default function BulkImportsScreen({ tenant, offlineMode }) {
               ))}
             </ScrollView>
 
-            <Pressable onPress={() => setPreviewModal(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+            <Pressable onPress={() => setPreviewModal(false)} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>

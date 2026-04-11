@@ -439,3 +439,222 @@ export async function listBoms({ tenantId, type = null, search = '', limit = 20,
     return { success: false, error: error.message, data: [], total: 0 };
   }
 }
+
+// ─── Manufactura — métodos completos ─────────────────────────────────────────
+
+export async function getBOMById(tenantId, bomId) {
+  try {
+    const { data, error } = await supabase
+      .from('bill_of_materials')
+      .select(`
+        bom_id, bom_name, version, is_active, notes,
+        product:product_id(product_id, name),
+        variant:variant_id(variant_id, sku, variant_name),
+        bom_components(
+          component_id,
+          component_variant_id,
+          component_variant:component_variant_id(variant_id, sku, variant_name, cost),
+          quantity_required,
+          unit_id,
+          unit:unit_id(code, name),
+          waste_percentage,
+          is_optional,
+          notes
+        )
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('bom_id', bomId)
+      .single();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getProductionOrderById(tenantId, orderId) {
+  try {
+    const { data, error } = await supabase
+      .from('production_orders')
+      .select(`
+        production_order_id, order_number, status,
+        quantity_planned, quantity_produced,
+        scheduled_start, started_at, completed_at, notes,
+        created_at,
+        location:location_id(location_id, name),
+        bom:bom_id(
+          bom_id, bom_name,
+          product:product_id(name),
+          variant:variant_id(sku, variant_name),
+          bom_components(
+            component_variant:component_variant_id(variant_id, sku, variant_name),
+            quantity_required,
+            unit:unit_id(code),
+            waste_percentage,
+            is_optional
+          )
+        ),
+        created_by_user:created_by(user_id, full_name),
+        started_by_user:started_by(user_id, full_name),
+        completed_by_user:completed_by(user_id, full_name),
+        production_order_lines(
+          line_id,
+          component_variant:component_variant_id(variant_id, sku, variant_name),
+          quantity_required,
+          quantity_consumed,
+          unit_cost
+        )
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('production_order_id', orderId)
+      .single();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function validateBOMAvailability(tenantId, bomId, quantity, locationId) {
+  try {
+    const { data: components, error: compError } = await supabase
+      .from('bom_components')
+      .select(`
+        component_variant_id,
+        quantity_required,
+        waste_percentage,
+        is_optional,
+        component_variant:component_variant_id(sku, variant_name)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('bom_id', bomId);
+    if (compError) throw compError;
+
+    const variantIds = (components || []).map((c) => c.component_variant_id);
+    const { data: stockData } = await supabase
+      .from('stock_balances')
+      .select('variant_id, on_hand, reserved')
+      .eq('tenant_id', tenantId)
+      .eq('location_id', locationId)
+      .in('variant_id', variantIds);
+
+    const stockMap = new Map();
+    for (const s of stockData || []) {
+      stockMap.set(s.variant_id, (s.on_hand || 0) - (s.reserved || 0));
+    }
+
+    let allAvailable = true;
+    const validation = (components || []).map((comp) => {
+      const wasteMultiplier = 1 + (comp.waste_percentage || 0) / 100;
+      const required = comp.quantity_required * wasteMultiplier * quantity;
+      const available = stockMap.get(comp.component_variant_id) || 0;
+      const isAvailable = available >= required;
+      if (!isAvailable && !comp.is_optional) allAvailable = false;
+      return {
+        variant_id: comp.component_variant_id,
+        sku: comp.component_variant?.sku,
+        variant_name: comp.component_variant?.variant_name,
+        required,
+        available,
+        is_available: isAvailable,
+        is_optional: comp.is_optional,
+      };
+    });
+
+    return { success: true, data: { all_available: allAvailable, components: validation } };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function createProductionOrder(tenantId, { locationId, bomId, quantity, createdBy, scheduledStart = null, notes = null }) {
+  try {
+    const { data, error } = await supabase
+      .from('production_orders')
+      .insert({
+        tenant_id: tenantId,
+        location_id: locationId,
+        bom_id: bomId,
+        quantity_planned: quantity,
+        status: 'PENDING',
+        created_by: createdBy,
+        scheduled_start_date: scheduledStart,
+        notes,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function startProductionOrder(tenantId, orderId, startedBy) {
+  try {
+    const { data, error } = await supabase
+      .from('production_orders')
+      .update({ status: 'IN_PROGRESS', started_by: startedBy, started_at: new Date().toISOString() })
+      .eq('production_order_id', orderId)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function completeProductionOrder(tenantId, orderId, { quantityProduced, completedBy, expirationDate = null, physicalLocation = null }) {
+  try {
+    const { data, error } = await supabase.rpc('fn_complete_production', {
+      p_production_order: orderId,
+      p_quantity_produced: quantityProduced,
+      p_completed_by: completedBy,
+      p_expiration_date: expirationDate,
+      p_physical_location: physicalLocation,
+    });
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function cancelProductionOrder(tenantId, orderId) {
+  try {
+    const { data, error } = await supabase
+      .from('production_orders')
+      .update({ status: 'CANCELLED', cancelled_at: new Date().toISOString() })
+      .eq('production_order_id', orderId)
+      .eq('tenant_id', tenantId)
+      .select()
+      .single();
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function listBomsForSelect(tenantId) {
+  try {
+    const { data, error } = await supabase
+      .from('bill_of_materials')
+      .select(`
+        bom_id, bom_name, version,
+        product:product_id(name),
+        variant:variant_id(sku, variant_name),
+        bom_components(component_id)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('bom_name', { ascending: true });
+    if (error) throw error;
+    return { success: true, data: data || [] };
+  } catch (error) {
+    return { success: false, error: error.message, data: [] };
+  }
+}

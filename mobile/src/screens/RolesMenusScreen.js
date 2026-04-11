@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import MultiSelectField from '../components/MultiSelectField';
 import PaginatedList from '../components/PaginatedList';
@@ -380,8 +380,9 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
 
       <Modal visible={roleModalOpen} transparent animationType="slide" onRequestClose={() => setRoleModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 {roleForm.role_id ? 'Editar rol' : 'Nuevo rol'}
               </Text>
@@ -401,21 +402,23 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
                 </Text>
               ) : null}
 
-              <Pressable
-                style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]}
-                onPress={saveRole}
-                disabled={savingRole}
-              >
-                <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>
-                  {savingRole ? 'Guardando...' : 'Guardar'}
-                </Text>
-              </Pressable>
+              <View style={styles.formFooter}>
+                <Pressable
+                  style={[styles.primaryBtn, styles.formFooterBtn, isLightTheme && styles.primaryBtnLight]}
+                  onPress={saveRole}
+                  disabled={savingRole}
+                >
+                  <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>
+                    {savingRole ? 'Guardando...' : 'Guardar'}
+                  </Text>
+                </Pressable>
+                <Pressable onPress={() => setRoleModalOpen(false)} style={[styles.closeBtn, styles.formFooterBtn, isLightTheme && styles.closeBtnLight]}>
+                  <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
+                </Pressable>
+              </View>
             </ScrollView>
-
-            <Pressable onPress={() => setRoleModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
-              <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
-            </Pressable>
-          </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -426,8 +429,9 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
         onRequestClose={() => setPermissionsModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 Permisos de {selectedRole?.name || 'rol'}
               </Text>
@@ -442,31 +446,34 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
                 maxPreview={1}
               />
 
-              <Pressable
-                style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]}
-                onPress={savePermissions}
-                disabled={savingAssignments}
-              >
-                <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>
-                  {savingAssignments ? 'Guardando...' : 'Guardar permisos'}
-                </Text>
-              </Pressable>
+              <View style={styles.formFooter}>
+                <Pressable
+                  style={[styles.primaryBtn, styles.formFooterBtn, isLightTheme && styles.primaryBtnLight]}
+                  onPress={savePermissions}
+                  disabled={savingAssignments}
+                >
+                  <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>
+                    {savingAssignments ? 'Guardando...' : 'Guardar permisos'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setPermissionsModalOpen(false)}
+                  style={[styles.closeBtn, styles.formFooterBtn, isLightTheme && styles.closeBtnLight]}
+                >
+                  <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
+                </Pressable>
+              </View>
             </ScrollView>
-
-            <Pressable
-              onPress={() => setPermissionsModalOpen(false)}
-              style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}
-            >
-              <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
-            </Pressable>
-          </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       <Modal visible={menusModalOpen} transparent animationType="slide" onRequestClose={() => setMenusModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
                 Menus de {selectedRole?.name || 'rol'}
               </Text>
@@ -502,12 +509,13 @@ export default function RolesMenusScreen({ tenant, userProfile, offlineMode, pag
                   </Text>
                 </Pressable>
               ) : null}
-            </ScrollView>
 
-            <Pressable onPress={() => setMenusModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
-              <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
-            </Pressable>
-          </View>
+              <Pressable onPress={() => setMenusModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginTop: 10 }]}>
+                <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
+              </Pressable>
+            </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -606,19 +614,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
   },
   inputLight: { borderColor: '#cbd5e1', backgroundColor: '#ffffff', color: '#0f172a' },
-  primaryBtn: { marginTop: 14, backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
+  formFooter: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  formFooterBtn: { flex: 1 },
+  primaryBtn: { marginTop: 14, backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
   primaryBtnLight: { backgroundColor: '#57d65a' },
   primaryBtnText: { color: '#062915', fontWeight: '700' },
   primaryBtnTextLight: { color: '#062915' },
-  closeBtn: {
-    marginTop: 10,
-    alignSelf: 'flex-end',
-    backgroundColor: '#235ea9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
+  closeBtn: { backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8, alignItems: 'center', alignSelf: 'flex-end' },
   closeBtnLight: { backgroundColor: '#e2e8f0' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
   closeBtnTextLight: { color: '#1e293b' },
+  modalAvoider: { width: '100%' },
 });

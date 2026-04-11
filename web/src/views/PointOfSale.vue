@@ -11,11 +11,20 @@
         <v-spacer class="d-none d-sm-flex"></v-spacer>
         <div class="pos-header-actions">
           <v-btn
+            class="pos-header-actions__wizard"
+            variant="tonal"
+            color="secondary"
+            prepend-icon="mdi-map-marker-path"
+            @click="openSaleWizard"
+          >
+            Venta guiada
+          </v-btn>
+          <v-btn
             class="pos-header-actions__charge"
             color="primary"
             prepend-icon="mdi-check-circle"
             :loading="processing"
-            :disabled="cart.length === 0 || remaining > 0 || sessionExpired"
+            :disabled="cart.length === 0 || remaining > 0 || sessionExpired || !currentSession"
             @click="processSale"
           >
             Cobrar {{ formatMoney(totals.total) }}
@@ -545,7 +554,7 @@
           color="primary"
           prepend-icon="mdi-check-circle"
           :loading="processing"
-          :disabled="cart.length === 0 || remaining > 0 || sessionExpired"
+          :disabled="cart.length === 0 || remaining > 0 || sessionExpired || !currentSession"
           @click="processSale"
         >
           Cobrar {{ formatMoney(totals.total) }}
@@ -573,6 +582,430 @@
     </transition>
 
     <!-- Dialog Descuento Global -->
+    <v-dialog v-model="showSaleWizard" max-width="1120" scrollable>
+      <v-card class="sale-wizard">
+        <v-card-title class="d-flex flex-wrap align-center ga-2">
+          <v-icon color="secondary">mdi-map-marker-path</v-icon>
+          <span>Venta guiada</span>
+          <v-spacer />
+          <v-btn variant="text" color="secondary" prepend-icon="mdi-monitor-dashboard" @click="closeSaleWizard">
+            POS clásico
+          </v-btn>
+        </v-card-title>
+
+        <v-card-subtitle class="pb-0">
+          Mantenemos el POS actual para operación rápida y agregamos este flujo guiado para ventas asistidas paso a paso.
+        </v-card-subtitle>
+
+        <v-card-text>
+          <div class="d-flex flex-wrap ga-2 mb-4">
+            <v-chip
+              v-for="wizardStep in saleWizardSteps"
+              :key="wizardStep.value"
+              :color="saleWizardStep >= wizardStep.value ? 'secondary' : 'grey'"
+              :variant="saleWizardStep === wizardStep.value ? 'flat' : 'tonal'"
+              size="small"
+              @click="goToSaleWizardStep(wizardStep.value)"
+            >
+              {{ wizardStep.value }}. {{ wizardStep.label }}
+            </v-chip>
+          </div>
+
+          <v-alert v-if="saleWizardError" type="error" variant="tonal" class="mb-4">
+            {{ saleWizardError }}
+          </v-alert>
+
+          <v-window v-model="saleWizardStep">
+            <v-window-item :value="1">
+              <div class="text-subtitle-1 font-weight-bold mb-2">Cliente y contexto</div>
+              <div class="text-body-2 text-medium-emphasis mb-4">
+                Empieza por el cliente y los datos básicos de la venta. Todo lo demás lo terminamos en los siguientes pasos.
+              </div>
+
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-autocomplete
+                    v-model="selectedCustomer"
+                    :items="customerResults"
+                    item-title="full_name"
+                    item-value="customer_id"
+                    return-object
+                    label="Cliente (opcional)"
+                    prepend-inner-icon="mdi-account"
+                    variant="outlined"
+                    density="comfortable"
+                    clearable
+                    :loading="searchingCustomer"
+                    @update:search="searchCustomer"
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props" :subtitle="item.raw.document || item.raw.phone || ''"></v-list-item>
+                    </template>
+                  </v-autocomplete>
+
+                  <div v-if="selectedCustomer && customerCreditInfo" class="mt-2">
+                    <v-chip
+                      :color="availableCreditAmount > 0 ? 'success' : 'error'"
+                      size="small"
+                      variant="tonal"
+                      prepend-icon="mdi-account-credit-card"
+                    >
+                      Cupo disponible: {{ formatMoney(availableCreditAmount) }}
+                    </v-chip>
+                  </div>
+                </v-col>
+
+                <v-col cols="12" md="6">
+                  <v-autocomplete
+                    v-if="electronicInvoicingEnabled"
+                    v-model="selectedThirdParty"
+                    :items="thirdPartyResults"
+                    item-title="legal_name"
+                    item-value="third_party_id"
+                    return-object
+                    label="Receptor fiscal (FE)"
+                    prepend-inner-icon="mdi-domain"
+                    variant="outlined"
+                    density="comfortable"
+                    clearable
+                    :loading="searchingThirdParty"
+                    @update:search="searchThirdParty"
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item
+                        v-bind="props"
+                        :subtitle="(item.raw.document_type || '') + ' ' + (item.raw.document_number || '') + (item.raw.dv ? '-' + item.raw.dv : '')"
+                      ></v-list-item>
+                    </template>
+                  </v-autocomplete>
+
+                  <v-text-field
+                    v-if="canSelectSaleDateTime"
+                    v-model="saleDateTimeInput"
+                    type="datetime-local"
+                    label="Fecha y hora de la venta"
+                    variant="outlined"
+                    density="comfortable"
+                    :error-messages="saleDateTimeError ? [saleDateTimeError] : []"
+                    class="mt-2"
+                  ></v-text-field>
+                </v-col>
+
+                <v-col cols="12">
+                  <v-textarea
+                    v-model="saleNote"
+                    label="Nota de la venta"
+                    prepend-inner-icon="mdi-note-text-outline"
+                    variant="outlined"
+                    rows="2"
+                    auto-grow
+                  ></v-textarea>
+                </v-col>
+              </v-row>
+
+              <v-alert type="info" variant="tonal" class="mt-2">
+                {{ currentSession
+                  ? `Caja activa: ${currentSession.cash_register?.name || 'Caja'}`
+                  : 'Aún no hay una caja abierta para este usuario. Podrás revisar esto antes de cobrar.' }}
+              </v-alert>
+            </v-window-item>
+
+            <v-window-item :value="2">
+              <div class="text-subtitle-1 font-weight-bold mb-2">Productos</div>
+              <div class="text-body-2 text-medium-emphasis mb-4">
+                Agrega los productos uno a uno o usa el pedido por chat si ya recibiste el texto del cliente.
+              </div>
+
+              <v-autocomplete
+                v-model="selectedVariant"
+                v-model:search="searchTerm"
+                :items="searchResults"
+                :loading="searchingProduct"
+                item-title="_displayName"
+                item-value="variant_id"
+                return-object
+                label="Buscar producto"
+                prepend-inner-icon="mdi-barcode-scan"
+                variant="outlined"
+                density="comfortable"
+                no-filter
+                clearable
+                :no-data-text="searchTerm && searchTerm.length >= 2 ? 'No se encontraron productos' : 'Escribe para buscar...'"
+                @update:search="debouncedSearch"
+                @update:model-value="onVariantSelected"
+                @keydown.enter.prevent="searchByBarcode"
+              >
+                <template #item="{ props, item }">
+                  <v-list-item
+                    v-bind="props"
+                    :subtitle="'SKU: ' + item.raw.sku + ' | Stock: ' + (item.raw._stock ?? '—') + ' | ' + formatMoney(item.raw.price)"
+                  >
+                    <template #prepend>
+                      <v-icon color="primary" size="small">mdi-package-variant</v-icon>
+                    </template>
+                  </v-list-item>
+                </template>
+              </v-autocomplete>
+
+              <v-expansion-panels class="mt-3" variant="accordion">
+                <v-expansion-panel>
+                  <v-expansion-panel-title>
+                    Pedido por chat con IA
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-textarea
+                      v-model="chatOrderText"
+                      label="Pedido por chat"
+                      placeholder="Ej: Hola, para Ana: 2 cocas 350 ml y 1 arroz diana 500 g"
+                      prepend-inner-icon="mdi-chat-processing-outline"
+                      variant="outlined"
+                      rows="2"
+                      auto-grow
+                    ></v-textarea>
+
+                    <v-btn
+                      class="mt-2"
+                      color="secondary"
+                      prepend-icon="mdi-creation"
+                      :loading="processingChatOrder"
+                      :disabled="processingChatOrder || !chatOrderText.trim()"
+                      @click="parseChatOrderWithAgent"
+                    >
+                      Convertir chat a venta
+                    </v-btn>
+
+                    <v-alert
+                      v-if="chatOrderSummary"
+                      class="mt-3"
+                      :type="chatOrderSummary.matchedCount > 0 && chatOrderSummary.reviewCount === 0 && chatOrderSummary.unmatchedCount === 0 ? 'success' : 'warning'"
+                      variant="tonal"
+                    >
+                      Cargados: <strong>{{ chatOrderSummary.matchedCount }}</strong>
+                      <span class="ml-2">Sin match: <strong>{{ chatOrderSummary.unmatchedCount }}</strong></span>
+                      <span class="ml-2">Revisar: <strong>{{ chatOrderSummary.reviewCount || 0 }}</strong></span>
+                    </v-alert>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+
+              <v-alert v-if="cart.length === 0" type="info" variant="tonal" class="mt-4">
+                Aún no hay productos en la venta.
+              </v-alert>
+
+              <v-list v-else class="mt-4" density="comfortable">
+                <v-list-item
+                  v-for="line in cart"
+                  :key="line.variant_id"
+                  class="sale-wizard-cart-item"
+                >
+                  <template #prepend>
+                    <v-avatar size="34" color="primary" variant="tonal">
+                      <v-icon size="18">mdi-package-variant</v-icon>
+                    </v-avatar>
+                  </template>
+
+                  <v-list-item-title>{{ line.productName }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    {{ line.variantName || 'Predeterminada' }} · SKU: {{ line.sku || '-' }} · {{ formatMoney(line.unit_price) }}
+                  </v-list-item-subtitle>
+
+                  <template #append>
+                    <div class="d-flex align-center ga-2 flex-wrap justify-end">
+                      <v-text-field
+                        v-model.number="line.quantity"
+                        type="number"
+                        min="1"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        class="sale-wizard-qty"
+                        @update:model-value="recalculate"
+                      />
+                      <div class="text-body-2 font-weight-bold sale-wizard-line-total">
+                        {{ formatMoney(line.line_total) }}
+                      </div>
+                      <v-btn
+                        icon="mdi-delete-outline"
+                        size="small"
+                        variant="text"
+                        color="error"
+                        @click="removeLineFromCart(line)"
+                      />
+                    </div>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </v-window-item>
+
+            <v-window-item :value="3">
+              <div class="text-subtitle-1 font-weight-bold mb-2">Pago</div>
+              <div class="text-body-2 text-medium-emphasis mb-4">
+                Define cómo te va a pagar el cliente. El wizard usa las mismas validaciones del POS actual.
+              </div>
+
+              <v-alert v-if="creditError" type="warning" variant="tonal" class="mb-3">
+                {{ creditError }}
+              </v-alert>
+
+              <div v-for="(payment, i) in payments" :key="`wizard-payment-${i}`" class="mb-3">
+                <div class="d-flex flex-column flex-sm-row ga-2 align-stretch align-sm-center">
+                  <v-select
+                    v-model="payment.method"
+                    :items="paymentMethods"
+                    item-title="name"
+                    item-value="code"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details
+                    label="Método"
+                    class="sale-wizard-payment-method"
+                  ></v-select>
+                  <v-text-field
+                    v-model.number="payment.amount"
+                    type="number"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details
+                    label="Monto"
+                    prefix="$"
+                    @update:model-value="recalcPayments"
+                  ></v-text-field>
+                  <v-btn
+                    icon="mdi-close"
+                    variant="text"
+                    color="error"
+                    :disabled="payments.length <= 1"
+                    @click="removePayment(i)"
+                  />
+                </div>
+
+                <div v-if="isPaymentCash(payment.method)" class="d-flex flex-wrap ga-1 mt-2">
+                  <v-btn size="x-small" variant="tonal" @click="setQuickAmount(i, 1000)">$1k</v-btn>
+                  <v-btn size="x-small" variant="tonal" @click="setQuickAmount(i, 5000)">$5k</v-btn>
+                  <v-btn size="x-small" variant="tonal" @click="setQuickAmount(i, 10000)">$10k</v-btn>
+                  <v-btn size="x-small" variant="tonal" @click="setQuickAmount(i, 20000)">$20k</v-btn>
+                  <v-btn size="x-small" variant="tonal" @click="setQuickAmount(i, 50000)">$50k</v-btn>
+                  <v-btn size="x-small" variant="tonal" color="primary" @click="setQuickAmount(i, totals.total)">Exacto</v-btn>
+                </div>
+              </div>
+
+              <v-btn
+                size="small"
+                variant="tonal"
+                prepend-icon="mdi-plus"
+                @click="addPayment"
+              >
+                Agregar pago
+              </v-btn>
+
+              <v-card variant="tonal" color="primary" class="mt-4">
+                <v-card-text class="text-body-2">
+                  <div class="d-flex justify-space-between mb-1">
+                    <span>Total:</span>
+                    <strong>{{ formatMoney(totals.total) }}</strong>
+                  </div>
+                  <div class="d-flex justify-space-between mb-1">
+                    <span>Pagado:</span>
+                    <strong>{{ formatMoney(paidTotal) }}</strong>
+                  </div>
+                  <div v-if="change > 0" class="d-flex justify-space-between mb-1">
+                    <span>Cambio:</span>
+                    <strong>{{ formatMoney(change) }}</strong>
+                  </div>
+                  <div v-if="remaining > 0" class="d-flex justify-space-between text-error">
+                    <span>Falta:</span>
+                    <strong>{{ formatMoney(remaining) }}</strong>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-window-item>
+
+            <v-window-item :value="4">
+              <div class="text-subtitle-1 font-weight-bold mb-2">Confirmar venta</div>
+              <div class="text-body-2 text-medium-emphasis mb-4">
+                Revisa el resumen final antes de cobrar. Al confirmar usamos exactamente la misma creación de venta del POS actual.
+              </div>
+
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-card variant="outlined">
+                    <v-card-text>
+                      <div class="text-subtitle-2 font-weight-bold mb-2">Resumen</div>
+                      <div class="mb-1">Cliente: <strong>{{ selectedCustomer?.full_name || 'Consumidor final' }}</strong></div>
+                      <div v-if="selectedThirdParty" class="mb-1">Receptor fiscal: <strong>{{ selectedThirdParty.legal_name }}</strong></div>
+                      <div class="mb-1">Items: <strong>{{ cart.length }}</strong></div>
+                      <div class="mb-1">Cantidad total: <strong>{{ cart.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0) }}</strong></div>
+                      <div class="mb-1">Nota: <strong>{{ saleNote || 'Sin nota' }}</strong></div>
+                      <div>Caja: <strong>{{ currentSession?.cash_register?.name || 'Sin caja abierta' }}</strong></div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" md="6">
+                  <v-card variant="tonal" color="primary">
+                    <v-card-text>
+                      <div class="d-flex justify-space-between mb-1"><span>Subtotal</span><strong>{{ formatMoney(totals.subtotal) }}</strong></div>
+                      <div v-if="totals.discount > 0" class="d-flex justify-space-between mb-1"><span>Descuento</span><strong>-{{ formatMoney(totals.discount) }}</strong></div>
+                      <div class="d-flex justify-space-between mb-1"><span>{{ totals.taxLabel }}</span><strong>{{ formatMoney(totals.tax) }}</strong></div>
+                      <v-divider class="my-2" />
+                      <div class="d-flex justify-space-between text-h6"><span>Total</span><strong>{{ formatMoney(totals.total) }}</strong></div>
+                      <div class="d-flex justify-space-between mt-2"><span>Pagado</span><strong>{{ formatMoney(paidTotal) }}</strong></div>
+                      <div v-if="remaining > 0" class="d-flex justify-space-between text-error mt-1"><span>Falta</span><strong>{{ formatMoney(remaining) }}</strong></div>
+                      <div v-if="change > 0" class="d-flex justify-space-between text-success mt-1"><span>Cambio</span><strong>{{ formatMoney(change) }}</strong></div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <v-alert v-if="sessionExpired" type="error" variant="tonal" class="mt-4">
+                La sesión de caja está vencida. Cierra y reabre la caja antes de cobrar.
+              </v-alert>
+              <v-alert v-else-if="!currentSession" type="warning" variant="tonal" class="mt-4">
+                No hay caja abierta para este usuario. Antes de cobrar debes abrir una sesión de caja.
+              </v-alert>
+            </v-window-item>
+          </v-window>
+        </v-card-text>
+
+        <v-card-actions class="sale-wizard-actions">
+          <v-btn variant="text" @click="closeSaleWizard">Cerrar</v-btn>
+          <v-btn
+            v-if="cart.length > 0"
+            variant="text"
+            color="secondary"
+            prepend-icon="mdi-pause-circle-outline"
+            @click="saveSaleOnHold"
+          >
+            Guardar en espera
+          </v-btn>
+          <v-btn
+            v-if="cart.length > 0"
+            variant="text"
+            color="error"
+            prepend-icon="mdi-trash-can-outline"
+            @click="clearSale"
+          >
+            Limpiar
+          </v-btn>
+          <v-spacer />
+          <v-btn v-if="saleWizardStep > 1" variant="text" @click="saleWizardStep -= 1">Atrás</v-btn>
+          <v-btn v-if="saleWizardStep < 4" color="secondary" variant="tonal" @click="goNextSaleWizard">
+            Continuar
+          </v-btn>
+          <v-btn
+            v-else
+            color="primary"
+            prepend-icon="mdi-check-circle"
+            :loading="processing"
+            :disabled="cart.length === 0 || remaining > 0 || sessionExpired || !currentSession"
+            @click="processSale({ closeWizardOnSuccess: true })"
+          >
+            Cobrar {{ formatMoney(totals.total) }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="showGlobalDiscountDialog" max-width="400">
       <v-card>
         <v-card-title>Aplicar Descuento Global</v-card-title>
@@ -610,6 +1043,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useTenant } from '@/composables/useTenant'
 import { useAuth } from '@/composables/useAuth'
 import { useTenantSettings } from '@/composables/useTenantSettings'
+import { useI18n } from '@/i18n'
 
 const { t } = useI18n()
 
@@ -633,6 +1067,11 @@ import ContextHelpCard from '@/components/ContextHelpCard.vue'
 import { formatMoney } from '@/utils/formatters'
 import { applyLineTaxes } from '@/utils/taxCalculator'
 import { humanizeAppError } from '@/utils/appErrors'
+import { deriveSaleWizardStartStep, getSaleWizardStepBlocker as getSaleWizardStepBlockerState } from '@/utils/saleWizard'
+import {
+  getCashSessionState,
+  validateCashSessionForOperation,
+} from '../../../shared/utils/cashSessionUtils'
 import {
   allocateGlobalDiscountAcrossLines,
   buildSalePayloadLines,
@@ -643,7 +1082,6 @@ import {
   summarizeCartTotals,
   validateCartDiscounts as validateCartDiscountsShared,
 } from '@/utils/saleCalculator'
-import { useI18n } from '@/i18n'
 
 const { tenantId } = useTenant()
 const { userProfile } = useAuth()
@@ -674,6 +1112,9 @@ const heldSales = ref([])
 const CUSTOMER_AUTOLOAD_MIN_SCORE = 0.82
 const saleDateTime = ref('')
 const saleDateTimeTouched = ref(false)
+const showSaleWizard = ref(false)
+const saleWizardStep = ref(1)
+const saleWizardError = ref('')
 
 // Cargar info de crédito cuando cambie el cliente
 watch(selectedCustomer, async (customer) => {
@@ -695,11 +1136,14 @@ const snackbarMessage = ref('')
 const snackbarColor = ref('success')
 
 // Sesión expirada (configurable via parámetros de empresa)
-const sessionAgeHours = computed(() => {
-  if (!currentSession.value?.opened_at) return 0
-  return Math.floor((Date.now() - new Date(currentSession.value.opened_at)) / 3600000)
-})
-const sessionExpired = computed(() => sessionAgeHours.value >= cashSessionMaxHours.value)
+const cashSessionState = computed(() => getCashSessionState(currentSession.value, cashSessionMaxHours.value))
+const sessionAgeHours = computed(() => cashSessionState.value.ageHours)
+const sessionExpired = computed(() => cashSessionState.value.expired)
+const saleSessionValidation = computed(() => validateCashSessionForOperation(
+  currentSession.value,
+  cashSessionMaxHours.value,
+  { missingMessage: 'Debe abrir una caja antes de realizar ventas' }
+))
 
 // ─── Crédito ──────────────────────────────────────────────────────────────
 const hasCreditPayment = computed(() => payments.value.some(p => p.method === 'CREDITO'))
@@ -874,6 +1318,12 @@ const totals = computed(() => {
 })
 
 const maxGlobalDiscountAmount = computed(() => getMaxGlobalDiscountAmount(cart.value))
+const saleWizardSteps = [
+  { value: 1, label: 'Cliente' },
+  { value: 2, label: 'Productos' },
+  { value: 3, label: 'Pago' },
+  { value: 4, label: 'Confirmar' },
+]
 
 const cartTotalPages = computed(() => Math.max(1, Math.ceil(cart.value.length / CART_LIST_PAGE_SIZE)))
 const paginatedCart = computed(() => {
@@ -1436,6 +1886,7 @@ const saveSaleOnHold = () => {
   heldSales.value = nextHeldSales.slice(0, MAX_HOLD_SALES)
   persistHeldSales()
   clearSale()
+  closeSaleWizard()
   showMsg('Venta guardada en espera', 'success')
 }
 
@@ -1470,6 +1921,8 @@ const resumeHeldSale = async (heldSaleId) => {
   persistHeldSales()
 
   await recalculate()
+  showSaleWizard.value = true
+  saleWizardStep.value = 2
   showMsg('Venta en espera cargada', 'success')
 }
 
@@ -1478,7 +1931,7 @@ watch(holdSalesStorageKey, () => {
 }, { immediate: true })
 
 // Procesar venta
-const processSale = async () => {
+const processSale = async (options = {}) => {
   if (cart.value.length === 0 || remaining.value > 0) return
   if (!tenantId.value || !userProfile.value) return
 
@@ -1489,15 +1942,10 @@ const processSale = async () => {
   }
 
   // Validar que haya una caja abierta
-  if (!currentSession.value) {
-    snackbarMessage.value = 'Debe abrir una caja antes de realizar ventas'
-    snackbarColor.value = 'error'
-    snackbar.value = true
-    return
-  }
+  const sessionValidation = saleSessionValidation.value
 
-  if (sessionExpired.value) {
-    snackbarMessage.value = `La sesión lleva ${sessionAgeHours.value}h abierta. Cierra y reabre la caja.`
+  if (!sessionValidation.valid) {
+    snackbarMessage.value = sessionValidation.message
     snackbarColor.value = 'error'
     snackbar.value = true
     return
@@ -1577,6 +2025,9 @@ const processSale = async () => {
       }
       // ─────────────────────────────────────────────────────────────
       clearSale()
+      if (options.closeWizardOnSuccess) {
+        closeSaleWizard()
+      }
     } else {
       showMsg(r.error, 'error')
     }
@@ -1599,10 +2050,69 @@ const clearSale = () => {
   chatOrderSummary.value = null
   searchTerm.value = ''
   searchResults.value = []
+  saleWizardError.value = ''
+}
+
+const openSaleWizard = () => {
+  saleWizardError.value = ''
+  saleWizardStep.value = deriveSaleWizardStartStep({ cartLength: cart.value.length })
+  showSaleWizard.value = true
+}
+
+const closeSaleWizard = () => {
+  showSaleWizard.value = false
+  saleWizardError.value = ''
+  saleWizardStep.value = deriveSaleWizardStartStep({ cartLength: cart.value.length })
+}
+
+const goNextSaleWizard = () => {
+  const nextStep = saleWizardStep.value + 1
+  const validationError = getSaleWizardStepBlocker(nextStep)
+  if (validationError) {
+    saleWizardError.value = validationError
+    return
+  }
+
+  saleWizardError.value = ''
+  saleWizardStep.value = Math.min(4, nextStep)
+}
+
+const goToSaleWizardStep = (step) => {
+  const targetStep = Number(step || 1)
+  if (targetStep <= saleWizardStep.value) {
+    saleWizardError.value = ''
+    saleWizardStep.value = targetStep
+    return
+  }
+
+  for (let current = saleWizardStep.value + 1; current <= targetStep; current += 1) {
+    const validationError = getSaleWizardStepBlocker(current)
+    if (validationError) {
+      saleWizardError.value = validationError
+      return
+    }
+  }
+
+  saleWizardError.value = ''
+  saleWizardStep.value = targetStep
+}
+
+const getSaleWizardStepBlocker = (targetStep) => {
+  return getSaleWizardStepBlockerState({
+    targetStep,
+    cartLength: cart.value.length,
+    remaining: remaining.value,
+    creditError: creditError.value,
+    saleDateTimeError: saleDateTimeError.value,
+    cashSessionError: saleSessionValidation.value.valid ? '' : saleSessionValidation.value.message,
+  })
 }
 
 watch(() => cart.value.length, () => {
   cartListPage.value = 1
+  if (showSaleWizard.value && cart.value.length === 0 && saleWizardStep.value > 2) {
+    saleWizardStep.value = 2
+  }
 })
 
 watch(cartTotalPages, (total) => {
@@ -1758,7 +2268,8 @@ const handleKeyboardShortcuts = (e) => {
 }
 
 .pos-header-actions__charge,
-.pos-header-actions__clear {
+.pos-header-actions__clear,
+.pos-header-actions__wizard {
   min-height: 38px;
 }
 
@@ -1908,6 +2419,27 @@ const handleKeyboardShortcuts = (e) => {
 .pos-floating-actions-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.sale-wizard-actions {
+  padding: 16px;
+}
+
+.sale-wizard-cart-item :deep(.v-list-item__append) {
+  align-self: center;
+}
+
+.sale-wizard-qty {
+  max-width: 92px;
+}
+
+.sale-wizard-line-total {
+  min-width: 92px;
+  text-align: right;
+}
+
+.sale-wizard-payment-method {
+  min-width: 180px;
 }
 
 /* Total sticky en desktop */

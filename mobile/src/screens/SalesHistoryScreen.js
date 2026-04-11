@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -1395,6 +1396,7 @@ export default function SalesHistoryScreen({
         onRequestClose={() => setReturnDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={modalBodyStyles}>
             <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={modalTitleStyles}>Crear Devolución</Text>
@@ -1571,6 +1573,7 @@ export default function SalesHistoryScreen({
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1611,6 +1614,7 @@ export default function SalesHistoryScreen({
         onRequestClose={() => setEditDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={modalBodyStyles}>
             <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
               <Text style={modalTitleStyles}>Editar venta offline</Text>
@@ -1653,6 +1657,7 @@ export default function SalesHistoryScreen({
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -1840,6 +1845,7 @@ const styles = StyleSheet.create({
   pageBtnText: { color: '#e2e8f0', fontWeight: '700' },
   pageText: { color: '#94a3b8' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalAvoider: { width: '100%' },
   modalOverlayCenter: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 16 },
   modalBody: {
     maxHeight: '90%',

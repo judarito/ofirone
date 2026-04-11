@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import { COMMON_TEXT } from '../constants/uiText';
@@ -222,66 +222,69 @@ export default function UnitsScreen({ tenant, offlineMode, pageSize = 20 }) {
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
-              <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
-                {form.unit_id ? 'Editar unidad' : 'Nueva unidad'}
-              </Text>
-
-              <TextInput
-                style={[styles.input, isLightTheme && styles.inputLight]}
-                value={form.code}
-                onChangeText={(v) => setForm((prev) => ({ ...prev, code: v.toUpperCase() }))}
-                placeholder="Código *"
-                placeholderTextColor="#64748b"
-              />
-              <TextInput
-                style={[styles.input, isLightTheme && styles.inputLight]}
-                value={form.dian_code}
-                onChangeText={(v) => setForm((prev) => ({ ...prev, dian_code: v.toUpperCase() }))}
-                placeholder="Código DIAN"
-                placeholderTextColor="#64748b"
-              />
-              <TextInput
-                style={[styles.input, isLightTheme && styles.inputLight]}
-                value={form.name}
-                onChangeText={(v) => setForm((prev) => ({ ...prev, name: v }))}
-                placeholder="Nombre *"
-                placeholderTextColor="#64748b"
-              />
-              <TextInput
-                style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 70 }]}
-                value={form.description}
-                onChangeText={(v) => setForm((prev) => ({ ...prev, description: v }))}
-                placeholder="Descripción"
-                placeholderTextColor="#64748b"
-                multiline
-              />
-
-              <Pressable
-                style={[
-                  styles.switchCard,
-                  isLightTheme && styles.switchCardLight,
-                  form.is_active && styles.switchCardActive,
-                  form.is_active && isLightTheme && styles.switchCardActiveLight,
-                ]}
-                onPress={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
-              >
-                <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Unidad activa</Text>
-                <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>
-                  {boolText(form.is_active, COMMON_TEXT.yes, COMMON_TEXT.no)}
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
+                <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
+                  {form.unit_id ? 'Editar unidad' : 'Nueva unidad'}
                 </Text>
-              </Pressable>
 
-              <Pressable style={styles.primaryBtn} onPress={save} disabled={saving}>
-                <Text style={styles.primaryBtnText}>{saving ? 'Guardando...' : 'Guardar'}</Text>
-              </Pressable>
-            </ScrollView>
+                <TextInput
+                  style={[styles.input, isLightTheme && styles.inputLight]}
+                  value={form.code}
+                  onChangeText={(v) => setForm((prev) => ({ ...prev, code: v.toUpperCase() }))}
+                  placeholder="Código *"
+                  placeholderTextColor="#64748b"
+                />
+                <TextInput
+                  style={[styles.input, isLightTheme && styles.inputLight]}
+                  value={form.dian_code}
+                  onChangeText={(v) => setForm((prev) => ({ ...prev, dian_code: v.toUpperCase() }))}
+                  placeholder="Código DIAN"
+                  placeholderTextColor="#64748b"
+                />
+                <TextInput
+                  style={[styles.input, isLightTheme && styles.inputLight]}
+                  value={form.name}
+                  onChangeText={(v) => setForm((prev) => ({ ...prev, name: v }))}
+                  placeholder="Nombre *"
+                  placeholderTextColor="#64748b"
+                />
+                <TextInput
+                  style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 70 }]}
+                  value={form.description}
+                  onChangeText={(v) => setForm((prev) => ({ ...prev, description: v }))}
+                  placeholder="Descripción"
+                  placeholderTextColor="#64748b"
+                  multiline
+                />
 
-            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
-              <Text style={styles.closeBtnText}>Cerrar</Text>
-            </Pressable>
-          </View>
+                <Pressable
+                  style={[
+                    styles.switchCard,
+                    isLightTheme && styles.switchCardLight,
+                    form.is_active && styles.switchCardActive,
+                    form.is_active && isLightTheme && styles.switchCardActiveLight,
+                  ]}
+                  onPress={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
+                >
+                  <Text style={[styles.switchTitle, isLightTheme && styles.switchTitleLight]}>Unidad activa</Text>
+                  <Text style={[styles.switchDesc, isLightTheme && styles.switchDescLight]}>
+                    {boolText(form.is_active, COMMON_TEXT.yes, COMMON_TEXT.no)}
+                  </Text>
+                </Pressable>
+
+                <View style={styles.formFooter}>
+                  <Pressable style={[styles.primaryBtn, styles.formFooterBtn]} onPress={save} disabled={saving}>
+                    <Text style={styles.primaryBtnText}>{saving ? 'Guardando...' : 'Guardar'}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, styles.formFooterBtn]}>
+                    <Text style={styles.closeBtnText}>Cerrar</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -398,20 +401,11 @@ const styles = StyleSheet.create({
   switchTitleLight: { color: '#0f172a' },
   switchDesc: { color: '#93c5fd', fontSize: 12, marginTop: 4 },
   switchDescLight: { color: '#235ea9' },
-  primaryBtn: {
-    backgroundColor: '#57d65a',
-    borderRadius: 8,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
+  formFooter: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  formFooterBtn: { flex: 1 },
+  primaryBtn: { backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
   primaryBtnText: { color: '#062915', fontWeight: '700' },
-  closeBtn: {
-    marginTop: 12,
-    alignSelf: 'flex-end',
-    backgroundColor: '#235ea9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
+  closeBtn: { backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
+  modalAvoider: { width: '100%' },
 });

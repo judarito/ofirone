@@ -316,7 +316,7 @@ export default function CashAssignmentsScreen({ tenant, userProfile, offlineMode
                 <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
               </Pressable>
             </ScrollView>
-            <Pressable onPress={() => setDialogOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+            <Pressable onPress={() => setDialogOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight]}>
               <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
             </Pressable>
           </View>

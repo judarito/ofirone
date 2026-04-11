@@ -101,12 +101,12 @@
       variant="tonal"
       class="mb-4 ofir-alert"
       prepend-icon="mdi-clock-alert"
-      :title="`${expiredSessions.length} caja${expiredSessions.length > 1 ? 's' : ''} con sesión abierta por más de 24 horas`"
+      :title="expiredSessionsTitle"
     >
       <div class="text-body-2 mt-1">
         <span v-for="(s, i) in expiredSessions" :key="s.cash_session_id">
           <strong>{{ s.cash_register?.name }}</strong>
-          ({{ s.cash_register?.location?.name }}) — {{ Math.floor((Date.now()-new Date(s.opened_at))/3600000) }}h abierta por {{ s.opened_by_user?.full_name }}<span v-if="i < expiredSessions.length-1">, </span>
+          ({{ s.cash_register?.location?.name }}) — {{ getExpiredSessionState(s).ageHours }}h abierta por {{ s.opened_by_user?.full_name }}<span v-if="i < expiredSessions.length-1">, </span>
         </span>
       </div>
       <template #append>
@@ -350,6 +350,7 @@ import SalesForecastWidget from '@/components/SalesForecastWidget.vue'
 import reportsService from '@/services/reports.service'
 import cashService from '@/services/cash.service'
 import { formatMoney } from '@/utils/formatters'
+import { getCashSessionState } from '../../../shared/utils/cashSessionUtils'
 
 const apexchart = VueApexCharts
 
@@ -382,6 +383,10 @@ const dailySeries    = ref([])
 const topProducts    = ref([])
 const paymentMethods = ref([])
 const expiredSessions = ref([])
+const getExpiredSessionState = (session) => getCashSessionState(session, cashSessionMaxHours.value)
+const expiredSessionsTitle = computed(() => (
+  `${expiredSessions.value.length} caja${expiredSessions.value.length > 1 ? 's' : ''} con sesión abierta por más de ${cashSessionMaxHours.value} hora${cashSessionMaxHours.value === 1 ? '' : 's'}`
+))
 const { payableSummary } = useAppAlerts()
 const canViewSupplierPayables = computed(() => {
   const roles = (userProfile.value?.roles || []).map(r => r.name)

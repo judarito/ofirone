@@ -345,12 +345,15 @@ import supabaseService from '@/services/supabase.service'
 import { humanizeAppError } from '@/utils/appErrors'
 import { formatMoney, formatDateTimeFull as formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
+import { useTenantSettings } from '@/composables/useTenantSettings'
+import { validateCashSessionForOperation } from '../../../shared/utils/cashSessionUtils'
 
 const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
 const { tenantId } = useTenant()
+const { cashSessionMaxHours } = useTenantSettings()
 const { userProfile, hasPermission } = useAuth()
 const { printing, printLayawayContract, printPaymentReceipt } = usePrint()
 
@@ -455,9 +458,14 @@ const savePayment = async () => {
   const { valid } = await paymentForm.value.validate()
   if (!valid) return
 
-  // Validar que haya una caja abierta
-  if (!currentSession.value) {
-    showMsg('Debe abrir una caja antes de registrar pagos', 'error')
+  const sessionValidation = validateCashSessionForOperation(
+    currentSession.value,
+    cashSessionMaxHours.value,
+    { missingMessage: 'Debe abrir una caja antes de registrar pagos' }
+  )
+
+  if (!sessionValidation.valid) {
+    showMsg(sessionValidation.message, 'error')
     return
   }
 

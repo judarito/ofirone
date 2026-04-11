@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -177,55 +177,61 @@ export default function LocationsScreen({ tenant, offlineMode, pageSize = 20 }) 
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{editing ? 'Editar sede' : 'Nueva sede'}</Text>
-            <TextInput
-              style={[styles.input, isLightTheme && styles.inputLight]}
-              value={form.name}
-              onChangeText={(v) => setForm((prev) => ({ ...prev, name: v }))}
-              placeholder="Nombre"
-              placeholderTextColor="#64748b"
-            />
-            <TextInput
-              style={[styles.input, isLightTheme && styles.inputLight]}
-              value={form.address}
-              onChangeText={(v) => setForm((prev) => ({ ...prev, address: v }))}
-              placeholder="Direccion"
-              placeholderTextColor="#64748b"
-            />
-            <SearchableSelectField
-              title="Tipo de sede"
-              themeMode={themeMode}
-              valueLabel={form.type || 'STORE'}
-              placeholder="Seleccionar tipo"
-              searchPlaceholder="Buscar tipo..."
-              options={LOCATION_TYPES.map((type) => ({ key: type, label: type, searchText: type }))}
-              selectedKey={form.type}
-              onSelect={(nextValue) => setForm((prev) => ({ ...prev, type: nextValue || 'STORE' }))}
-              allowClear={false}
-            />
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+                <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{editing ? 'Editar sede' : 'Nueva sede'}</Text>
+                <TextInput
+                  style={[styles.input, isLightTheme && styles.inputLight]}
+                  value={form.name}
+                  onChangeText={(v) => setForm((prev) => ({ ...prev, name: v }))}
+                  placeholder="Nombre"
+                  placeholderTextColor="#64748b"
+                />
+                <TextInput
+                  style={[styles.input, isLightTheme && styles.inputLight]}
+                  value={form.address}
+                  onChangeText={(v) => setForm((prev) => ({ ...prev, address: v }))}
+                  placeholder="Direccion"
+                  placeholderTextColor="#64748b"
+                />
+                <SearchableSelectField
+                  title="Tipo de sede"
+                  themeMode={themeMode}
+                  valueLabel={form.type || 'STORE'}
+                  placeholder="Seleccionar tipo"
+                  searchPlaceholder="Buscar tipo..."
+                  options={LOCATION_TYPES.map((type) => ({ key: type, label: type, searchText: type }))}
+                  selectedKey={form.type}
+                  onSelect={(nextValue) => setForm((prev) => ({ ...prev, type: nextValue || 'STORE' }))}
+                  allowClear={false}
+                />
 
-            <View style={styles.actions}>
-              <Pressable
-                style={[
-                  styles.secondaryBtn,
-                  isLightTheme && styles.secondaryBtnLight,
-                  form.is_active && styles.optionActive,
-                  form.is_active && isLightTheme && styles.optionActiveLight,
-                ]}
-                onPress={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
-              >
-                <Text style={[styles.secondaryBtnText, isLightTheme && styles.secondaryBtnTextLight]}>{form.is_active ? 'Activa' : 'Inactiva'}</Text>
-              </Pressable>
+                <View style={styles.actions}>
+                  <Pressable
+                    style={[
+                      styles.secondaryBtn,
+                      isLightTheme && styles.secondaryBtnLight,
+                      form.is_active && styles.optionActive,
+                      form.is_active && isLightTheme && styles.optionActiveLight,
+                    ]}
+                    onPress={() => setForm((prev) => ({ ...prev, is_active: !prev.is_active }))}
+                  >
+                    <Text style={[styles.secondaryBtnText, isLightTheme && styles.secondaryBtnTextLight]}>{form.is_active ? 'Activa' : 'Inactiva'}</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.formFooter}>
+                  <Pressable style={[styles.primaryBtn, styles.formFooterBtn, isLightTheme && styles.primaryBtnLight]} onPress={onSave} disabled={saving}>
+                    <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
+                  </Pressable>
+                  <Pressable style={[styles.closeBtn, styles.formFooterBtn, isLightTheme && styles.closeBtnLight]} onPress={() => setModalOpen(false)}>
+                    <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             </View>
-
-            <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={onSave} disabled={saving}>
-              <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
-            </Pressable>
-            <Pressable style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]} onPress={() => setModalOpen(false)}>
-              <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cancelar</Text>
-            </Pressable>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -294,21 +300,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
   },
   inputLight: { borderColor: '#cbd5e1', backgroundColor: '#ffffff', color: '#0f172a' },
-  primaryBtn: { marginTop: 14, backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
+  formFooter: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  formFooterBtn: { flex: 1 },
+  primaryBtn: { backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
   primaryBtnText: { color: '#062915', fontWeight: '700' },
   primaryBtnLight: { backgroundColor: '#57d65a' },
   primaryBtnTextLight: { color: '#062915' },
-  closeBtn: {
-    marginTop: 10,
-    alignSelf: 'flex-end',
-    backgroundColor: '#235ea9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
+  closeBtn: { backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
   closeBtnLight: { backgroundColor: '#e2e8f0' },
   closeBtnTextLight: { color: '#1e293b' },
+  modalAvoider: { width: '100%' },
   chipsRow: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
   filterChip: {
     borderWidth: 1,

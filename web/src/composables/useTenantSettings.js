@@ -1,6 +1,7 @@
 import { ref, computed, readonly } from 'vue'
 import { useTenant } from './useTenant'
 import tenantSettingsService from '@/services/tenantSettings.service'
+import { resolveCashSessionMaxHours } from '../../../shared/utils/cashSessionUtils'
 
 const settings = ref(null)
 const loadedTenantId = ref(null)
@@ -73,7 +74,7 @@ export function useTenantSettings() {
   const reserveStockOnLayaway = computed(() => settings.value?.reserve_stock_on_layaway !== false)
 
   // Configuración de Caja
-  const cashSessionMaxHours = computed(() => settings.value?.cash_session_max_hours || 24)
+  const cashSessionMaxHours = computed(() => resolveCashSessionMaxHours(settings.value, 24))
 
   // Configuración de Ventas
   const maxDiscountWithoutAuth = computed(() => settings.value?.max_discount_without_auth || 5)

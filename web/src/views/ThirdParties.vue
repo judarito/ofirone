@@ -40,23 +40,13 @@
       </template>
     </ListView>
 
-    <!-- Dialog Crear/Editar -->
-    <v-dialog v-model="dialog" max-width="800" scrollable>
-      <v-card>
-        <v-card-title>
-          <v-icon start>{{ isEditing ? 'mdi-pencil' : 'mdi-plus' }}</v-icon>
-          {{ isEditing ? t('thirdParties.edit') : t('thirdParties.new') }}
-        </v-card-title>
-        <v-card-text>
-          <ThirdPartyForm ref="thirdPartyFormRef" :key="dialog + String(formData.third_party_id)" :model="formData" @save="save" @cancel="closeDialog" />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn @click="closeDialog">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="primary" :loading="saving" @click="thirdPartyFormRef?.submit()">{{ isEditing ? t('common.update') : t('common.create') }}</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ThirdPartyWizardDialog
+      v-model="dialog"
+      :tenant-id="tenantId"
+      :mode="isEditing ? 'edit' : 'create'"
+      :initial-third-party="isEditing ? formData : null"
+      @saved="handleWizardSaved"
+    />
 
     <v-dialog v-model="deleteDialog" max-width="400">
       <v-card>
@@ -81,7 +71,7 @@ import { useTenantSettings } from '@/composables/useTenantSettings'
 import { useI18n } from '@/i18n'
 import ListView from '@/components/ListView.vue'
 import thirdPartiesService from '@/services/thirdParties.service'
-import ThirdPartyForm from '@/components/ThirdPartyForm.vue'
+import ThirdPartyWizardDialog from '@/components/ThirdPartyWizardDialog.vue'
 import { formatMoney } from '@/utils/formatters'
 
 const { tenantId } = useTenant()
@@ -93,14 +83,12 @@ const loading = ref(false)
 const dialog = ref(false)
 const deleteDialog = ref(false)
 const isEditing = ref(false)
-const saving = ref(false)
 const deleting = ref(false)
 const formData = reactive({})
 const itemToDelete = ref(null)
 const snackbar = ref(false)
 const snackbarMessage = ref('')
 const snackbarColor = ref('success')
-const thirdPartyFormRef = ref(null)
 
 async function load({ page = 1, pageSize = null, search = '' } = {}) {
   if (!tenantId.value) return
@@ -123,7 +111,7 @@ async function load({ page = 1, pageSize = null, search = '' } = {}) {
 
 function openCreateDialog() {
   isEditing.value = false
-  Object.assign(formData, { third_party_id: null, tenant_id: tenantId.value, type: 'both', legal_name: '', document_number: '', dv: '', phone: '', email: '', address: null, max_credit_amount: null, is_active: true })
+  Object.assign(formData, { third_party_id: null, tenant_id: tenantId.value, type: 'customer', legal_name: '', document_number: '', dv: '', phone: '', email: '', address: null, max_credit_amount: null, is_active: true })
   dialog.value = true
 }
 
@@ -133,28 +121,11 @@ function openEditDialog(item) {
   dialog.value = true
 }
 
-async function save(payload) {
-  try {
-    saving.value = true
-    // payload may be passed by child emission, otherwise use formData
-    const dataToSave = payload && Object.keys(payload).length ? payload : formData
-    if (isEditing.value && dataToSave.third_party_id) {
-      await thirdPartiesService.update(dataToSave.third_party_id, dataToSave)
-      snackbarMessage.value = t('thirdParties.updated')
-    } else {
-      await thirdPartiesService.create(dataToSave)
-      snackbarMessage.value = t('thirdParties.created')
-    }
-    snackbarColor.value = 'success'
-    snackbar.value = true
-    dialog.value = false
-    await load()
-  } catch (err) {
-    console.error('Error guardando tercero', err)
-    snackbarMessage.value = t('thirdParties.saveError')
-    snackbarColor.value = 'error'
-    snackbar.value = true
-  } finally { saving.value = false }
+async function handleWizardSaved({ message }) {
+  snackbarMessage.value = message || (isEditing.value ? t('thirdParties.updated') : t('thirdParties.created'))
+  snackbarColor.value = 'success'
+  snackbar.value = true
+  await load()
 }
 
 function confirmDelete(item) {
@@ -179,8 +150,6 @@ async function doDelete() {
     snackbar.value = true
   } finally { deleting.value = false }
 }
-
-function closeDialog() { dialog.value = false }
 
 onMounted(() => { load() })
 </script>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
 import SearchableSelectField from '../components/SearchableSelectField';
@@ -213,8 +213,9 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
               <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>{form.cash_register_id ? 'Editar caja' : 'Nueva caja'}</Text>
               <TextInput
                 style={[styles.input, isLightTheme && styles.inputLight]}
@@ -249,14 +250,17 @@ export default function CashRegistersScreen({ tenant, offlineMode, pageSize = 20
                 </Text>
               </Pressable>
 
-              <Pressable style={[styles.primaryBtn, isLightTheme && styles.primaryBtnLight]} onPress={save} disabled={saving}>
-                <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
-              </Pressable>
+              <View style={styles.formFooter}>
+                <Pressable style={[styles.primaryBtn, styles.formFooterBtn, isLightTheme && styles.primaryBtnLight]} onPress={save} disabled={saving}>
+                  <Text style={[styles.primaryBtnText, isLightTheme && styles.primaryBtnTextLight]}>{saving ? 'Guardando...' : 'Guardar'}</Text>
+                </Pressable>
+                <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, styles.formFooterBtn, isLightTheme && styles.closeBtnLight]}>
+                  <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
+                </Pressable>
+              </View>
             </ScrollView>
-            <Pressable onPress={() => setModalOpen(false)} style={[styles.closeBtn, isLightTheme && styles.closeBtnLight, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
-              <Text style={[styles.closeBtnText, isLightTheme && styles.closeBtnTextLight]}>Cerrar</Text>
-            </Pressable>
-          </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -370,19 +374,15 @@ const styles = StyleSheet.create({
   optionTextLight: { color: '#334155' },
   optionTextActive: { color: '#eff6ff' },
   optionTextActiveLight: { color: '#235ea9' },
-  primaryBtn: { marginTop: 14, backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
+  formFooter: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  formFooterBtn: { flex: 1 },
+  primaryBtn: { backgroundColor: '#57d65a', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
   primaryBtnText: { color: '#062915', fontWeight: '700' },
   primaryBtnLight: { backgroundColor: '#57d65a' },
   primaryBtnTextLight: { color: '#062915' },
-  closeBtn: {
-    marginTop: 12,
-    alignSelf: 'flex-end',
-    backgroundColor: '#235ea9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
+  closeBtn: { backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
   closeBtnLight: { backgroundColor: '#e2e8f0' },
   closeBtnTextLight: { color: '#1e293b' },
+  modalAvoider: { width: '100%' },
 });

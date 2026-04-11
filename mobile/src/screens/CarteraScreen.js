@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -162,6 +164,7 @@ export default function CarteraScreen({ tenant, userProfile, formatMoney, offlin
         onRequestClose={() => setSelectedAccount(null)}
       >
         <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight, { paddingBottom: 14 + Math.max(androidBottomInset, 8) }]}>
             <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Movimientos de cartera</Text>
             <Text style={[styles.meta, isLightTheme && styles.metaLight]}>
@@ -206,10 +209,11 @@ export default function CarteraScreen({ tenant, userProfile, formatMoney, offlin
               </Pressable>
             </View>
 
-            <Pressable onPress={() => setSelectedAccount(null)} style={[styles.closeBtn, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+            <Pressable onPress={() => setSelectedAccount(null)} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>Cerrar</Text>
             </Pressable>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -266,6 +270,7 @@ const styles = StyleSheet.create({
   modalBodyLight: { backgroundColor: '#f8fafc' },
   modalTitle: { color: '#f8fafc', fontSize: 18, fontWeight: '700', marginBottom: 6 },
   modalTitleLight: { color: '#0f172a' },
-  closeBtn: { marginTop: 12, alignSelf: 'flex-end', backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  closeBtn: { marginTop: 12, alignSelf: 'flex-end', backgroundColor: '#235ea9', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  modalAvoider: { width: '100%' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
 });

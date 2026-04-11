@@ -20,7 +20,7 @@ const cols = `
   is_component,
   category:category_id(category_id,name),
   unit:unit_id(unit_id,code,name,dian_code,is_system),
-  product_variants(variant_id,sku,variant_name,cost,price,min_stock,is_active)
+  product_variants(variant_id,sku,variant_name,cost,price,price_includes_tax,min_stock,allow_backorder,requires_expiration,standard_code,standard_code_type,unit_id,is_active)
 `;
 
 async function attachProductMediaSummary(tenantId, products) {
@@ -250,6 +250,70 @@ export async function createProduct(payload) {
 
     if (error) throw error;
     return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getProductById(productId, tenantId) {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select(cols)
+      .eq('product_id', productId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (error) throw error;
+    const enriched = await attachProductMediaSummary(tenantId, data ? [data] : []);
+    return { success: true, data: enriched[0] || data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function createVariant(payload) {
+  try {
+    const { data, error } = await supabase
+      .from('product_variants')
+      .insert(payload)
+      .select('variant_id, product_id, sku, variant_name, cost, price, min_stock, is_active')
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateVariant(variantId, tenantId, updates) {
+  try {
+    const { data, error } = await supabase
+      .from('product_variants')
+      .update(updates)
+      .eq('variant_id', variantId)
+      .eq('tenant_id', tenantId)
+      .select('variant_id, product_id, sku, variant_name, cost, price, min_stock, is_active')
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function removeVariant(variantId, tenantId) {
+  try {
+    const { error } = await supabase
+      .from('product_variants')
+      .delete()
+      .eq('variant_id', variantId)
+      .eq('tenant_id', tenantId);
+
+    if (error) throw error;
+    return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }

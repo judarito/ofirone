@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import BottomSheetModal from '../components/BottomSheetModal';
 import ListHeaderActionButton from '../components/ListHeaderActionButton';
 import PaginatedList from '../components/PaginatedList';
+import ProductCreationWizardSheet from '../components/ProductCreationWizardSheet';
+import ProductVariantWizardSheet from '../components/ProductVariantWizardSheet';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { COMMON_TEXT } from '../constants/uiText';
 import { usePaginatedList } from '../hooks/usePaginatedList';
@@ -28,8 +30,10 @@ import {
 } from '../services/productMedia.service';
 import {
   createProduct,
+  getProductById,
   listCategoryOptions,
   listProducts,
+  removeVariant,
   removeProduct,
   updateProduct,
 } from '../services/productsCatalog.service';
@@ -100,6 +104,12 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
   const androidBottomInset = useAndroidBottomInset();
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [createWizardOpen, setCreateWizardOpen] = useState(false);
+  const [editWizardOpen, setEditWizardOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [variantWizardOpen, setVariantWizardOpen] = useState(false);
+  const [variantWizardProduct, setVariantWizardProduct] = useState(null);
+  const [variantWizardVariant, setVariantWizardVariant] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -241,15 +251,10 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
   };
 
   const openCreate = () => {
-    setForm({ ...EMPTY_FORM, is_component: filters?.isComponent === true });
-    setProductMedia([]);
-    setSelectedMediaId(null);
-    setMediaError('');
-    setMediaNotice('');
-    setModalOpen(true);
+    setCreateWizardOpen(true);
   };
 
-  const openEdit = (item) => {
+  const openAdvancedEditor = (item) => {
     setForm({
       product_id: item.product_id,
       name: item.name || '',
@@ -269,8 +274,70 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
     setModalOpen(true);
   };
 
+  const openEdit = async (item) => {
+    if (!tenant?.tenant_id || !item?.product_id) return;
+    const result = await getProductById(item.product_id, tenant.tenant_id);
+    if (!result.success) {
+      setError(result.error || 'No se pudo cargar el producto para editar.');
+      return;
+    }
+
+    setEditingProduct(result.data);
+    setEditWizardOpen(true);
+  };
+
+  const refreshEditingProduct = async (productId = editingProduct?.product_id) => {
+    if (!tenant?.tenant_id || !productId) return;
+    const result = await getProductById(productId, tenant.tenant_id);
+    if (result.success) {
+      setEditingProduct(result.data);
+    }
+  };
+
   const refreshRows = async () => {
     await loadPage(page, filters);
+  };
+
+  const handleVariantSaved = async ({ message }) => {
+    await refreshRows();
+    await refreshEditingProduct(variantWizardProduct?.product_id);
+    Alert.alert('Variante guardada', message || 'La variante fue guardada correctamente.');
+  };
+
+  const openCreateVariantForEditingProduct = () => {
+    if (!editingProduct) return;
+    setVariantWizardProduct(editingProduct);
+    setVariantWizardVariant(null);
+    setVariantWizardOpen(true);
+  };
+
+  const openEditVariantForEditingProduct = (variant) => {
+    if (!editingProduct || !variant) return;
+    setVariantWizardProduct(editingProduct);
+    setVariantWizardVariant(variant);
+    setVariantWizardOpen(true);
+  };
+
+  const removeVariantFromEditingProduct = (variant) => {
+    if (!tenant?.tenant_id || !variant?.variant_id) return;
+
+    Alert.alert('Eliminar variante', `Se eliminará ${variant.variant_name || 'esta variante'}.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          const result = await removeVariant(variant.variant_id, tenant.tenant_id);
+          if (!result.success) {
+            setError(result.error || 'No se pudo eliminar la variante.');
+            return;
+          }
+
+          await refreshRows();
+          await refreshEditingProduct(editingProduct?.product_id);
+        },
+      },
+    ]);
   };
 
   const save = async () => {
@@ -511,9 +578,118 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
   };
 
   const mediaLimitReached = productMedia.length >= MAX_PRODUCT_PHOTOS;
+  const editingVariants = editingProduct?.product_variants || [];
+
+  const renderEditWizardSupplementary = () => (
+    <View style={[styles.summaryCard, isLightTheme && styles.summaryCardLight]}>
+      <Text style={[styles.summaryTitle, isLightTheme && styles.summaryTitleLight]}>Complementos del producto</Text>
+      <Text style={[styles.summaryText, isLightTheme && styles.summaryTextLight]}>
+        Variantes y fotos siguen disponibles, pero ya no te sacan del flujo guiado principal.
+      </Text>
+
+      <View style={styles.editSupplementaryActions}>
+        <Pressable style={styles.secondaryBtn} onPress={openCreateVariantForEditingProduct}>
+          <View style={styles.btnContentRow}>
+            <Ionicons name="add-outline" size={15} color="#dbeafe" />
+            <Text style={styles.secondaryBtnText}>Agregar variante</Text>
+          </View>
+        </Pressable>
+        <Pressable style={styles.secondaryBtn} onPress={() => openAdvancedEditor(editingProduct)}>
+          <View style={styles.btnContentRow}>
+            <Ionicons name="images-outline" size={15} color="#dbeafe" />
+            <Text style={styles.secondaryBtnText}>Fotos e IA</Text>
+          </View>
+        </Pressable>
+      </View>
+
+      {editingVariants.length ? (
+        <View style={styles.editSupplementaryList}>
+          {editingVariants.map((variant) => (
+            <View key={variant.variant_id} style={[styles.variantRow, isLightTheme && styles.variantRowLight]}>
+              <Text style={[styles.variantName, isLightTheme && styles.variantNameLight]}>
+                {variant.variant_name || 'Predeterminada'}
+              </Text>
+              <Text style={[styles.variantMeta, isLightTheme && styles.variantMetaLight]}>
+                SKU: {variant.sku || '-'} · Precio: {Number(variant.price || 0).toLocaleString('es-CO')} · Costo: {Number(variant.cost || 0).toLocaleString('es-CO')}
+              </Text>
+              <Text style={[styles.variantMeta, isLightTheme && styles.variantMetaLight]}>
+                Alerta mínima: {variant.min_stock ?? 0}
+              </Text>
+              <View style={styles.actions}>
+                <Pressable style={styles.secondaryBtn} onPress={() => openEditVariantForEditingProduct(variant)}>
+                  <View style={styles.btnContentRow}>
+                    <Ionicons name="create-outline" size={15} color="#dbeafe" />
+                    <Text style={styles.secondaryBtnText}>Editar</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.dangerBtn} onPress={() => removeVariantFromEditingProduct(variant)}>
+                  <View style={styles.btnContentRow}>
+                    <Ionicons name="trash-outline" size={15} color="#fee2e2" />
+                    <Text style={styles.dangerBtnText}>Eliminar</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={[styles.summaryText, isLightTheme && styles.summaryTextLight]}>
+          Aún no hay variantes registradas para este producto.
+        </Text>
+      )}
+    </View>
+  );
 
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
+      <ProductCreationWizardSheet
+        visible={createWizardOpen}
+        onClose={() => setCreateWizardOpen(false)}
+        themeMode={themeMode}
+        tenantId={tenant?.tenant_id}
+        categoryOptions={categoryOptions}
+        unitOptions={unitOptions}
+        defaultProfileId={filters?.isComponent ? 'component' : 'sale_simple'}
+        onSaved={async ({ message, color }) => {
+          await refreshRows();
+          Alert.alert(
+            color === 'warning' ? 'Producto creado con pendiente' : 'Producto creado',
+            message || 'El producto fue creado correctamente.',
+          );
+        }}
+      />
+
+      <ProductCreationWizardSheet
+        visible={editWizardOpen}
+        onClose={() => setEditWizardOpen(false)}
+        themeMode={themeMode}
+        tenantId={tenant?.tenant_id}
+        categoryOptions={categoryOptions}
+        unitOptions={unitOptions}
+        mode="edit"
+        initialProduct={editingProduct}
+        onSaved={async ({ product, message, color }) => {
+          setEditingProduct(product || editingProduct);
+          await refreshRows();
+          Alert.alert(
+            color === 'warning' ? 'Producto actualizado con pendiente' : 'Producto actualizado',
+            message || 'El producto fue actualizado correctamente.',
+          );
+        }}
+        renderSupplementary={renderEditWizardSupplementary}
+      />
+
+      <ProductVariantWizardSheet
+        visible={variantWizardOpen}
+        onClose={() => setVariantWizardOpen(false)}
+        themeMode={themeMode}
+        tenantId={tenant?.tenant_id}
+        product={variantWizardProduct}
+        variant={variantWizardVariant}
+        unitOptions={unitOptions}
+        onSaved={handleVariantSaved}
+      />
+
       <View style={styles.filtersBlock}>
         <SearchableSelectField
           title="Tipo de catalogo"
@@ -671,7 +847,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
         themeMode={themeMode}
         maxHeight="94%"
         footer={(
-          <View style={[styles.modalFooter, { marginBottom: Math.max(0, androidBottomInset - 4) }]}>
+          <View style={styles.modalFooter}>
             <Pressable style={[styles.modalFooterBtn, styles.primaryBtn]} onPress={save} disabled={saving}>
               <View style={styles.btnContentRow}>
                 <Ionicons name={saving ? 'hourglass-outline' : 'save-outline'} size={16} color="#062915" />
@@ -688,7 +864,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
         )}
       >
         <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
-          {form.product_id ? 'Editar producto' : 'Nuevo producto'}
+          Fotos y detalles avanzados
         </Text>
 
         <TextInput
@@ -733,7 +909,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
               form.is_component && isLightTheme && styles.toggleBtnActiveLight,
             ]}
             onPress={() =>
-              setForm((prev) => ({ ...prev, is_component: true, inventory_behavior: 'MANUFACTURED' }))
+              setForm((prev) => ({ ...prev, is_component: true, inventory_behavior: 'RESELL', track_inventory: true }))
             }
           >
             <Text style={[styles.toggleBtnText, isLightTheme && styles.toggleBtnTextLight, form.is_component && styles.toggleBtnTextActive]}>
@@ -1136,6 +1312,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   variantsBoxLight: { borderColor: '#dbe4ef', backgroundColor: '#f8fafc' },
+  summaryCard: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1d4ed8',
+    backgroundColor: '#0f172a',
+    padding: 12,
+    gap: 8,
+  },
+  summaryCardLight: { backgroundColor: '#eff6ff', borderColor: '#93c5fd' },
+  summaryTitle: { color: '#eff6ff', fontWeight: '800' },
+  summaryTitleLight: { color: '#1e3a8a' },
+  summaryText: { color: '#cbd5e1', fontSize: 13 },
+  summaryTextLight: { color: '#1f2937' },
   variantRow: {
     borderWidth: 1,
     borderColor: '#1e293b',
@@ -1148,6 +1338,8 @@ const styles = StyleSheet.create({
   variantNameLight: { color: '#0f172a' },
   variantMeta: { color: '#94a3b8', fontSize: 12, marginTop: 1 },
   variantMetaLight: { color: '#475569' },
+  editSupplementaryActions: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 6 },
+  editSupplementaryList: { gap: 8 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 10 },
   secondaryBtn: {
     flex: 1,
