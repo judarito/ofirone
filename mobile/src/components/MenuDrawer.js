@@ -2,6 +2,10 @@ import React from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { APP_TEXT, COMMON_TEXT } from '../constants/uiText';
+import {
+  MENU_DISPLAY_MODE_GRID,
+  MENU_DISPLAY_MODE_LIST,
+} from '../lib/menuDisplayMode';
 
 /**
  * Drawer lateral de navegación con secciones de menú, switch de tema y botón de logout.
@@ -10,6 +14,7 @@ export function MenuDrawer({
   visible,
   isLightTheme,
   menuTree,
+  menuDisplayMode,
   expandedSections,
   userProfile,
   userEmail,
@@ -18,12 +23,52 @@ export function MenuDrawer({
   onClose,
   onLogout,
   onThemeToggle,
+  onMenuDisplayModeChange,
   onMenuAction,
   onToggleSection,
   canAccessScreenByMenu,
   resolveMenuAccent,
   resolveMenuIcon,
 }) {
+  const isGridMode = menuDisplayMode === MENU_DISPLAY_MODE_GRID;
+
+  const buildSectionMeta = (section) => {
+    const code = section.code || section.title;
+    const hasChildren = Boolean(section.children?.length);
+    const isExpanded = Boolean(expandedSections[code]);
+    const sectionRoleAllowed = section.targetScreen
+      ? canAccessScreenByMenu(section.targetScreen, section.route)
+      : true;
+    const hasEnabledChild = hasChildren
+      ? (section.children || []).some((child) => {
+          const childUnsupported = !child.supportedOnMobile && !child.action;
+          if (childUnsupported) return false;
+          if (!child.targetScreen) return true;
+          return canAccessScreenByMenu(child.targetScreen, child.route);
+        })
+      : false;
+    const sectionDisabled = hasChildren
+      ? !sectionRoleAllowed && !hasEnabledChild
+      : !sectionRoleAllowed;
+
+    return {
+      code,
+      hasChildren,
+      isExpanded,
+      sectionDisabled,
+    };
+  };
+
+  const buildChildMeta = (child) => {
+    const childUnsupported = !child.supportedOnMobile && !child.action;
+    const childRoleBlocked =
+      Boolean(child.targetScreen) && !canAccessScreenByMenu(child.targetScreen, child.route);
+
+    return {
+      childDisabled: childUnsupported || childRoleBlocked,
+    };
+  };
+
   return (
     <Modal
       visible={visible}
@@ -108,6 +153,56 @@ export function MenuDrawer({
             </View>
           </Pressable>
 
+          <View style={[styles.viewModeCard, isLightTheme && styles.viewModeCardLight]}>
+            <Text style={[styles.viewModeTitle, isLightTheme && styles.viewModeTitleLight]}>
+              Vista del menú
+            </Text>
+            <View style={styles.viewModeActions}>
+              <Pressable
+                onPress={() => onMenuDisplayModeChange?.(MENU_DISPLAY_MODE_LIST)}
+                style={[
+                  styles.viewModeOption,
+                  isLightTheme && styles.viewModeOptionLight,
+                  menuDisplayMode === MENU_DISPLAY_MODE_LIST && styles.viewModeOptionActive,
+                  menuDisplayMode === MENU_DISPLAY_MODE_LIST &&
+                  isLightTheme &&
+                  styles.viewModeOptionActiveLight,
+                ]}
+                >
+                  <Ionicons
+                    name="list-outline"
+                    size={18}
+                    color={
+                      menuDisplayMode === MENU_DISPLAY_MODE_LIST
+                        ? (isLightTheme ? '#1d4ed8' : '#f8fafc')
+                        : (isLightTheme ? '#64748b' : '#9fb3d3')
+                    }
+                  />
+              </Pressable>
+              <Pressable
+                onPress={() => onMenuDisplayModeChange?.(MENU_DISPLAY_MODE_GRID)}
+                style={[
+                  styles.viewModeOption,
+                  isLightTheme && styles.viewModeOptionLight,
+                  menuDisplayMode === MENU_DISPLAY_MODE_GRID && styles.viewModeOptionActive,
+                  menuDisplayMode === MENU_DISPLAY_MODE_GRID &&
+                  isLightTheme &&
+                  styles.viewModeOptionActiveLight,
+                ]}
+                >
+                  <Ionicons
+                    name="grid-outline"
+                    size={18}
+                    color={
+                      menuDisplayMode === MENU_DISPLAY_MODE_GRID
+                        ? (isLightTheme ? '#1d4ed8' : '#f8fafc')
+                        : (isLightTheme ? '#64748b' : '#9fb3d3')
+                    }
+                  />
+              </Pressable>
+            </View>
+          </View>
+
           <ScrollView
             contentContainerStyle={[
               styles.menuContent,
@@ -120,150 +215,259 @@ export function MenuDrawer({
               </Text>
             ) : null}
 
-            {(menuTree || []).map((section) => {
-              const code = section.code || section.title;
-              const hasChildren = Boolean(section.children?.length);
-              const isExpanded = Boolean(expandedSections[code]);
-              const sectionRoleAllowed = section.targetScreen
-                ? canAccessScreenByMenu(section.targetScreen, section.route)
-                : true;
-              const hasEnabledChild = hasChildren
-                ? (section.children || []).some((child) => {
-                    const childUnsupported = !child.supportedOnMobile && !child.action;
-                    if (childUnsupported) return false;
-                    if (!child.targetScreen) return true;
-                    return canAccessScreenByMenu(child.targetScreen, child.route);
-                  })
-                : false;
-              const sectionDisabled = hasChildren
-                ? !sectionRoleAllowed && !hasEnabledChild
-                : !sectionRoleAllowed;
+            {!isGridMode
+              ? (menuTree || []).map((section) => {
+                  const { code, hasChildren, isExpanded, sectionDisabled } = buildSectionMeta(section);
 
-              return (
-                <View key={code} style={styles.menuSection}>
-                  <Pressable
-                    disabled={sectionDisabled}
-                    style={[
-                      styles.menuSectionBtn,
-                      isLightTheme ? null : styles.menuSectionBtnDark,
-                      sectionDisabled ? styles.menuSectionBtnDisabled : null,
-                    ]}
-                    onPress={() => {
-                      if (hasChildren) {
-                        onToggleSection(code);
-                        return;
-                      }
-                      onMenuAction(section);
-                    }}
-                  >
-                    <View style={styles.menuSectionLeft}>
-                      <View
+                  return (
+                    <View key={code} style={styles.menuSection}>
+                      <Pressable
+                        disabled={sectionDisabled}
                         style={[
-                          styles.menuIconBadge,
-                          sectionDisabled ? styles.menuIconBadgeDisabled : null,
-                          {
-                            backgroundColor: `${resolveMenuAccent(section)}22`,
-                            borderColor: `${resolveMenuAccent(section)}66`,
-                          },
+                          styles.menuSectionBtn,
+                          isLightTheme ? null : styles.menuSectionBtnDark,
+                          sectionDisabled ? styles.menuSectionBtnDisabled : null,
                         ]}
+                        onPress={() => {
+                          if (hasChildren) {
+                            onToggleSection(code);
+                            return;
+                          }
+                          onMenuAction(section);
+                        }}
                       >
-                        <Ionicons
-                          name={resolveMenuIcon(section)}
-                          size={14}
-                          color={resolveMenuAccent(section)}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.menuSectionText,
-                          isLightTheme ? null : styles.menuSectionTextDark,
-                          sectionDisabled ? styles.menuSectionTextDisabled : null,
-                        ]}
-                      >
-                        {section.label || section.title}
-                      </Text>
-                    </View>
-                    {hasChildren && !sectionDisabled ? (
-                      <Text
-                        style={[styles.menuChevron, isLightTheme ? null : styles.menuChevronDark]}
-                      >
-                        {isExpanded ? '−' : '+'}
-                      </Text>
-                    ) : sectionDisabled ? (
-                      <Ionicons name="lock-closed-outline" size={13} style={styles.menuLockedIcon} />
-                    ) : null}
-                  </Pressable>
-
-                  {hasChildren && isExpanded ? (
-                    <View style={styles.menuChildren}>
-                      {section.children.map((child) => {
-                        const childUnsupported = !child.supportedOnMobile && !child.action;
-                        const childRoleBlocked =
-                          Boolean(child.targetScreen) &&
-                          !canAccessScreenByMenu(child.targetScreen, child.route);
-                        const childDisabled = childUnsupported || childRoleBlocked;
-
-                        return (
-                          <Pressable
-                            key={child.code || child.title}
-                            disabled={childDisabled}
-                            onPress={() => onMenuAction(child)}
+                        <View style={styles.menuSectionLeft}>
+                          <View
                             style={[
-                              styles.menuChildBtn,
-                              isLightTheme ? null : styles.menuChildBtnDark,
-                              childDisabled && styles.menuChildBtnDisabled,
+                              styles.menuIconBadge,
+                              sectionDisabled ? styles.menuIconBadgeDisabled : null,
+                              {
+                                backgroundColor: `${resolveMenuAccent(section)}22`,
+                                borderColor: `${resolveMenuAccent(section)}66`,
+                              },
                             ]}
                           >
-                            <View
-                              style={[
-                                styles.menuIconBadge,
-                                styles.menuChildIconBadge,
-                                childDisabled ? styles.menuIconBadgeDisabled : null,
-                                {
-                                  backgroundColor: `${resolveMenuAccent(child)}20`,
-                                  borderColor: `${resolveMenuAccent(child)}55`,
-                                },
-                              ]}
-                            >
-                              <Ionicons
-                                name={resolveMenuIcon(child)}
-                                size={13}
-                                color={resolveMenuAccent(child)}
-                              />
-                            </View>
-                            <Text
-                              style={[
-                                styles.menuChildText,
-                                isLightTheme ? null : styles.menuChildTextDark,
-                                childDisabled && styles.menuChildTextDisabled,
-                              ]}
-                            >
-                              {child.label || child.title}
-                            </Text>
-                            {childDisabled ? (
-                              <Ionicons
-                                name="lock-closed-outline"
-                                size={13}
-                                style={styles.menuLockedIcon}
-                              />
-                            ) : (
-                              <Ionicons
-                                name="chevron-forward"
-                                size={14}
+                            <Ionicons
+                              name={resolveMenuIcon(section)}
+                              size={14}
+                              color={resolveMenuAccent(section)}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.menuSectionText,
+                              isLightTheme ? null : styles.menuSectionTextDark,
+                              sectionDisabled ? styles.menuSectionTextDisabled : null,
+                            ]}
+                          >
+                            {section.label || section.title}
+                          </Text>
+                        </View>
+                        {hasChildren && !sectionDisabled ? (
+                          <Text
+                            style={[styles.menuChevron, isLightTheme ? null : styles.menuChevronDark]}
+                          >
+                            {isExpanded ? '−' : '+'}
+                          </Text>
+                        ) : sectionDisabled ? (
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={13}
+                            style={styles.menuLockedIcon}
+                          />
+                        ) : null}
+                      </Pressable>
+
+                      {hasChildren && isExpanded ? (
+                        <View style={styles.menuChildren}>
+                          {section.children.map((child) => {
+                            const { childDisabled } = buildChildMeta(child);
+
+                            return (
+                              <Pressable
+                                key={child.code || child.title}
+                                disabled={childDisabled}
+                                onPress={() => onMenuAction(child)}
                                 style={[
-                                  styles.menuChildChevron,
-                                  isLightTheme ? styles.menuChildChevronLight : null,
+                                  styles.menuChildBtn,
+                                  isLightTheme ? null : styles.menuChildBtnDark,
+                                  childDisabled && styles.menuChildBtnDisabled,
                                 ]}
-                              />
-                            )}
-                          </Pressable>
-                        );
-                      })}
+                              >
+                                <View
+                                  style={[
+                                    styles.menuIconBadge,
+                                    styles.menuChildIconBadge,
+                                    childDisabled ? styles.menuIconBadgeDisabled : null,
+                                    {
+                                      backgroundColor: `${resolveMenuAccent(child)}20`,
+                                      borderColor: `${resolveMenuAccent(child)}55`,
+                                    },
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name={resolveMenuIcon(child)}
+                                    size={13}
+                                    color={resolveMenuAccent(child)}
+                                  />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.menuChildText,
+                                    isLightTheme ? null : styles.menuChildTextDark,
+                                    childDisabled && styles.menuChildTextDisabled,
+                                  ]}
+                                >
+                                  {child.label || child.title}
+                                </Text>
+                                {childDisabled ? (
+                                  <Ionicons
+                                    name="lock-closed-outline"
+                                    size={13}
+                                    style={styles.menuLockedIcon}
+                                  />
+                                ) : (
+                                  <Ionicons
+                                    name="chevron-forward"
+                                    size={14}
+                                    style={[
+                                      styles.menuChildChevron,
+                                      isLightTheme ? styles.menuChildChevronLight : null,
+                                    ]}
+                                  />
+                                )}
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : null}
                     </View>
-                  ) : null}
+                  );
+                })
+              : (
+                <View style={styles.menuGrid}>
+                  {(menuTree || []).map((section) => {
+                    const { code, hasChildren, isExpanded, sectionDisabled } =
+                      buildSectionMeta(section);
+
+                    return (
+                      <View
+                        key={code}
+                        style={[
+                          styles.menuGridCard,
+                          isLightTheme ? styles.menuGridCardLight : styles.menuGridCardDark,
+                          isExpanded && hasChildren ? styles.menuGridCardExpanded : null,
+                          sectionDisabled ? styles.menuGridCardDisabled : null,
+                        ]}
+                      >
+                        <Pressable
+                          disabled={sectionDisabled}
+                          onPress={() => {
+                            if (hasChildren) {
+                              onToggleSection(code);
+                              return;
+                            }
+                            onMenuAction(section);
+                          }}
+                          style={styles.menuGridTrigger}
+                        >
+                          <View
+                            style={[
+                              styles.menuGridIconWrap,
+                              {
+                                backgroundColor: `${resolveMenuAccent(section)}22`,
+                                borderColor: `${resolveMenuAccent(section)}66`,
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name={resolveMenuIcon(section)}
+                              size={20}
+                              color={resolveMenuAccent(section)}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.menuGridTitle,
+                              isLightTheme ? styles.menuGridTitleLight : styles.menuGridTitleDark,
+                              sectionDisabled ? styles.menuGridTitleDisabled : null,
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {section.label || section.title}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.menuGridSubtitle,
+                              isLightTheme
+                                ? styles.menuGridSubtitleLight
+                                : styles.menuGridSubtitleDark,
+                            ]}
+                          >
+                            {hasChildren
+                              ? `${section.children.length} accesos`
+                              : 'Abrir módulo'}
+                          </Text>
+                          {sectionDisabled ? (
+                            <Ionicons
+                              name="lock-closed-outline"
+                              size={14}
+                              style={styles.menuLockedIcon}
+                            />
+                          ) : (
+                            <Ionicons
+                              name={hasChildren && isExpanded ? 'chevron-up' : 'chevron-forward'}
+                              size={16}
+                              color={isLightTheme ? '#607b9f' : '#9fb3d3'}
+                              style={styles.menuGridChevron}
+                            />
+                          )}
+                        </Pressable>
+
+                        {hasChildren && isExpanded ? (
+                          <View style={styles.menuGridChildren}>
+                            {section.children.map((child) => {
+                              const { childDisabled } = buildChildMeta(child);
+
+                              return (
+                                <Pressable
+                                  key={child.code || child.title}
+                                  disabled={childDisabled}
+                                  onPress={() => onMenuAction(child)}
+                                  style={[
+                                    styles.menuGridChildChip,
+                                    isLightTheme
+                                      ? styles.menuGridChildChipLight
+                                      : styles.menuGridChildChipDark,
+                                    childDisabled ? styles.menuGridChildChipDisabled : null,
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name={resolveMenuIcon(child)}
+                                    size={14}
+                                    color={resolveMenuAccent(child)}
+                                  />
+                                  <Text
+                                    style={[
+                                      styles.menuGridChildText,
+                                      isLightTheme
+                                        ? styles.menuGridChildTextLight
+                                        : styles.menuGridChildTextDark,
+                                    ]}
+                                    numberOfLines={2}
+                                  >
+                                    {child.label || child.title}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
                 </View>
-              );
-            })}
+                )}
           </ScrollView>
 
           <View
@@ -296,8 +500,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(2, 6, 23, 0.5)',
   },
   menuDrawer: {
-    width: '82%',
-    maxWidth: 360,
+    width: '86%',
+    maxWidth: 392,
     backgroundColor: '#f8fbff',
     borderLeftWidth: 1,
     borderLeftColor: '#cddcf1',
@@ -436,6 +640,54 @@ const styles = StyleSheet.create({
   themeSwitchModeLight: {
     color: '#334155',
   },
+  viewModeCard: {
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#223a5e',
+    backgroundColor: '#0f1a30',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  viewModeCardLight: {
+    borderColor: '#d5e2f4',
+    backgroundColor: '#ffffff',
+  },
+  viewModeTitle: {
+    color: '#dbeafe',
+    fontWeight: '700',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  viewModeTitleLight: {
+    color: '#0f172a',
+  },
+  viewModeActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  viewModeOption: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#334d74',
+    backgroundColor: '#11203a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewModeOptionLight: {
+    borderColor: '#d8e5f5',
+    backgroundColor: '#eff5ff',
+  },
+  viewModeOptionActive: {
+    borderColor: '#8bc34a',
+    backgroundColor: '#1e3a24',
+  },
+  viewModeOptionActiveLight: {
+    borderColor: '#93c5fd',
+    backgroundColor: '#dbeafe',
+  },
   menuContent: {
     paddingHorizontal: 10,
     paddingBottom: 30,
@@ -448,6 +700,118 @@ const styles = StyleSheet.create({
   },
   menuEmptyTextDark: {
     color: '#94a3b8',
+  },
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  menuGridCard: {
+    width: '48.4%',
+    marginBottom: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  menuGridCardLight: {
+    backgroundColor: '#ffffff',
+    borderColor: '#d7e3f4',
+  },
+  menuGridCardDark: {
+    backgroundColor: '#101a2e',
+    borderColor: '#253957',
+  },
+  menuGridCardExpanded: {
+    width: '100%',
+  },
+  menuGridCardDisabled: {
+    opacity: 0.55,
+  },
+  menuGridTrigger: {
+    minHeight: 102,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  menuGridIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  menuGridTitle: {
+    width: '100%',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  menuGridTitleLight: {
+    color: '#0f172a',
+  },
+  menuGridTitleDark: {
+    color: '#e2e8f0',
+  },
+  menuGridTitleDisabled: {
+    color: '#64748b',
+  },
+  menuGridSubtitle: {
+    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  menuGridSubtitleLight: {
+    color: '#607b9f',
+  },
+  menuGridSubtitleDark: {
+    color: '#9fb3d3',
+  },
+  menuGridChevron: {
+    marginTop: 8,
+    alignSelf: 'flex-end',
+  },
+  menuGridChildren: {
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    justifyContent: 'space-between',
+  },
+  menuGridChildChip: {
+    width: '48.5%',
+    minHeight: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  menuGridChildChipLight: {
+    backgroundColor: '#eff5ff',
+    borderColor: '#d8e5f5',
+  },
+  menuGridChildChipDark: {
+    backgroundColor: '#172236',
+    borderColor: '#2a3f60',
+  },
+  menuGridChildChipDisabled: {
+    opacity: 0.55,
+  },
+  menuGridChildText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 15,
+  },
+  menuGridChildTextLight: {
+    color: '#1e293b',
+  },
+  menuGridChildTextDark: {
+    color: '#e2e8f0',
   },
   menuSection: {
     marginBottom: 6,

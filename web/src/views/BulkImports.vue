@@ -15,6 +15,119 @@
     <v-card class="mb-4" elevation="2">
       <v-card-title class="d-flex align-center justify-space-between">
         <div>
+          <div class="text-h6">Carga rapida por foto</div>
+          <div class="text-caption text-grey">Sube una foto de una lista escrita o impresa, corrige el borrador y luego importa los productos detectados.</div>
+        </div>
+        <v-btn
+          color="deep-purple"
+          variant="tonal"
+          prepend-icon="mdi-camera-outline"
+          :loading="processingPhoto"
+          @click="openPhotoPicker"
+        >
+          Tomar o subir foto
+        </v-btn>
+      </v-card-title>
+      <v-divider></v-divider>
+      <v-card-text>
+        <input
+          ref="photoFileInput"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          class="d-none"
+          @change="handlePhotoSelected"
+        />
+
+        <v-row dense>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model="photoDefaults.unit_code"
+              label="Unidad default"
+              variant="outlined"
+              density="comfortable"
+              hint="Ej: UND"
+              persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model="photoDefaults.location_code"
+              label="Ubicación para stock inicial"
+              variant="outlined"
+              density="comfortable"
+              hint="Opcional"
+              persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model="photoDefaults.category_name"
+              label="Categoría default"
+              variant="outlined"
+              density="comfortable"
+              hint="Opcional"
+              persistent-hint
+            />
+          </v-col>
+        </v-row>
+
+        <v-sheet class="pa-3 mt-2" color="grey-lighten-5" rounded="lg">
+          <div class="text-subtitle-2 font-weight-bold mb-2">Ejemplo sugerido para la foto</div>
+          <div class="text-body-2">Camiseta blanca talla M | 45000 | 28000 | 20</div>
+          <div class="text-body-2">Camiseta blanca talla L | 45000 | 28000 | 15</div>
+          <div class="text-body-2">Jean slim azul 32 | 99000 | 62000 | 8</div>
+          <div class="text-caption text-medium-emphasis mt-2">Formato sugerido: Nombre | Precio venta | Costo | Stock</div>
+        </v-sheet>
+
+        <div v-if="photoSummary" class="mt-3 d-flex flex-wrap ga-2">
+          <v-chip color="primary" variant="tonal">Filas detectadas: {{ photoSummary.totalRows }}</v-chip>
+          <v-chip color="success" variant="tonal">Validas: {{ photoSummary.validRows }}</v-chip>
+          <v-chip color="warning" variant="tonal">Pendientes: {{ photoSummary.invalidRows }}</v-chip>
+        </div>
+
+        <v-alert
+          v-if="photoWarnings.length"
+          type="warning"
+          variant="tonal"
+          class="mt-3"
+        >
+          {{ photoWarnings.slice(0, 3).join(' | ') }}
+        </v-alert>
+
+        <div v-if="photoMeta.model" class="text-caption text-medium-emphasis mt-2">
+          Modelo: {{ photoMeta.model }}
+        </div>
+
+        <div v-if="photoSummary?.preview" class="text-caption text-medium-emphasis mt-2">
+          Preview: {{ photoSummary.preview }}
+        </div>
+
+        <div class="d-flex flex-wrap ga-2 mt-3" v-if="photoDraftRows.length">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-eye-outline"
+            @click="photoPreviewDialog = true"
+          >
+            Revisar filas detectadas ({{ photoDraftRows.length }})
+          </v-btn>
+          <v-btn
+            color="success"
+            prepend-icon="mdi-database-import-outline"
+            :loading="importingPhotoRows"
+            :disabled="validPhotoRowsCount === 0"
+            @click="importPhotoDraftRows"
+          >
+            Importar borrador
+          </v-btn>
+        </div>
+      </v-card-text>
+    </v-card>
+
+    <v-card class="mb-4" elevation="2">
+      <v-card-title class="d-flex align-center justify-space-between">
+        <div>
           <div class="text-h6">Carga masiva de productos</div>
           <div class="text-caption text-grey">Sube un archivo XLSX con productos simples (una variante) y deja que el sistema cree productos, variantes y stock inicial.</div>
         </div>
@@ -200,6 +313,127 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="photoPreviewDialog" max-width="960" scrollable>
+      <v-card>
+        <v-card-title class="d-flex align-center justify-space-between">
+          <div>
+            <div class="text-h6">Borrador por foto</div>
+            <div class="text-caption text-medium-emphasis">Corrige las filas detectadas antes de importar.</div>
+          </div>
+          <v-btn icon variant="text" @click="photoPreviewDialog = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider></v-divider>
+        <v-card-text>
+          <v-alert
+            v-if="photoDraftRows.length === 0"
+            type="info"
+            variant="tonal"
+          >
+            Aun no hay filas detectadas por foto.
+          </v-alert>
+
+          <v-card
+            v-for="(row, index) in photoDraftRows"
+            :key="row.local_id"
+            variant="outlined"
+            class="mb-3"
+          >
+            <v-card-text>
+              <div class="d-flex align-center justify-space-between mb-3">
+                <div class="text-subtitle-2">Fila {{ index + 1 }}</div>
+                <div class="d-flex align-center ga-2">
+                  <v-chip size="small" color="secondary" variant="tonal">
+                    Conf. {{ Math.round(Number(row.confidence || 0) * 100) }}%
+                  </v-chip>
+                  <v-btn
+                    icon="mdi-delete-outline"
+                    size="small"
+                    variant="text"
+                    color="error"
+                    @click="removePhotoDraftRow(index)"
+                  />
+                </div>
+              </div>
+
+              <v-row dense>
+                <v-col cols="12" md="5">
+                  <v-text-field
+                    :model-value="row.product_name"
+                    label="Producto"
+                    variant="outlined"
+                    density="compact"
+                    @update:model-value="value => updatePhotoDraftRow(index, 'product_name', value)"
+                  />
+                </v-col>
+                <v-col cols="12" md="3">
+                  <v-text-field
+                    :model-value="row.variant_name"
+                    label="Variante"
+                    variant="outlined"
+                    density="compact"
+                    @update:model-value="value => updatePhotoDraftRow(index, 'variant_name', value)"
+                  />
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-text-field
+                    :model-value="row.category_name"
+                    label="Categoría"
+                    variant="outlined"
+                    density="compact"
+                    @update:model-value="value => updatePhotoDraftRow(index, 'category_name', value)"
+                  />
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-text-field
+                    :model-value="row.unit_price"
+                    label="Precio venta"
+                    type="number"
+                    variant="outlined"
+                    density="compact"
+                    @update:model-value="value => updatePhotoDraftRow(index, 'unit_price', value)"
+                  />
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-text-field
+                    :model-value="row.unit_cost"
+                    label="Costo"
+                    type="number"
+                    variant="outlined"
+                    density="compact"
+                    @update:model-value="value => updatePhotoDraftRow(index, 'unit_cost', value)"
+                  />
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-text-field
+                    :model-value="row.initial_stock"
+                    label="Stock inicial"
+                    type="number"
+                    variant="outlined"
+                    density="compact"
+                    @update:model-value="value => updatePhotoDraftRow(index, 'initial_stock', value)"
+                  />
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn @click="photoPreviewDialog = false">{{ t('common.close') }}</v-btn>
+          <v-btn
+            color="success"
+            :loading="importingPhotoRows"
+            :disabled="validPhotoRowsCount === 0"
+            @click="importPhotoDraftRows"
+          >
+            Importar {{ validPhotoRowsCount }} fila(s) validas
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -212,6 +446,17 @@ import { useNotification } from '@/composables/useNotification'
 import ListView from '@/components/ListView.vue'
 import { uploadBulkImport, listBulkImports, getBulkImportErrors } from '@/services/bulkImportClient.service'
 import { processBulkImport } from '@/services/bulkImport.service'
+import { analyzeProductsPhotoFile, importProductsFromRows } from '@/services/productPhotoImport.service'
+import {
+  applyPhotoAnalysisToState,
+  buildPhotoImportFeedback,
+  removePhotoDraftRow as removePhotoDraftRowState,
+  updatePhotoDraftRow as updatePhotoDraftRowState,
+} from '@/utils/bulkImportPhotoFlow'
+import {
+  buildProductPhotoImportSummary,
+  countValidProductPhotoRows,
+} from '@/utils/productPhotoBulkImport'
 import { useI18n } from '@/i18n'
 
 const { t } = useI18n()
@@ -224,6 +469,18 @@ const { show: showSnackbar } = useNotification()
 const selectedType = ref('product_variants')
 const selectedFile = ref(null)
 const processing = ref(false)
+const photoFileInput = ref(null)
+const processingPhoto = ref(false)
+const importingPhotoRows = ref(false)
+const photoDraftRows = ref([])
+const photoPreviewDialog = ref(false)
+const photoWarnings = ref([])
+const photoMeta = ref({ model: null, usage: null })
+const photoDefaults = ref({
+  unit_code: 'UND',
+  location_code: '',
+  category_name: ''
+})
 const showNotes = ref(false)
 const history = ref([])
 const loadingHistory = ref(false)
@@ -258,6 +515,12 @@ const templateUrl = computed(() =>
     : '/templates/import-product-variants.xlsx'
 )
 const notesUrl = computed(() => '/templates/import-product-variants-notes.md')
+const validPhotoRowsCount = computed(() => countValidProductPhotoRows(photoDraftRows.value))
+const photoSummary = computed(() => (
+  photoDraftRows.value.length > 0
+    ? buildProductPhotoImportSummary(photoDraftRows.value)
+    : null
+))
 
 const applyRouteContext = () => {
   const requestedType = String(route.query.type || '').trim()
@@ -334,6 +597,82 @@ const statusColor = (status) => {
     case 'completed_with_errors': return 'warning'
     case 'failed': return 'error'
     default: return 'grey'
+  }
+}
+
+const openPhotoPicker = () => {
+  selectedType.value = 'product_variants'
+  photoFileInput.value?.click()
+}
+
+const handlePhotoSelected = async (event) => {
+  const file = event?.target?.files?.[0]
+  event.target.value = ''
+  if (!file || !tenantId.value) return
+
+  processingPhoto.value = true
+  photoWarnings.value = []
+  try {
+    const result = await analyzeProductsPhotoFile({
+      tenantId: tenantId.value,
+      file,
+    })
+
+    if (!result.success || !result?.data) {
+      showSnackbar(result.error || 'No se pudo analizar la foto.', 'error')
+      return
+    }
+
+    const nextState = applyPhotoAnalysisToState(result.data)
+    photoDraftRows.value = nextState.rows
+    photoWarnings.value = nextState.warnings
+    photoMeta.value = nextState.meta
+    photoPreviewDialog.value = nextState.shouldOpenPreview
+    showSnackbar(`Foto analizada: ${photoDraftRows.value.length} fila(s) detectadas.`, 'success')
+  } catch (error) {
+    showSnackbar(error.message || 'Error analizando foto.', 'error')
+  } finally {
+    processingPhoto.value = false
+  }
+}
+
+const updatePhotoDraftRow = (index, field, value) => {
+  photoDraftRows.value = updatePhotoDraftRowState(photoDraftRows.value, index, field, value)
+}
+
+const removePhotoDraftRow = (index) => {
+  photoDraftRows.value = removePhotoDraftRowState(photoDraftRows.value, index)
+}
+
+const importPhotoDraftRows = async () => {
+  if (!tenantId.value || validPhotoRowsCount.value === 0) {
+    showSnackbar('No hay filas validas para importar.', 'warning')
+    return
+  }
+
+  importingPhotoRows.value = true
+  try {
+    const result = await importProductsFromRows({
+      tenantId: tenantId.value,
+      rows: photoDraftRows.value,
+      defaults: photoDefaults.value,
+    })
+
+    if (!result.success && !result?.data) {
+      showSnackbar(result.error || 'No se pudo importar el borrador.', 'error')
+      return
+    }
+
+    const summary = result.data || {}
+    await loadHistory()
+    photoPreviewDialog.value = false
+    photoDraftRows.value = []
+    const feedback = buildPhotoImportFeedback(summary)
+    showSnackbar(feedback.message, feedback.color)
+  } catch (error) {
+    showSnackbar(error.message || 'Error importando filas por foto.', 'error')
+  } finally {
+    importingPhotoRows.value = false
   }
 }
 

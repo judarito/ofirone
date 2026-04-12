@@ -73,6 +73,10 @@
           <v-icon>mdi-lifebuoy</v-icon>
         </v-btn>
 
+        <v-btn class="ofir-topbar__icon-btn" icon to="/ai-insights">
+          <v-icon>mdi-robot-outline</v-icon>
+        </v-btn>
+
         <v-btn class="ofir-topbar__icon-btn" icon @click="handleProfileClick">
           <v-icon>mdi-account-circle</v-icon>
         </v-btn>
@@ -83,7 +87,7 @@
         v-model="drawer"
         :permanent="!isMobile"
         :temporary="isMobile"
-        :width="280"
+        :width="sidebarWidth"
         app
       >
         <v-list-item
@@ -99,7 +103,21 @@
 
         <v-divider></v-divider>
 
-        <v-list class="ofir-sidebar__menu" density="compact" nav>
+        <div class="ofir-sidebar__display-toggle px-3 pt-3">
+          <div class="ofir-sidebar__display-toggle-label">Vista del menú</div>
+          <v-btn-toggle
+            v-model="menuDisplayMode"
+            mandatory
+            divided
+            color="primary"
+            class="ofir-sidebar__display-toggle-control"
+          >
+            <v-btn :value="MENU_DISPLAY_MODE_LIST" icon="mdi-format-list-bulleted" title="Vista en lista" />
+            <v-btn :value="MENU_DISPLAY_MODE_GRID" icon="mdi-view-grid-outline" title="Vista en cuadrícula" />
+          </v-btn-toggle>
+        </div>
+
+        <v-list v-if="!isGridMenuMode" class="ofir-sidebar__menu" density="compact" nav>
           <template v-if="menuSections && menuSections.length > 0">
             <template v-for="(section, idx) in menuSections" :key="`section-${section?.title || idx}`">
               <!-- Item suelto (sin grupo) -->
@@ -141,6 +159,60 @@
             <v-list-item-title class="text-caption text-grey">{{ t('app.loadingMenu') }}</v-list-item-title>
           </v-list-item>
         </v-list>
+
+        <div v-else class="ofir-sidebar__grid-wrap px-3 pb-3">
+          <template v-if="menuSections && menuSections.length > 0">
+            <div class="ofir-sidebar__grid">
+              <div
+                v-for="(section, idx) in menuSections"
+                :key="`grid-section-${section?.title || idx}`"
+                class="ofir-sidebar__grid-card"
+                :class="{ 'ofir-sidebar__grid-card--expanded': section?.children && isGridSectionExpanded(section, idx) }"
+              >
+                <button
+                  type="button"
+                  class="ofir-sidebar__grid-trigger"
+                  @click="handleGridSectionSelection(section, idx)"
+                >
+                  <span class="ofir-sidebar__grid-icon">
+                    <v-icon size="22">{{ section?.icon || 'mdi-view-grid-outline' }}</v-icon>
+                  </span>
+                  <span class="ofir-sidebar__grid-text">
+                    <span class="ofir-sidebar__grid-title">{{ section?.title }}</span>
+                    <span class="ofir-sidebar__grid-subtitle">
+                      {{ section?.children?.length ? `${section.children.length} accesos` : 'Abrir módulo' }}
+                    </span>
+                  </span>
+                  <v-icon v-if="section?.children" size="18" class="ofir-sidebar__grid-chevron">
+                    {{ isGridSectionExpanded(section, idx) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                  </v-icon>
+                  <v-icon v-else size="18" class="ofir-sidebar__grid-chevron">
+                    mdi-arrow-top-right
+                  </v-icon>
+                </button>
+
+                <div
+                  v-if="section?.children?.length && isGridSectionExpanded(section, idx)"
+                  class="ofir-sidebar__grid-children"
+                >
+                  <button
+                    v-for="(child, childIdx) in section.children"
+                    :key="`grid-child-${child?.title || childIdx}`"
+                    type="button"
+                    class="ofir-sidebar__grid-child"
+                    @click="handleGridChildSelection(child)"
+                  >
+                    <v-icon size="16">{{ child?.icon || 'mdi-chevron-right' }}</v-icon>
+                    <span>{{ child?.title }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div v-else class="ofir-sidebar__grid-empty">
+            {{ t('app.loadingMenu') }}
+          </div>
+        </div>
 
         <template v-slot:append>
           <div class="pa-2">
@@ -225,6 +297,13 @@ import { useDisplay } from 'vuetify'
 import rolesService from '@/services/roles.service'
 import { useAppAlerts } from '@/composables/useAppAlerts'
 import { useI18n } from '@/i18n'
+import {
+  loadMenuDisplayMode,
+  MENU_DISPLAY_MODE_GRID,
+  MENU_DISPLAY_MODE_LIST,
+  normalizeMenuDisplayMode,
+  persistMenuDisplayMode,
+} from '@/utils/menuDisplayMode'
 
 const AppAlertsDialog = defineAsyncComponent(() => import('@/components/AppAlertsDialog.vue'))
 
@@ -257,6 +336,10 @@ const darkThemeEnabled = computed({
 })
 
 const drawer = ref(true)
+const menuDisplayMode = ref(loadMenuDisplayMode())
+const expandedGridSections = ref({})
+const isGridMenuMode = computed(() => menuDisplayMode.value === MENU_DISPLAY_MODE_GRID)
+const sidebarWidth = computed(() => (isGridMenuMode.value ? 352 : 304))
 
 // Menús dinámicos cargados desde DB (fn_get_user_menus)
 const dynamicMenuTree = ref(null)  // null = sin cargar, [] = cargado vacío, [{...}] = árbol
@@ -384,6 +467,49 @@ const handleResize = () => {
   }
 }
 
+const getGridSectionKey = (section, idx = 0) => {
+  const title = String(section?.title || `section-${idx}`)
+  const route = String(section?.route || '')
+  return `${title}:${route}:${idx}`
+}
+
+const isGridSectionExpanded = (section, idx = 0) => {
+  return Boolean(expandedGridSections.value[getGridSectionKey(section, idx)])
+}
+
+const toggleGridSection = (section, idx = 0) => {
+  const key = getGridSectionKey(section, idx)
+  expandedGridSections.value = {
+    ...expandedGridSections.value,
+    [key]: !expandedGridSections.value[key]
+  }
+}
+
+const navigateFromMenuItem = async (item) => {
+  if (item?.action) {
+    handleMenuAction(item.action)
+  } else if (item?.route) {
+    await router.push(item.route)
+  }
+
+  if (isMobile.value) {
+    drawer.value = false
+  }
+}
+
+const handleGridSectionSelection = async (section, idx = 0) => {
+  if (section?.children?.length) {
+    toggleGridSection(section, idx)
+    return
+  }
+
+  await navigateFromMenuItem(section)
+}
+
+const handleGridChildSelection = async (child) => {
+  await navigateFromMenuItem(child)
+}
+
 const handleProfileClick = () => {
   try {
     // Guarda: asegurar que hay un usuario autenticado
@@ -487,6 +613,10 @@ watch(tenantLocale, (newLocale) => {
   if (newLocale) {
     setLocale(newLocale)
   }
+})
+
+watch(menuDisplayMode, (value) => {
+  persistMenuDisplayMode(normalizeMenuDisplayMode(value))
 })
 
 onUnmounted(() => {
@@ -638,6 +768,31 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
+.ofir-sidebar__display-toggle-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.ofir-shell--dark .ofir-sidebar__display-toggle-label {
+  color: #99acd9;
+}
+
+.ofir-shell--light .ofir-sidebar__display-toggle-label {
+  color: #5b729f;
+}
+
+.ofir-sidebar__display-toggle-control {
+  display: inline-flex;
+  width: auto;
+}
+
+.ofir-sidebar__display-toggle-control :deep(.v-btn) {
+  min-width: 42px;
+}
+
 .ofir-shell--dark .ofir-sidebar__menu :deep(.v-list-item--active) {
   background: linear-gradient(90deg, rgba(120, 214, 75, 0.24), rgba(37, 99, 235, 0.26));
   color: #f4ffe9;
@@ -646,6 +801,166 @@ onUnmounted(() => {
 .ofir-shell--light .ofir-sidebar__menu :deep(.v-list-item--active) {
   background: linear-gradient(90deg, rgba(120, 214, 75, 0.2), rgba(37, 99, 235, 0.18));
   color: #1f3661;
+}
+
+.ofir-sidebar__grid-wrap {
+  overflow-y: auto;
+}
+
+.ofir-sidebar__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ofir-sidebar__grid-card {
+  border-radius: 16px;
+  border: 1px solid transparent;
+  overflow: hidden;
+}
+
+.ofir-sidebar__grid-card--expanded {
+  grid-column: 1 / -1;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-card {
+  background: rgba(15, 24, 47, 0.84);
+  border-color: rgba(98, 129, 255, 0.18);
+}
+
+.ofir-shell--light .ofir-sidebar__grid-card {
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(62, 102, 219, 0.15);
+}
+
+.ofir-sidebar__grid-trigger {
+  width: 100%;
+  min-height: 98px;
+  padding: 12px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ofir-sidebar__grid-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-icon {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(120, 214, 75, 0.24));
+  color: #edf4ff;
+}
+
+.ofir-shell--light .ofir-sidebar__grid-icon {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(120, 214, 75, 0.16));
+  color: #214180;
+}
+
+.ofir-sidebar__grid-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ofir-sidebar__grid-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-title {
+  color: #eef4ff;
+}
+
+.ofir-shell--light .ofir-sidebar__grid-title {
+  color: #213861;
+}
+
+.ofir-sidebar__grid-subtitle {
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-subtitle {
+  color: #9ab0da;
+}
+
+.ofir-shell--light .ofir-sidebar__grid-subtitle {
+  color: #667ea7;
+}
+
+.ofir-sidebar__grid-chevron {
+  align-self: flex-end;
+  margin-top: auto;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-chevron {
+  color: #a7bbee;
+}
+
+.ofir-shell--light .ofir-sidebar__grid-chevron {
+  color: #6783b2;
+}
+
+.ofir-sidebar__grid-children {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.ofir-sidebar__grid-child {
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-child {
+  background: rgba(9, 17, 34, 0.62);
+  border-color: rgba(97, 128, 255, 0.14);
+  color: #deebff;
+}
+
+.ofir-shell--light .ofir-sidebar__grid-child {
+  background: rgba(239, 245, 255, 0.92);
+  border-color: rgba(71, 111, 219, 0.12);
+  color: #254377;
+}
+
+.ofir-sidebar__grid-empty {
+  padding: 14px 4px;
+  font-size: 0.82rem;
+}
+
+.ofir-shell--dark .ofir-sidebar__grid-empty {
+  color: #92a7d4;
+}
+
+.ofir-shell--light .ofir-sidebar__grid-empty {
+  color: #6880ab;
 }
 
 .ofir-main__container {

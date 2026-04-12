@@ -808,6 +808,75 @@
                   variant="outlined"
                 ></v-text-field>
               </v-col>
+              <v-col cols="12">
+                <v-sheet class="purchase-ocr-panel pa-3" rounded="lg">
+                  <div class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-3">
+                    <div>
+                      <div class="text-subtitle-1 font-weight-bold">Factura con OCR</div>
+                      <div class="text-body-2 text-medium-emphasis">
+                        Toma o sube una foto de la factura para intentar llenar proveedor y lineas automaticamente.
+                      </div>
+                    </div>
+                    <v-btn
+                      color="deep-purple"
+                      prepend-icon="mdi-file-document-outline"
+                      variant="tonal"
+                      :loading="scanningInvoice"
+                      @click="openInvoicePicker"
+                    >
+                      Tomar o subir factura
+                    </v-btn>
+                  </div>
+
+                  <input
+                    ref="invoiceFileInput"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    class="d-none"
+                    @change="handleInvoiceFileSelected"
+                  />
+
+                  <v-alert
+                    v-if="invoiceImportSummary"
+                    type="info"
+                    variant="tonal"
+                    class="mt-3"
+                  >
+                    <div class="font-weight-bold mb-1">
+                      {{ invoiceImportSummary.vendorName || 'Proveedor no identificado' }}
+                      <span v-if="invoiceImportSummary.invoiceNumber">· {{ invoiceImportSummary.invoiceNumber }}</span>
+                    </div>
+                    <div class="text-body-2 mb-2">
+                      {{ invoiceImportSummary.matchedCount }} linea(s) agregadas o actualizadas y {{ invoiceImportSummary.unmatchedCount }} sin match en catalogo.
+                    </div>
+                    <div v-if="invoiceImportSummary.autoSupplierName" class="text-body-2 mb-2">
+                      Proveedor sugerido: {{ invoiceImportSummary.autoSupplierName }}
+                      <span v-if="invoiceImportSummary.supplierConfidence != null">
+                        ({{ Math.round(invoiceImportSummary.supplierConfidence * 100) }}%)
+                      </span>
+                    </div>
+                    <div v-if="invoiceImportSummary.preview" class="text-caption">
+                      OCR: {{ invoiceImportSummary.preview }}
+                    </div>
+                  </v-alert>
+
+                  <div
+                    v-if="invoiceImportUnmatched.length"
+                    class="d-flex flex-wrap ga-2 mt-3"
+                  >
+                    <v-chip
+                      v-for="item in invoiceImportUnmatched"
+                      :key="`${item.raw_name}-${item.sku || 'na'}`"
+                      color="warning"
+                      size="small"
+                      variant="outlined"
+                    >
+                      Sin match: {{ item.raw_name }}
+                    </v-chip>
+                  </div>
+                </v-sheet>
+              </v-col>
             </v-row>
 
             <!-- Líneas de compra -->
@@ -1511,10 +1580,22 @@ import supabaseService from '@/services/supabase.service'
 import purchasesService from '@/services/purchases.service'
 import batchesService from '@/services/batches.service'
 import thirdPartiesService from '@/services/thirdParties.service'
+import { analyzeInvoiceFile } from '@/services/purchaseInvoiceOcr.service'
 import ListView from '@/components/ListView.vue'
 import ContextHelpCard from '@/components/ContextHelpCard.vue'
 import { humanizeAppError } from '@/utils/appErrors'
 import { formatMoney, formatDateTime as formatDate } from '@/utils/formatters'
+import {
+  buildPurchaseInvoiceSummary,
+  buildPurchaseLinesFromInvoiceMatches,
+  findBestSupplierCandidate,
+  matchInvoiceLinesToCatalog,
+} from '@/utils/purchaseInvoiceOcr'
+import { createEmptyPurchaseLine } from '@/utils/purchasesShared'
+import {
+  buildInvoiceImportViewState,
+  mergeInvoiceLinesIntoDraft,
+} from '@/utils/purchasesInvoiceFlow'
 import { useI18n } from '@/i18n'
 
 const { t } = useI18n()
@@ -1529,6 +1610,10 @@ const dialog = ref(false)
 const saving = ref(false)
 const savingDraft = ref(false)
 const form = ref(null)
+const invoiceFileInput = ref(null)
+const scanningInvoice = ref(false)
+const invoiceImportSummary = ref(null)
+const invoiceImportUnmatched = ref([])
 
 // Variables para detalle de compra
 const detailDialog = ref(false)
@@ -1677,15 +1762,7 @@ const rules = {
   positive: v => v > 0 || 'Debe ser mayor a 0'
 }
 
-const createPurchaseLine = (payload = {}) => ({
-  variant_id: payload.variant_id || null,
-  qty: Number(payload.qty ?? 1),
-  unit_cost: Number(payload.unit_cost ?? 0),
-  requires_expiration: !!payload.requires_expiration,
-  batch_number: payload.batch_number || '',
-  expiration_date: payload.expiration_date || null,
-  physical_location: payload.physical_location || ''
-})
+const createPurchaseLine = (payload = {}) => createEmptyPurchaseLine(payload)
 
 const resolveRequiresExpiration = (variantRow) => (
   variantRow?.requires_expiration !== null && variantRow?.requires_expiration !== undefined
@@ -2457,6 +2534,7 @@ const loadInitialVariants = async () => {
         sku,
         variant_name,
         requires_expiration,
+        cost,
         product_id!inner(product_id, name, requires_expiration)
       `)
       .eq('tenant_id', tenantId.value)
@@ -2471,6 +2549,7 @@ const loadInitialVariants = async () => {
         ...v,
         // Resolver requires_expiration con jerarquía: variant sobreescribe producto si no es null
         requires_expiration: resolveRequiresExpiration(v),
+        cost: Number(v.cost || 0),
         _displayName: `${v.product_id.name}${v.variant_name ? ' - ' + v.variant_name : ''} (${v.sku})`
       }))
     }
@@ -2500,6 +2579,7 @@ const searchVariants = async (searchTerm) => {
         sku,
         variant_name,
         requires_expiration,
+        cost,
         product_id!inner(product_id, name, requires_expiration)
       `)
       .eq('tenant_id', tenantId.value)
@@ -2526,6 +2606,7 @@ const searchVariants = async (searchTerm) => {
         ...v,
         // Resolver requires_expiration con jerarquía: variant sobreescribe producto si no es null
         requires_expiration: resolveRequiresExpiration(v),
+        cost: Number(v.cost || 0),
         _displayName: `${v.product_id.name}${v.variant_name ? ' - ' + v.variant_name : ''} (${v.sku})`
       }))
     }
@@ -2543,6 +2624,8 @@ const openCreateDialog = async () => {
     note: '',
     lines: []
   }
+  invoiceImportSummary.value = null
+  invoiceImportUnmatched.value = []
   dialog.value = true
   await Promise.all([loadInitialVariants(), loadSuppliers()])
 }
@@ -2571,6 +2654,10 @@ const onVariantSelected = (lineIndex, variantId) => {
   const variant = variants.value.find(v => v.variant_id === variantId)
   if (variant) {
     line.requires_expiration = !!variant.requires_expiration
+    line.label = `${variant.product_id?.name || 'Producto'}${variant.variant_name ? ` - ${variant.variant_name}` : ''}`
+    line.product_name = variant.product_id?.name || null
+    line.variant_name = variant.variant_name || null
+    line.sku = variant.sku || null
     
     // Limpiar campos de lote si no requiere vencimiento
     if (!variant.requires_expiration) {
@@ -2815,6 +2902,111 @@ const showMsg = (msg, color = 'success') => {
   snackbarColor.value = color
   snackbar.value = true
 }
+
+const openInvoicePicker = () => {
+  if (!tenantId.value) {
+    showMsg('No hay tenant activo para analizar la factura', 'error')
+    return
+  }
+  invoiceFileInput.value?.click()
+}
+
+const loadInvoiceCatalog = async () => {
+  const { data, error } = await supabaseService.client
+    .from('product_variants')
+    .select(`
+      variant_id,
+      sku,
+      variant_name,
+      requires_expiration,
+      cost,
+      product_id!inner(product_id, name, requires_expiration)
+    `)
+    .eq('tenant_id', tenantId.value)
+    .eq('is_active', true)
+    .order('sku')
+    .limit(500)
+
+  if (error) throw error
+
+  return (data || []).map((row) => ({
+    variant_id: row.variant_id,
+    sku: row.sku,
+    variant_name: row.variant_name,
+    requires_expiration: resolveRequiresExpiration(row),
+    cost: Number(row.cost || 0),
+    product: {
+      name: row.product_id?.name || 'Producto',
+    },
+  }))
+}
+
+const maybeAutofillSupplierFromInvoice = async (invoice = {}) => {
+  const vendorName = String(invoice?.vendor_name || '').trim()
+  if (!vendorName) return null
+
+  let candidateSuppliers = suppliers.value
+  try {
+    candidateSuppliers = await thirdPartiesService.list({ search: vendorName, type: 'supplier', limit: 50 })
+    if (candidateSuppliers.length) {
+      suppliers.value = candidateSuppliers
+    }
+  } catch (_error) {
+    candidateSuppliers = suppliers.value
+  }
+
+  const match = findBestSupplierCandidate(invoice, candidateSuppliers)
+  if (match?.supplier?.third_party_id) {
+    purchaseData.value.supplier_id = match.supplier.third_party_id
+  }
+  return match
+}
+
+const handleInvoiceFileSelected = async (event) => {
+  const file = event?.target?.files?.[0]
+  event.target.value = ''
+  if (!file || !tenantId.value) return
+
+  scanningInvoice.value = true
+  try {
+    const analysisResult = await analyzeInvoiceFile({
+      tenantId: tenantId.value,
+      file,
+    })
+
+    if (!analysisResult.success || !analysisResult?.data) {
+      showMsg(analysisResult.error || 'No se pudo analizar la factura.', 'error')
+      return
+    }
+
+    const catalog = await loadInvoiceCatalog()
+    const matches = matchInvoiceLinesToCatalog(analysisResult.data.line_items, catalog)
+    const importedLines = buildPurchaseLinesFromInvoiceMatches(matches.matched)
+    purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, importedLines)
+
+    const supplierMatch = await maybeAutofillSupplierFromInvoice(analysisResult.data.invoice)
+    invoiceImportSummary.value = buildInvoiceImportViewState({
+      analysisSummary: buildPurchaseInvoiceSummary({
+        analysis: analysisResult.data,
+        matched: matches.matched,
+        unmatched: matches.unmatched,
+      }),
+      supplierMatch,
+      unmatched: matches.unmatched,
+    })
+    invoiceImportUnmatched.value = invoiceImportSummary.value.unmatchedPreview
+
+    if (importedLines.length === 0) {
+      showMsg('La factura se leyo, pero no hubo coincidencias automaticas con el catalogo.', 'warning')
+    } else {
+      showMsg(`Factura analizada: ${importedLines.length} linea(s) cargadas al borrador.`, 'success')
+    }
+  } catch (error) {
+    showMsg('Error al procesar factura: ' + error.message, 'error')
+  } finally {
+    scanningInvoice.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -2834,6 +3026,11 @@ const showMsg = (msg, color = 'success') => {
 
 .purchases-page :deep(.v-card-title) {
   font-weight: 700;
+}
+
+.purchase-ocr-panel {
+  border: 1px dashed rgba(103, 80, 164, 0.35);
+  background: rgba(103, 80, 164, 0.04);
 }
 
 .supplier-payables-dialog {
@@ -2943,7 +3140,3 @@ const showMsg = (msg, color = 'success') => {
   border-color: rgba(var(--v-theme-primary), 0.2) !important;
 }
 </style>
-
-
-
-

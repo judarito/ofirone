@@ -1,8 +1,8 @@
 # CONTEXTO_ULTIMO
 
-Fecha de actualizacion: 2026-04-10
+Fecha de actualizacion: 2026-04-12
 Owner: Equipo POSLite
-Ultimo cambio registrado: se centralizo la validacion de sesiones de caja vencidas en `shared/utils/cashSessionUtils.js` y web paso a consumir esa regla en POS, Home, CashSessions y Plan Separe
+Ultimo cambio registrado: web suma Centro IA, OCR de facturas en compras y carga masiva por foto; mobile suma onboarding/ayuda compacta en Setup
 
 ## Regla de versionado de contexto (obligatoria)
 
@@ -28,6 +28,59 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 ```
 
 ## Estado tecnico actual
+
+### Ajuste reciente de paridad (2026-04-12) — IA/OCR en web + ayuda compacta en mobile
+
+- `src/views/AIInsights.vue` agrega un `Centro IA` compacto en web:
+  - consultas libres al agente operativo
+  - atajos por dominio (ventas, inventario, compras, caja, cartera, produccion)
+  - soporte via `src/services/opsRagAgent.service.js`
+- `src/views/Purchases.vue` ahora soporta OCR de facturas:
+  - subir o tomar foto dentro del dialogo de compra
+  - extraer proveedor + lineas con `src/services/purchaseInvoiceOcr.service.js`
+  - hacer matching contra catalogo usando `src/utils/purchaseInvoiceOcr.js`
+  - mezclar las coincidencias con el borrador de compra existente
+- `src/views/BulkImports.vue` ahora soporta foto a borrador:
+  - analizar una foto/listado
+  - revisar filas detectadas
+  - importar a catalogo e inventario con `src/services/productPhotoImport.service.js`
+- Cobertura agregada:
+  - `src/utils/__tests__/aiInsightsCenter.test.js`
+  - `src/utils/__tests__/purchaseInvoiceOcr.test.js`
+  - `src/utils/__tests__/productPhotoBulkImport.test.js`
+- `mobile/src/screens/SetupScreen.js` gana una capa de onboarding y ayuda compacta:
+  - flujo recomendado extendido
+  - rutas guiadas a POS, compras, inventario y reportes
+  - FAQ embebida con aclaracion de modulos web-only
+
+### Ajuste reciente de calidad (2026-04-12) — coverage y tests de servicios
+
+- `package.json` ya expone `test:coverage`.
+- `vitest.config.js` ahora define cobertura V8 para el codigo fuente web.
+- Se agregaron tests de servicios con mocks para los flujos mas sensibles de IA/OCR:
+  - `src/services/__tests__/opsRagAgent.service.test.js`
+  - `src/services/__tests__/purchaseInvoiceOcr.service.test.js`
+  - `src/services/__tests__/productPhotoImport.service.test.js`
+- Para que esas pruebas no dependan del render completo de la vista, parte del flujo se movio a helpers puros:
+  - `src/utils/aiInsightsViewModel.js`
+  - `src/utils/purchasesInvoiceFlow.js`
+  - `src/utils/bulkImportPhotoFlow.js`
+
+### Ajuste reciente de POS (2026-04-12) — OCR por imagen para pedido natural en web
+
+- `src/views/PointOfSale.vue` ya no depende solo de texto pegado; ahora permite tomar o subir una imagen/captura con texto para convertirla a venta.
+- El flujo nuevo usa:
+  - `src/services/orderImageOcr.service.js`
+  - `src/utils/orderImageOcr.js`
+- Estrategia vigente:
+  - optimizar la imagen en navegador para respetar el limite operativo de OCR
+  - invocar la Edge Function configurada en `VITE_DEEPSEEK_OCR_EDGE_FUNCTION`
+  - reutilizar el mismo pipeline de `analyzeChatOrderText()` y matching contra catalogo ya existente
+- UX visible:
+  - nuevo boton `Tomar o subir imagen`
+  - resumen corto de OCR detectado antes/despues de convertir al carrito
+- Cobertura agregada:
+  - `src/utils/__tests__/orderImageOcr.test.js`
 
 ### Ajuste reciente de caja (2026-04-10) — validacion de sesion vencida centralizada
 

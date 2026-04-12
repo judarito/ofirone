@@ -14,7 +14,8 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" App.js",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" App.js",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -61,6 +62,11 @@
     "preset": "jest-expo",
     "testMatch": [
       "<rootDir>/src/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/**/__tests__/**",
+      "!src/**/*.test.js"
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|unimodules|native-base|react-native-svg)"

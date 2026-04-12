@@ -5,6 +5,58 @@ Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 
 ---
 
+## Actualizacion reciente (2026-04-12) — IA operativa en web y onboarding compacto en mobile
+
+- `web` ahora cubre dos brechas funcionales frente a mobile sin depender del modo offline:
+  - nuevo `Centro IA` en `web/src/views/AIInsights.vue`, conectado al agente operativo via `web/src/services/opsRagAgent.service.js`
+  - compras web ahora puede tomar o subir una factura para OCR y proponer proveedor + lineas en `web/src/views/Purchases.vue`
+  - carga masiva web ahora suma un carril de `foto -> borrador -> importacion` en `web/src/views/BulkImports.vue`
+- Nuevas utilidades y pruebas:
+  - `web/src/utils/aiInsightsCenter.js`
+  - `web/src/utils/purchaseInvoiceOcr.js`
+  - `web/src/utils/productPhotoBulkImport.js`
+  - `web/src/utils/__tests__/aiInsightsCenter.test.js`
+  - `web/src/utils/__tests__/purchaseInvoiceOcr.test.js`
+  - `web/src/utils/__tests__/productPhotoBulkImport.test.js`
+- `mobile/src/screens/SetupScreen.js` ya no es solo launcher de modulos; ahora incluye:
+  - flujo recomendado extendido
+  - rutas guiadas a operacion
+  - ayuda rapida/FAQ embebida
+- Decision de producto vigente:
+  - contabilidad avanzada y tenant management siguen `web-only`
+  - IA operativa transversal y onboarding compacto ya quedan mejor alineados entre apps
+
+## Actualizacion reciente (2026-04-12) — infraestructura de coverage + tests de servicios criticos
+
+- `web/package.json` ahora expone `test:coverage` y `web/vitest.config.js` define cobertura V8 para `src/**/*.{js,vue}`.
+- `mobile/package.json` ahora expone `test:coverage` y `collectCoverageFrom` para `src/**/*.{js,jsx}`.
+- Se agregaron tests unitarios de servicios criticos con mocks de Supabase / Edge Functions:
+  - web:
+    - `web/src/services/__tests__/opsRagAgent.service.test.js`
+    - `web/src/services/__tests__/purchaseInvoiceOcr.service.test.js`
+    - `web/src/services/__tests__/productPhotoImport.service.test.js`
+  - mobile:
+    - `mobile/src/__tests__/invoiceAgent.service.test.js`
+    - `mobile/src/__tests__/productPhotoImport.service.test.js`
+- Para hacer los flujos mas testeables sin montar toda la UI, se extrajo logica de estado a utilidades puras:
+  - `web/src/utils/aiInsightsViewModel.js`
+  - `web/src/utils/purchasesInvoiceFlow.js`
+  - `web/src/utils/bulkImportPhotoFlow.js`
+  - `mobile/src/constants/setupGuideContent.js`
+
+## Actualizacion reciente (2026-04-12) — OCR de imagen para pedido natural en POS web
+
+- `web/src/views/PointOfSale.vue` ahora permite tomar o subir una imagen con texto para convertirla al carrito, no solo pegar el chat manualmente.
+- El flujo nuevo:
+  - optimiza la imagen en navegador
+  - invoca la Edge Function configurada en `VITE_DEEPSEEK_OCR_EDGE_FUNCTION`
+  - reutiliza el mismo parser de pedido natural ya existente en web
+- Nuevos archivos principales:
+  - `web/src/services/orderImageOcr.service.js`
+  - `web/src/utils/orderImageOcr.js`
+- Cobertura nueva:
+  - `web/src/utils/__tests__/orderImageOcr.test.js`
+
 ## Actualizacion reciente (2026-04-10) — validacion de caja vencida centralizada en shared
 
 - Se fortalecio `shared/utils/cashSessionUtils.js` para que la regla de expiracion de caja no quede duplicada entre web y mobile.

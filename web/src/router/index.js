@@ -57,10 +57,11 @@ const AccountingReconciliation = () => import('@/views/AccountingReconciliation.
 const AccountingAIControl = () => import('@/views/AccountingAIControl.vue')
 const SetupWizard = () => import('@/components/SetupWizard.vue')
 const HelpCenter = () => import('@/views/HelpCenter.vue')
+const AIInsights = () => import('@/views/AIInsights.vue')
 const SuperAdminBilling = () => import('@/views/SuperAdminBilling.vue')
 
 function isRouteAlwaysAllowed(path) {
-  return path === '/' || path === '/about' || path === '/setup' || path === '/help'
+  return path === '/' || path === '/about' || path === '/setup' || path === '/help' || path === '/ai-insights'
 }
 function canAccessPathByMenu(path, allowedRoutes) {
   if (!Array.isArray(allowedRoutes) || allowedRoutes.length === 0) return true
@@ -165,6 +166,12 @@ const routes = [
     path: '/help',
     name: 'HelpCenter',
     component: HelpCenter,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ai-insights',
+    name: 'AIInsights',
+    component: AIInsights,
     meta: { requiresAuth: true }
   },
   {

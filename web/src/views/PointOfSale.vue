@@ -112,17 +112,61 @@
               hide-details="auto"
             ></v-textarea>
 
-            <v-btn
+            <input
+              ref="orderImageInput"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              class="d-none"
+              @change="onOrderImageSelected"
+            />
+
+            <div class="d-flex flex-column flex-sm-row ga-2 mt-2">
+              <v-btn
+                class="flex-grow-1"
+                color="secondary"
+                prepend-icon="mdi-creation"
+                :loading="processingChatOrder"
+                :disabled="processingChatOrder || processingOrderImage || !chatOrderText.trim()"
+                @click="parseChatOrderWithAgent"
+              >
+                Convertir texto a venta
+              </v-btn>
+
+              <v-btn
+                class="flex-grow-1"
+                variant="tonal"
+                color="secondary"
+                prepend-icon="mdi-camera-outline"
+                :loading="processingOrderImage"
+                :disabled="processingOrderImage || processingChatOrder"
+                @click="triggerOrderImageInput"
+              >
+                Tomar o subir imagen
+              </v-btn>
+            </div>
+
+            <div class="text-caption text-medium-emphasis mt-2">
+              Puedes pegar el mensaje del cliente o tomar una foto/captura con texto para convertirla al carrito.
+            </div>
+
+            <v-alert
+              v-if="orderImageSummary"
               class="mt-2"
-              block
-              color="secondary"
-              prepend-icon="mdi-creation"
-              :loading="processingChatOrder"
-              :disabled="processingChatOrder || !chatOrderText.trim()"
-              @click="parseChatOrderWithAgent"
+              type="info"
+              variant="tonal"
+              density="compact"
             >
-              Convertir chat a venta (IA)
-            </v-btn>
+              <div class="text-body-2">
+                OCR imagen:
+                <strong>{{ orderImageSummary.ocrChars }}</strong> caracteres,
+                <strong>{{ orderImageSummary.ocrLines }}</strong> líneas,
+                motor <strong>{{ orderImageSummary.ocrEngineLabel }}</strong>.
+              </div>
+              <div v-if="orderImageSummary.ocrPreview" class="text-body-2 mt-1">
+                Preview: <strong>{{ orderImageSummary.ocrPreview }}</strong>
+              </div>
+            </v-alert>
 
             <v-alert
               v-if="chatOrderSummary"
@@ -1062,6 +1106,7 @@ import paymentMethodsService from '@/services/paymentMethods.service'
 import taxesService from '@/services/taxes.service'
 import electronicInvoicingService from '@/services/electronicInvoicing.service'
 import creditService from '@/services/credit.service'
+import { analyzeOrderImageFile } from '@/services/orderImageOcr.service'
 import ListView from '@/components/ListView.vue'
 import ContextHelpCard from '@/components/ContextHelpCard.vue'
 import { formatMoney } from '@/utils/formatters'
@@ -1108,6 +1153,8 @@ const customerCreditInfo = ref(null)
 const chatOrderText = ref('')
 const processingChatOrder = ref(false)
 const chatOrderSummary = ref(null)
+const processingOrderImage = ref(false)
+const orderImageSummary = ref(null)
 const heldSales = ref([])
 const CUSTOMER_AUTOLOAD_MIN_SCORE = 0.82
 const saleDateTime = ref('')
@@ -1169,6 +1216,7 @@ let searchTimeout = null
 const searchInput = ref(null)
 const headerCard = ref(null)
 const selectedVariant = ref(null)
+const orderImageInput = ref(null)
 const searchingProduct = ref(false)
 const showFloatingHeaderActions = ref(false)
 
@@ -1459,8 +1507,8 @@ const buildChatCatalogSearchTerms = (chatText, lineItems = []) => {
   )].slice(0, 12)
 }
 
-const listCatalogForChatMatching = async (lineItems = []) => {
-  const searchTerms = buildChatCatalogSearchTerms(chatOrderText.value, lineItems)
+const listCatalogForChatMatching = async (sourceText, lineItems = []) => {
+  const searchTerms = buildChatCatalogSearchTerms(sourceText, lineItems)
   if (!searchTerms.length) {
     return { success: false, error: 'No pude extraer términos útiles del chat para buscar en el catálogo.', data: [] }
   }
@@ -1571,14 +1619,72 @@ const removeGlobalDiscount = async () => {
   showMsg('Descuento global removido')
 }
 
-const parseChatOrderWithAgent = async () => {
+const triggerOrderImageInput = () => {
+  orderImageInput.value?.click()
+}
+
+const clearOrderImageInput = () => {
+  if (orderImageInput.value) {
+    orderImageInput.value.value = ''
+  }
+}
+
+const parseOrderImageToSale = async (file) => {
+  orderImageSummary.value = null
+  if (!tenantId.value) {
+    showMsg('Tenant inválido para OCR de imagen.', 'error')
+    return
+  }
+
+  processingOrderImage.value = true
+  try {
+    const result = await analyzeOrderImageFile({
+      tenantId: tenantId.value,
+      file,
+    })
+
+    if (!result.success) {
+      showMsg(result.error || 'No fue posible leer la imagen.', 'error')
+      return
+    }
+
+    const commandText = String(result.data?.command_text || '').trim()
+    if (!commandText) {
+      showMsg('OCR no detectó texto útil en la imagen.', 'warning')
+      return
+    }
+
+    orderImageSummary.value = {
+      ...(result.data?.summary || {}),
+      ocrEngineLabel: result.data?.ocr_engine === 'cloud_ocr_edge' ? 'cloud' : 'ocr',
+    }
+    chatOrderText.value = commandText
+    await parseChatOrderWithAgent({ chatText: commandText })
+  } finally {
+    processingOrderImage.value = false
+    clearOrderImageInput()
+  }
+}
+
+const onOrderImageSelected = async (event) => {
+  const file = event?.target?.files?.[0]
+  if (!file) {
+    clearOrderImageInput()
+    return
+  }
+
+  await parseOrderImageToSale(file)
+}
+
+const parseChatOrderWithAgent = async (options = {}) => {
+  const sourceText = String(options?.chatText ?? chatOrderText.value).trim()
   chatOrderSummary.value = null
   if (!tenantId.value) {
     showMsg('Tenant inválido para conversión de chat.', 'error')
     return
   }
 
-  if (!chatOrderText.value.trim()) {
+  if (!sourceText) {
     showMsg('Pega o escribe el pedido del chat.', 'warning')
     return
   }
@@ -1588,24 +1694,24 @@ const parseChatOrderWithAgent = async () => {
   try {
     let aiResult = await analyzeChatOrderText({
       tenantId: tenantId.value,
-      chatText: chatOrderText.value
+      chatText: sourceText
     })
 
-    let catalogResult = await listCatalogForChatMatching(aiResult.success ? aiResult.data?.line_items : [])
+    let catalogResult = await listCatalogForChatMatching(sourceText, aiResult.success ? aiResult.data?.line_items : [])
 
     if (aiResult.success && aiResult.data?.cache_hit) {
       const cachedAttempt = matchChatLinesToCatalog(aiResult.data.line_items, catalogResult.data)
       if (cachedAttempt.matched.length === 0) {
         const refreshedResult = await analyzeChatOrderText({
           tenantId: tenantId.value,
-          chatText: chatOrderText.value,
+          chatText: sourceText,
           forceCloud: true,
           forceRefresh: true
         })
 
         if (refreshedResult.success) {
           aiResult = refreshedResult
-          catalogResult = await listCatalogForChatMatching(aiResult.data?.line_items || [])
+          catalogResult = await listCatalogForChatMatching(sourceText, aiResult.data?.line_items || [])
         }
       }
     }
@@ -1616,7 +1722,7 @@ const parseChatOrderWithAgent = async () => {
         return
       }
 
-      const rawSuggestions = suggestCatalogMatchesFromChatText(chatOrderText.value, catalogResult.data)
+      const rawSuggestions = suggestCatalogMatchesFromChatText(sourceText, catalogResult.data)
       if (rawSuggestions.length > 0) {
         chatOrderSummary.value = {
           matchedCount: 0,
@@ -2048,6 +2154,7 @@ const clearSale = () => {
   saleNote.value = ''
   chatOrderText.value = ''
   chatOrderSummary.value = null
+  orderImageSummary.value = null
   searchTerm.value = ''
   searchResults.value = []
   saleWizardError.value = ''

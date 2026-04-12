@@ -14,6 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from './src/lib/supabase';
+import {
+  loadMenuDisplayMode,
+  MENU_DISPLAY_MODE_LIST,
+  normalizeMenuDisplayMode,
+  persistMenuDisplayMode,
+} from './src/lib/menuDisplayMode';
 import { ThemeModeProvider } from './src/lib/themeMode';
 import { normalizeThemePreference, resolveThemeMode } from './src/lib/themePreferences';
 import {
@@ -439,6 +445,7 @@ function AppContent() {
   const [menuCachedAt, setMenuCachedAt] = useState('');
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuDisplayMode, setMenuDisplayMode] = useState(MENU_DISPLAY_MODE_LIST);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({});
   const [email, setEmail] = useState('');
@@ -496,9 +503,28 @@ function AppContent() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    loadMenuDisplayMode().then((storedMode) => {
+      if (!active) return;
+      setMenuDisplayMode(storedMode);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const allowedMenuRoutes = useMemo(() => collectAllowedMenuRoutes(rawMenuTree), [rawMenuTree]);
   const allowedMenuScreens = useMemo(() => collectAllowedMobileScreens(rawMenuTree), [rawMenuTree]);
   const menuScreenRouteHints = useMemo(() => collectMenuScreenRouteHints(rawMenuTree), [rawMenuTree]);
+
+  const handleMenuDisplayModeChange = useCallback((nextMode) => {
+    const normalized = normalizeMenuDisplayMode(nextMode);
+    setMenuDisplayMode(normalized);
+    persistMenuDisplayMode(normalized);
+  }, []);
 
   const canAccessScreenByMenu = useCallback((screenName, routeHint = '') => {
     const targetScreen = String(screenName || '').trim();
@@ -1687,6 +1713,7 @@ function AppContent() {
         visible={menuOpen}
         isLightTheme={isLightTheme}
         menuTree={menuTree}
+        menuDisplayMode={menuDisplayMode}
         expandedSections={expandedSections}
         userProfile={userProfile}
         userEmail={userEmail}
@@ -1695,6 +1722,7 @@ function AppContent() {
         onClose={() => setMenuOpen(false)}
         onLogout={handleLogout}
         onThemeToggle={() => handleLocalThemeChange(isLightTheme ? 'dark' : 'light')}
+        onMenuDisplayModeChange={handleMenuDisplayModeChange}
         onMenuAction={handleMenuAction}
         onToggleSection={toggleSection}
         canAccessScreenByMenu={canAccessScreenByMenu}
