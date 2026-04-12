@@ -32,6 +32,15 @@ Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 - Cobertura nueva:
   - `web/src/utils/__tests__/cashSessionUtils.test.js`
 
+## Actualizacion reciente (2026-04-10) — perfil explicito para APK release en mobile
+
+- `mobile/eas.json` ahora expone un perfil dedicado `production-apk`.
+- Regla operativa:
+  - `production` sigue representando el release normal de Android
+  - `production-apk` fuerza `android.buildType=apk` para obtener un instalable directo cuando se necesite compartir o probar fuera de store
+  - el `postinstall` de `mobile` que parchea `llama.rn` se endurecio para EAS y ya no depende de `sed -i`, porque el build estaba fallando en `Install dependencies` con error generico
+  - `mobile/eas.json` ahora fija `node: 20.19.4` porque el lock de RN 0.81.5/Metro ya exige esa version minima en varias dependencias
+
 ## Actualizacion reciente (2026-04-10) — POS alternativo tipo wizard en web
 
 - `shared/utils/saleWizard.js` pasa a ser la fuente canonica del flujo guiado de venta para web y mobile.

@@ -31,6 +31,33 @@ Regla de trabajo:
   - si la sesion supero `cash_session_max_hours`, devuelve `EXPIRED_SESSION`
 - el mensaje de sesion vencida queda alineado con web para no divergir entre apps
 
+## Actualizacion reciente (2026-04-10) — perfil explicito para APK release en EAS
+
+- `eas.json` ahora incluye un perfil `production-apk`.
+- Objetivo:
+  - no depender del perfil `preview` para generar APK instalable
+  - mantener `production` para el flujo normal de release Android (`aab`)
+  - permitir pedir un APK firmado de release con un comando explicito
+- Comando operativo esperado:
+  - `eas build -p android --profile production-apk`
+
+### Ajuste posterior (2026-04-11) — hardening del postinstall para EAS
+
+- `scripts/postinstall/patch-llama-rn.sh` se hizo mas portable para reducir fallos opacos en la fase `Install dependencies` de EAS.
+- Cambio aplicado:
+  - ya no depende de `sed -i`
+  - ahora transforma el archivo en staging temporal y luego reemplaza el destino
+- Motivo:
+  - el build de Android estaba fallando en EAS con error generico en `Install dependencies`
+  - el punto mas sospechoso del repo en esa fase era el `postinstall` que parchea `llama.rn`
+
+### Ajuste posterior (2026-04-11) — Node fijado en EAS por requerimientos de RN 0.81
+
+- `eas.json` ahora fija `node: 20.19.4` en los perfiles `development`, `preview` y `production`.
+- Motivo:
+  - el `package-lock.json` ya contiene varias dependencias de `react-native@0.81.5` y `metro` con `engines.node >= 20.19.4`
+  - si EAS usa una version menor por defecto, la fase `Install dependencies` puede fallar de forma generica antes de compilar
+
 ## Actualizacion reciente (2026-04-10) — venta guiada alternativa en POS mobile
 
 - `src/screens/PointOfSaleScreen.js` ahora incluye una entrada `Venta guiada` como flujo alternativo, sin reemplazar el POS rapido.
