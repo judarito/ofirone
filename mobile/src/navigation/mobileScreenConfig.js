@@ -23,6 +23,8 @@ export const MOBILE_APP_BAR_TITLES = {
   Reports: 'Reportes',
   AIInsights: 'Centro IA',
   Setup: 'Configuracion',
+  Settings: 'Preferencias',
+  HelpCenter: 'Centro de Ayuda',
   TenantConfig: 'Config Empresa',
   TenantManagement: 'Gestion Empresa',
   Locations: 'Sedes',
@@ -30,6 +32,7 @@ export const MOBILE_APP_BAR_TITLES = {
   TaxRules: 'Reglas de Impuesto',
   PricingRules: 'Reglas de Precio',
   Users: 'Usuarios',
+  Roles: 'Roles',
   RolesMenus: 'Roles y Menus',
   About: 'Acerca de',
 };
@@ -58,6 +61,8 @@ const MOBILE_SUPPORTED_SCREENS = new Set([
   'Reports',
   'AIInsights',
   'Setup',
+  'Settings',
+  'HelpCenter',
   'TenantConfig',
   'TenantManagement',
   'Locations',
@@ -65,6 +70,7 @@ const MOBILE_SUPPORTED_SCREENS = new Set([
   'TaxRules',
   'PricingRules',
   'Users',
+  'Roles',
   'RolesMenus',
   'About',
 ]);

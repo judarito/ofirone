@@ -118,6 +118,65 @@ export async function createTransfer({
   }
 }
 
+export async function createPurchaseIngress({
+  tenantId,
+  locationId,
+  variantId,
+  quantity,
+  unitCost = 0,
+  note = null,
+  createdBy,
+}) {
+  try {
+    const safeQuantity = Number(quantity || 0);
+    const safeUnitCost = Number(unitCost || 0);
+
+    if (!tenantId || !locationId || !variantId || !createdBy) {
+      return { success: false, error: 'Faltan datos para registrar el ingreso por compra.' };
+    }
+    if (!Number.isFinite(safeQuantity) || safeQuantity <= 0) {
+      return { success: false, error: 'La cantidad debe ser mayor a 0.' };
+    }
+    if (!Number.isFinite(safeUnitCost) || safeUnitCost < 0) {
+      return { success: false, error: 'El costo unitario debe ser mayor o igual a 0.' };
+    }
+
+    const { data: moveRow, error: moveError } = await supabase
+      .from('inventory_moves')
+      .insert({
+        tenant_id: tenantId,
+        move_type: 'PURCHASE_IN',
+        location_id: locationId,
+        variant_id: variantId,
+        quantity: safeQuantity,
+        unit_cost: safeUnitCost,
+        source: 'MANUAL_PURCHASE',
+        source_id: null,
+        note: note || null,
+        created_by: createdBy,
+      })
+      .select()
+      .single();
+
+    if (moveError) throw moveError;
+
+    const { error: stockError } = await supabase.rpc('fn_apply_stock_delta', {
+      p_tenant: tenantId,
+      p_location: locationId,
+      p_variant: variantId,
+      p_delta: safeQuantity,
+    });
+
+    if (stockError) throw stockError;
+
+    await refreshStockAlertsBestEffort();
+
+    return { success: true, data: moveRow };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getPendingTransfers({
   tenantId,
   toLocationId = null,

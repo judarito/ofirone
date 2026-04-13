@@ -1,9 +1,80 @@
 # CONTEXTO_GENERAL — Ofirone / POSLite
 
-Fecha: 2026-04-08
+Fecha: 2026-04-12
 Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 
 ---
+
+## Actualizacion reciente (2026-04-12) — paridad de inventario, compras y reportes entre web/mobile
+
+- Se cerro una tanda grande de disparidades funcionales entre `web` y `mobile` en inventario, compras y reportes.
+- `mobile/src/screens/ReportsScreen.js` ahora amplía `Reportes > Inventario` con:
+  - `Stock Bajo`
+  - `Por Sede`
+  - `Sin Movimiento`
+  - `Proximos a Vencer`
+- La data nueva de reportes mobile vive en `mobile/src/services/reports.service.js` y ahora incluye:
+  - `inventory.by_location`
+  - `inventory.no_movement_items`
+  - `inventory.expiring_items`
+  - KPIs nuevos como `total_at_risk`, `expiring_soon` y `no_movement`
+- `mobile/src/screens/PurchasesScreen.js` ya no deja el seguimiento avanzado solo en web; ahora suma:
+  - `OC Pendientes` con recepcion directa
+  - `CxP Proveedores` en bandeja compacta
+  - `Sugerencias IA`
+  - `Analisis IA`
+- La capa de servicios mobile que soporta eso ahora queda en:
+  - `mobile/src/services/purchases.service.js`
+  - `mobile/src/services/ai-purchase-advisor.service.js`
+- `mobile/src/screens/InventoryScreen.js` ahora incluye `Ingreso por Compra` dentro de `Operaciones`, alineado con web.
+- El backend mobile para ese flujo vive en `mobile/src/services/inventoryOperations.service.js` con `createPurchaseIngress(...)`.
+- `web/src/views/Purchases.vue` cierra la brecha inversa del OCR de compras:
+  - los faltantes de catalogo detectados por factura ya se pueden crear y agregar desde el mismo flujo
+  - soporte nuevo via `web/src/services/purchaseInvoiceAssistant.service.js`
+  - `web/src/services/purchases.service.js` ahora expone `createCatalogVariantForPurchase(...)`
+- Cobertura agregada para esta tanda:
+  - `web/src/services/__tests__/purchaseInvoiceAssistant.service.test.js`
+  - `mobile/src/__tests__/inventoryOperations.service.test.js`
+  - `mobile/src/__tests__/purchases.service.test.js`
+- Decision operativa vigente despues de esta tanda:
+  - `tenant management` y `contabilidad avanzada` siguen `web-only`
+  - `reportes de inventario`, `seguimiento de compras`, `OCR/IA operativa` e `ingreso por compra` quedan mejor alineados entre apps
+
+## Actualizacion reciente (2026-04-12) — alineacion de navegacion, ayuda y semantica entre apps
+
+- Se cerro una tanda de disparidades que ya no eran de modulo faltante sino de semantica de ruta y UX:
+  - `mobile` ya no redirige `/settings` a `Setup`; ahora existe `mobile/src/screens/SettingsScreen.js`
+  - `mobile` ya no redirige `/roles` a `RolesMenus`; ahora existe `mobile/src/screens/RolesScreen.js` como vista de consulta
+  - `mobile` ya no hace caer `TenantManagement` en `TenantConfigScreen`; ahora existe `mobile/src/screens/TenantManagementScreen.js`
+  - `mobile` ahora tiene `mobile/src/screens/HelpCenterScreen.js` como version compacta real del manual/FAQ
+- `mobile/src/navigation/menuMapper.js` ahora clasifica rutas como:
+  - `supported`
+  - `web-only`
+  - `unsupported`
+- Rutas `accounting` y `superadmin billing` quedan marcadas explicitamente como `web-only` en mobile, en lugar de aparentar una paridad que no existe.
+- `mobile/src/components/MenuDrawer.js` ahora muestra badge `WEB` para esos accesos.
+- `mobile/App.js` ahora redirige la accion `openManual` al `HelpCenter` mobile, no a un mensaje de indisponibilidad.
+- Cobertura agregada/ajustada:
+  - `mobile/src/__tests__/menuMapper.test.js`
+  - `mobile/src/__tests__/helpCenter.test.js`
+  - `mobile/src/__tests__/setupGuideContent.test.js`
+- Lectura de producto vigente:
+  - la mayor brecha restante entre apps ya no es navegacion general
+  - las diferencias deliberadas quedan concentradas en `contabilidad avanzada`, `superadmin billing` y capacidades offline/nativas de mobile
+
+## Actualizacion reciente (2026-04-12) — fix de lotes proximos a vencer en reportes
+
+- Se corrigio una regresion de esquema en reportes de inventario:
+  - `mobile/src/services/reports.service.js` estaba consultando `inventory_batches.quantity_on_hand`
+  - la columna real en este repo es `inventory_batches.on_hand`
+- El fix ya aplica en mobile y tambien en el gemelo web:
+  - `mobile/src/services/reports.service.js`
+  - `web/src/services/reports.service.js`
+- Se extrajo helper mobile `mapExpiringInventoryBatches(...)` y se agrego cobertura en:
+  - `mobile/src/__tests__/reports.service.test.js`
+- Resultado funcional:
+  - `Reportes > Inventario > Proximos a Vencer` deja de fallar por columna inexistente
+  - se mantiene la paridad del calculo de `quantity` y `at_risk_value` entre apps
 
 ## Actualizacion reciente (2026-04-12) — IA operativa en web y onboarding compacto en mobile
 

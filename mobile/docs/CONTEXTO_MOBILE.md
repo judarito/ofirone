@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-04-05
+Fecha: 2026-04-12
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -14,6 +14,147 @@ Regla de trabajo:
 - si se crea, migra, elimina o cambia el alcance de un modulo, este documento debe ajustarse
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
+
+## Actualizacion reciente (2026-04-12) — navegacion y semantica alineadas con web
+
+### Nuevas pantallas mobile para cerrar paridad falsa
+
+- `src/screens/TenantManagementScreen.js`
+  - reemplaza la falsa paridad donde `TenantManagement` caia en `TenantConfigScreen`
+  - ahora muestra un resumen real del tenant y de la suscripcion
+  - deja explicito que tenant management avanzado y billing siguen `web-only`
+- `src/screens/SettingsScreen.js`
+  - `mobile` ya no traduce `/settings` a `Setup`
+  - ahora `/settings` representa preferencias de usuario/app:
+    - tema
+    - vista del menu
+    - resumen de contexto operativo
+- `src/screens/RolesScreen.js`
+  - `mobile` ya no traduce `/roles` a `RolesMenus`
+  - ahora `/roles` es una vista de consulta de roles
+  - la administracion avanzada sigue en `RolesMenus`
+- `src/screens/HelpCenterScreen.js`
+  - mobile ya no deja el manual solo como referencia a web
+  - ahora existe un `Centro de Ayuda` compacto con:
+    - busqueda
+    - filtros por proceso
+    - guias operativas
+    - FAQs
+    - pasos que abren modulos reales
+
+### Navegacion actualizada
+
+- `src/navigation/menuMapper.js` ahora alinea:
+  - `/help` -> `HelpCenter`
+  - `/settings` -> `Settings`
+  - `/roles` -> `Roles`
+- `src/navigation/menuMapper.js` ahora distingue disponibilidad mobile:
+  - `supported`
+  - `web-only`
+  - `unsupported`
+- Rutas como `/accounting*`, `/contabilidad*` y `/superadmin/billing` quedan marcadas como `web-only`.
+
+### Drawer y comunicacion de paridad
+
+- `src/components/MenuDrawer.js` ahora muestra badge `WEB` para modulos `web-only`.
+- Ya no se presenta `accounting` o `billing` como si fueran permisos bloqueados o modulos equivalentes en mobile.
+- `App.js` ahora dirige `openManual` al `HelpCenter` real en mobile.
+
+### Cobertura agregada en esta tanda
+
+- nuevo test: `src/__tests__/menuMapper.test.js`
+- nuevo test: `src/__tests__/helpCenter.test.js`
+- ajuste de cobertura existente: `src/__tests__/setupGuideContent.test.js`
+
+### Estado de paridad vigente despues de esta tanda
+
+- diferencias cerradas:
+  - semantica de `/settings`
+  - semantica de `/roles`
+  - ayuda/manual en mobile
+  - falsa paridad de `TenantManagement`
+- diferencias intencionales mantenidas:
+  - contabilidad avanzada `web-only`
+  - superadmin billing `web-only`
+  - modo offline solo mobile
+
+## Actualizacion reciente (2026-04-12) — fix de reportes de inventario por columna legacy en lotes
+
+- Se corrigio un bug real en `src/services/reports.service.js`:
+  - el snapshot de reportes estaba consultando `inventory_batches.quantity_on_hand`
+  - la columna real del proyecto es `inventory_batches.on_hand`
+- Impacto del bug:
+  - la subvista `Proximos a Vencer` dentro de `Reportes > Inventario` podia fallar con error SQL/REST de columna inexistente
+- Ajuste aplicado:
+  - el query ahora usa `on_hand`
+  - el filtro `gt(...)` ahora usa `on_hand`
+  - el mapeo de lotes expuestos en reportes ya calcula `quantity` y `at_risk_value` desde `on_hand`
+  - se extrajo helper `mapExpiringInventoryBatches(...)` para evitar que el nombre de columna quede hardcodeado en varios puntos
+- Cobertura agregada:
+  - nuevo test: `src/__tests__/reports.service.test.js`
+- Compatibilidad:
+  - el helper mantiene fallback a `quantity_on_hand` si algun origen legacy entrega ese shape en memoria
+
+## Actualizacion reciente (2026-04-12) — cierre de disparidades con web en inventario, compras y reportes
+
+### Reportes de inventario
+
+- `src/screens/ReportsScreen.js` ahora amplía la pestaña `Inventario` con subtabs reales:
+  - `Stock Bajo`
+  - `Por Sede`
+  - `Sin Movimiento`
+  - `Proximos a Vencer`
+- `src/services/reports.service.js` ahora entrega:
+  - `inventory.by_location`
+  - `inventory.no_movement_items`
+  - `inventory.expiring_items`
+  - KPIs nuevos como `total_at_risk`, `expiring_soon` y `no_movement`
+- Con esto mobile deja de depender solo de KPIs basicos y alertas de stock.
+
+### Compras
+
+- `src/screens/PurchasesScreen.js` ahora suma una capa compacta de seguimiento operativo:
+  - `OC Pendientes`
+  - `CxP Proveedores`
+  - `Sugerencias IA`
+  - `Analisis IA`
+- `src/services/purchases.service.js` ahora soporta:
+  - `getOpenPurchaseOrders(...)`
+  - `receivePurchaseOrder(...)`
+  - `receivePurchaseOrderPartial(...)`
+  - `getSupplierPayablesDashboard(...)`
+  - `getPurchaseSuggestions(...)`
+  - `getInventoryRotationAnalysis(...)`
+  - `getAIPurchaseAnalysis(...)`
+  - `isAIAvailable()`
+- Nuevo servicio:
+  - `src/services/ai-purchase-advisor.service.js`
+- Estado funcional vigente:
+  - mobile ya no deja la recepcion de OC y el seguimiento base de CxP exclusivamente en web
+  - IA operativa de compras ya tiene una version compacta en mobile
+
+### Inventario
+
+- `src/screens/InventoryScreen.js` ahora incluye `Ingreso por Compra` dentro de `Operaciones`.
+- La capa de servicio nueva vive en `src/services/inventoryOperations.service.js` con:
+  - `createPurchaseIngress(...)`
+- Esto alinea mobile con el modulo de operaciones de inventario que ya existia en web.
+
+### Cobertura agregada en esta tanda
+
+- nuevo test: `src/__tests__/inventoryOperations.service.test.js`
+- nuevo test: `src/__tests__/purchases.service.test.js`
+
+### Estado de paridad vigente
+
+- Se reducen de forma importante las brechas entre mobile y web en:
+  - inventario
+  - compras
+  - reportes
+- Siguen siendo diferencias intencionales:
+  - modo offline mobile
+  - tenant management `web-only`
+  - contabilidad avanzada `web-only`
 
 ## Actualizacion reciente (2026-04-10) — validacion de caja vencida centralizada con web
 

@@ -27,6 +27,53 @@ function getStockAlertLevel(stockRow) {
   return 'OK';
 }
 
+const INVENTORY_NO_MOVEMENT_DAYS = 30;
+const INVENTORY_EXPIRING_DAYS = 90;
+
+export function mapExpiringInventoryBatches(inventoryBatches = [], baseDate = new Date()) {
+  const todayDate = new Date(baseDate);
+  todayDate.setHours(0, 0, 0, 0);
+
+  return (inventoryBatches || [])
+    .map((batch) => {
+      const expDate = new Date(`${batch.expiration_date}T00:00:00`);
+      const diffDays = Number.isNaN(expDate.getTime())
+        ? null
+        : Math.floor((expDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      const quantity = toNumber(batch.on_hand ?? batch.quantity_on_hand);
+      const unitCost = toNumber(batch.variant?.cost);
+
+      return {
+        batch_id: batch.batch_id,
+        batch_number: batch.batch_number || '-',
+        expiration_date: batch.expiration_date,
+        days_to_expiry: diffDays,
+        status:
+          diffDays == null
+            ? 'NEAR'
+            : diffDays < 0
+              ? 'EXPIRED'
+              : diffDays <= 7
+                ? 'CRITICAL'
+                : diffDays <= 30
+                  ? 'WARNING'
+                  : 'NEAR',
+        sku: batch.variant?.sku || '',
+        product_name: batch.variant?.product?.name || 'Producto',
+        variant_name: batch.variant?.variant_name || '',
+        location_name: batch.location?.name || '',
+        quantity,
+        unit_cost: unitCost,
+        at_risk_value: quantity * unitCost,
+      };
+    })
+    .sort((left, right) => {
+      const leftDays = Number.isFinite(left.days_to_expiry) ? left.days_to_expiry : 999999;
+      const rightDays = Number.isFinite(right.days_to_expiry) ? right.days_to_expiry : 999999;
+      return leftDays - rightDays;
+    });
+}
+
 export async function getDashboardSummary(tenantId, locationId = null) {
   if (!tenantId) {
     return {
@@ -368,6 +415,50 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
       .select('user_id,full_name')
       .eq('tenant_id', tenantId);
 
+    const noMovementCutoff = new Date();
+    noMovementCutoff.setDate(noMovementCutoff.getDate() - INVENTORY_NO_MOVEMENT_DAYS);
+
+    const recentInventoryMovesQuery = withLocationFilter(
+      supabase
+        .from('inventory_moves')
+        .select('variant_id,created_at')
+        .eq('tenant_id', tenantId)
+        .gte('created_at', noMovementCutoff.toISOString()),
+      locationId,
+    );
+
+    const inventoryBatchesQuery = withLocationFilter(
+      supabase
+        .from('inventory_batches')
+        .select(`
+          batch_id,
+          batch_number,
+          expiration_date,
+          on_hand,
+          location_id,
+          location:location_id(name),
+          variant:variant_id(
+            sku,
+            variant_name,
+            cost,
+            product:product_id(name)
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .gt('on_hand', 0)
+        .not('expiration_date', 'is', null)
+        .lte(
+          'expiration_date',
+          (() => {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() + INVENTORY_EXPIRING_DAYS);
+            return cutoff.toISOString().slice(0, 10);
+          })(),
+        )
+        .order('expiration_date', { ascending: true }),
+      locationId,
+    );
+
     const salesLinesQuery = supabase
       .from('sale_lines')
       .select(
@@ -447,7 +538,7 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
       return query;
     })();
 
-    const [salesRes, paymentsRes, sessionsRes, stocksRes, sellersRes, linesRes, movementsRes, productionRes, layawayRes] = await Promise.allSettled([
+    const [salesRes, paymentsRes, sessionsRes, stocksRes, sellersRes, linesRes, movementsRes, productionRes, layawayRes, recentInventoryMovesRes, inventoryBatchesRes] = await Promise.allSettled([
       salesQuery,
       filteredPaymentsQuery,
       sessionsQuery,
@@ -457,6 +548,8 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
       cashMovementsQuery,
       productionOrdersQuery,
       layawayQuery,
+      recentInventoryMovesQuery,
+      inventoryBatchesQuery,
     ]);
 
     const unwrap = (result) => {
@@ -473,6 +566,8 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
     const linesResult = unwrap(linesRes);
     const movementsResult = unwrap(movementsRes);
     const productionResult = unwrap(productionRes);
+    const recentInventoryMovesResult = unwrap(recentInventoryMovesRes);
+    const inventoryBatchesResult = unwrap(inventoryBatchesRes);
 
     const layawayResult =
       layawayRes.status === 'fulfilled' && !layawayRes.value?.error
@@ -494,6 +589,8 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
     const allCashMovements = movementsResult.data || [];
     const productionOrders = productionResult.data || [];
     const layawayContracts = layawayResult.data || [];
+    const recentInventoryMoves = recentInventoryMovesResult.data || [];
+    const inventoryBatches = inventoryBatchesResult.data || [];
     const sellerMap = new Map((sellersResult.data || []).map((s) => [s.user_id, s.full_name]));
 
     const grossTotal = sales.reduce((sum, sale) => {
@@ -701,6 +798,44 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
       (row) => toNumber(row.variant?.min_stock) > 0 && toNumber(row.on_hand) <= toNumber(row.variant?.min_stock),
     );
     const outOfStockRows = stocks.filter((row) => toNumber(row.on_hand) <= 0);
+    const inventoryByLocationMap = {};
+
+    stocks.forEach((row) => {
+      const locationName = row.location?.name || 'Sin sede';
+      if (!inventoryByLocationMap[locationName]) {
+        inventoryByLocationMap[locationName] = {
+          location: locationName,
+          units: 0,
+          value: 0,
+          skus: 0,
+        };
+      }
+      inventoryByLocationMap[locationName].units += toNumber(row.on_hand);
+      inventoryByLocationMap[locationName].value += toNumber(row.on_hand) * toNumber(row.variant?.cost);
+      inventoryByLocationMap[locationName].skus += 1;
+    });
+
+    const activeInventoryVariants = new Set(
+      (recentInventoryMoves || []).map((move) => move.variant_id).filter(Boolean),
+    );
+
+    const noMovementItems = stocks
+      .filter((row) => toNumber(row.on_hand) > 0 && !activeInventoryVariants.has(row.variant?.variant_id || row.variant_id))
+      .map((row) => ({
+        variant_id: row.variant?.variant_id || row.variant_id || null,
+        sku: row.variant?.sku || '',
+        product_name: row.variant?.product?.name || 'Producto',
+        variant_name: row.variant?.variant_name || '',
+        category: row.variant?.product?.category?.name || 'Sin categoría',
+        location_name: row.location?.name || '',
+        on_hand: toNumber(row.on_hand),
+        unit_cost: toNumber(row.variant?.cost),
+        frozen_value: toNumber(row.on_hand) * toNumber(row.variant?.cost),
+        no_movement_days: INVENTORY_NO_MOVEMENT_DAYS,
+      }))
+      .sort((a, b) => b.frozen_value - a.frozen_value);
+
+    const expiringItems = mapExpiringInventoryBatches(inventoryBatches);
 
     const stockAlerts = stocks
       .map((row) => {
@@ -853,11 +988,18 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
             low_stock: lowStockRows.length,
             out_of_stock: outOfStockRows.length,
             inventory_value: totalInventoryValue,
+            by_location: Object.keys(inventoryByLocationMap).length,
+            no_movement: noMovementItems.length,
+            expiring_soon: expiringItems.length,
+            total_at_risk: expiringItems.reduce((sum, item) => sum + toNumber(item.at_risk_value), 0),
           },
           stock_alerts: stockAlerts.slice(0, 120),
           low_stock_items: lowStockRows
             .map((row) => ({
+              location_name: row.location?.name || '',
+              sku: row.variant?.sku || '',
               product_name: row.variant?.product?.name || 'Producto',
+              variant_name: row.variant?.variant_name || '',
               on_hand: toNumber(row.on_hand),
               min_stock: toNumber(row.variant?.min_stock),
               cost: toNumber(row.variant?.cost),
@@ -866,11 +1008,17 @@ export async function getReportsSnapshot({ tenantId, fromDate, toDate, locationI
             .slice(0, 60),
           out_of_stock_items: outOfStockRows
             .map((row) => ({
+              location_name: row.location?.name || '',
+              sku: row.variant?.sku || '',
               product_name: row.variant?.product?.name || 'Producto',
+              variant_name: row.variant?.variant_name || '',
               on_hand: toNumber(row.on_hand),
               min_stock: toNumber(row.variant?.min_stock),
             }))
             .slice(0, 60),
+          by_location: Object.values(inventoryByLocationMap).sort((a, b) => b.value - a.value),
+          no_movement_items: noMovementItems.slice(0, 80),
+          expiring_items: expiringItems.slice(0, 80),
         },
         financial: {
           summary: {

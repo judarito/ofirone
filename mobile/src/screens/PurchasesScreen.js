@@ -14,14 +14,20 @@ import { listCatalogCandidatesForMatching } from '../services/pos.service';
 import { suggestCatalogProductFromInvoiceLine } from '../services/purchaseInvoiceAssistant.service';
 import { listLocations, listPurchases } from '../services/inventoryCatalog.service';
 import {
+  getAIPurchaseAnalysis,
   createCatalogVariantForPurchase,
   createPurchase,
   createPurchaseOrder,
   createSupplierPayable,
   generatePurchaseBatchNumber,
+  getOpenPurchaseOrders,
   getPurchaseDetail,
+  getPurchaseSuggestions,
+  getSupplierPayablesDashboard,
   getSupplierPayableByPurchase,
+  isAIAvailable,
   listPurchaseSuppliers,
+  receivePurchaseOrderPartial,
   registerSupplierPayment,
   searchPurchaseVariants,
 } from '../services/purchases.service';
@@ -359,6 +365,23 @@ export default function PurchasesScreen({
   const [paymentForm, setPaymentForm] = useState(() => createPaymentForm(''));
   const [paymentFormError, setPaymentFormError] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
+  const [purchaseOrdersModalOpen, setPurchaseOrdersModalOpen] = useState(false);
+  const [pendingPurchaseOrders, setPendingPurchaseOrders] = useState([]);
+  const [loadingPurchaseOrders, setLoadingPurchaseOrders] = useState(false);
+  const [receivingPurchaseOrderId, setReceivingPurchaseOrderId] = useState('');
+  const [supplierPayablesModalOpen, setSupplierPayablesModalOpen] = useState(false);
+  const [supplierPayablesBoard, setSupplierPayablesBoard] = useState([]);
+  const [loadingSupplierPayablesBoard, setLoadingSupplierPayablesBoard] = useState(false);
+  const [supplierPayablesTotal, setSupplierPayablesTotal] = useState(0);
+  const [supplierPayablesStatusFilter, setSupplierPayablesStatusFilter] = useState('OPEN_PARTIAL');
+  const [supplierPayablesDueFilter, setSupplierPayablesDueFilter] = useState(30);
+  const [suggestionsModalOpen, setSuggestionsModalOpen] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [aiAnalysisModalOpen, setAiAnalysisModalOpen] = useState(false);
+  const [loadingAiAnalysis, setLoadingAiAnalysis] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiAnalysisError, setAiAnalysisError] = useState('');
   const mountedRef = useRef(true);
   const supplierSearchRequestRef = useRef(0);
   const variantSearchRequestRef = useRef(0);
@@ -476,6 +499,19 @@ export default function PurchasesScreen({
       ),
     [form.lines],
   );
+  const pendingPurchaseOrdersCount = useMemo(
+    () => (pendingPurchaseOrders || []).length,
+    [pendingPurchaseOrders],
+  );
+  const supplierPayablesOpenCount = useMemo(
+    () => (supplierPayablesBoard || []).filter((item) => ['OPEN', 'PARTIAL'].includes(item.status)).length,
+    [supplierPayablesBoard],
+  );
+  const criticalSuggestionsCount = useMemo(
+    () => (suggestions || []).filter((item) => Number(item.priority || 0) === 1).length,
+    [suggestions],
+  );
+  const aiEnabled = useMemo(() => isAIAvailable(), []);
 
   const loadSuppliers = useCallback(async (search = '') => {
     if (offlineMode) return;
@@ -562,6 +598,178 @@ export default function PurchasesScreen({
     await loadPurchaseBundle(selectedPurchaseDetail.purchase_id);
   }, [loadPurchaseBundle, selectedPurchaseDetail?.purchase_id]);
 
+  const openCreateModalWithLines = useCallback(async (draftLines = [], { replaceExisting = true } = {}) => {
+    if (offlineMode) {
+      setError('Compras no permite registros en modo offline.');
+      return false;
+    }
+    if (!tenant?.tenant_id || !userProfile?.user_id) {
+      setError('Necesitas un tenant y usuario validos para registrar compras.');
+      return false;
+    }
+
+    const preparedLines = (draftLines || []).filter(Boolean);
+    const resetBase = !createModalOpen;
+
+    setError('');
+    setFormError('');
+    setInvoiceImportSummary(null);
+    setCreatingMissingCatalog(false);
+    setCreatingMissingIds([]);
+    setCreateModalOpen(true);
+    setForm((prev) => {
+      const base = resetBase ? createPurchaseForm(defaultLocationId) : prev;
+      const existingLines = replaceExisting ? [] : (base.lines || []).filter(lineHasAnyContent);
+      return {
+        ...base,
+        lines: preparedLines.length
+          ? [...existingLines, ...preparedLines]
+          : (existingLines.length ? existingLines : [createPurchaseLine()]),
+      };
+    });
+
+    await Promise.all([loadSuppliers(''), loadVariants('')]);
+    return true;
+  }, [
+    createModalOpen,
+    defaultLocationId,
+    loadSuppliers,
+    loadVariants,
+    offlineMode,
+    tenant?.tenant_id,
+    userProfile?.user_id,
+    setError,
+  ]);
+
+  const buildSuggestionLine = useCallback((item) => createPurchaseLine({
+    variant_id: item.variant_id || '',
+    variant_label: `${item.product_name || 'Producto'}${item.variant_name ? ` - ${item.variant_name}` : ''}${item.sku ? ` (${item.sku})` : ''}`,
+    sku: item.sku || '',
+    qty: String(Math.max(1, Number(item.ai_suggested_qty || item.suggested_order_qty || 1))),
+    unit_cost: String(Number(item.unit_cost || 0)),
+    requires_expiration: false,
+  }), []);
+
+  const loadPendingPurchaseOrders = useCallback(async () => {
+    if (offlineMode || !tenant?.tenant_id) {
+      setPendingPurchaseOrders([]);
+      return;
+    }
+
+    setLoadingPurchaseOrders(true);
+    try {
+      const result = await getOpenPurchaseOrders(tenant.tenant_id);
+      if (result.success) {
+        setPendingPurchaseOrders(result.data || []);
+      } else {
+        setError(result.error || 'No fue posible cargar las OCs pendientes.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingPurchaseOrders(false);
+      }
+    }
+  }, [offlineMode, tenant?.tenant_id, setError]);
+
+  const loadSupplierPayablesBoard = useCallback(async () => {
+    if (offlineMode || !tenant?.tenant_id) {
+      setSupplierPayablesBoard([]);
+      setSupplierPayablesTotal(0);
+      return;
+    }
+
+    setLoadingSupplierPayablesBoard(true);
+    try {
+      const result = await getSupplierPayablesDashboard({
+        tenantId: tenant.tenant_id,
+        status: supplierPayablesStatusFilter,
+        dueInDays: supplierPayablesDueFilter,
+        page: 1,
+        pageSize: 30,
+      });
+
+      if (result.success) {
+        setSupplierPayablesBoard(result.data || []);
+        setSupplierPayablesTotal(Number(result.total || 0));
+      } else {
+        setError(result.error || 'No fue posible cargar las cuentas por pagar.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingSupplierPayablesBoard(false);
+      }
+    }
+  }, [offlineMode, supplierPayablesDueFilter, supplierPayablesStatusFilter, tenant?.tenant_id, setError]);
+
+  const loadSuggestions = useCallback(async () => {
+    if (offlineMode || !tenant?.tenant_id) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    try {
+      const result = await getPurchaseSuggestions(tenant.tenant_id, 3, 40);
+      if (result.success) {
+        setSuggestions(result.data || []);
+      } else {
+        setError(result.error || 'No fue posible cargar sugerencias IA.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingSuggestions(false);
+      }
+    }
+  }, [offlineMode, tenant?.tenant_id, setError]);
+
+  const loadAiAnalysis = useCallback(async ({ forceRefresh = false } = {}) => {
+    if (offlineMode || !tenant?.tenant_id) {
+      setAiAnalysis(null);
+      setAiAnalysisError('El análisis IA requiere conexión.');
+      return;
+    }
+
+    setLoadingAiAnalysis(true);
+    setAiAnalysisError('');
+    try {
+      const result = await getAIPurchaseAnalysis(tenant.tenant_id, {
+        businessContext: 'Operación móvil de compras para retail PyME',
+        priorityLevel: 3,
+        forceRefresh,
+      });
+
+      if (result.success) {
+        setAiAnalysis(result.data || null);
+      } else {
+        setAiAnalysis(null);
+        setAiAnalysisError(result.error || 'No fue posible generar el análisis IA.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingAiAnalysis(false);
+      }
+    }
+  }, [offlineMode, tenant?.tenant_id]);
+
+  useEffect(() => {
+    if (!tenant?.tenant_id || offlineMode) return;
+    void loadPendingPurchaseOrders();
+    void loadSupplierPayablesBoard();
+    void loadSuggestions();
+  }, [loadPendingPurchaseOrders, loadSupplierPayablesBoard, loadSuggestions, offlineMode, tenant?.tenant_id]);
+
+  useEffect(() => {
+    if (!supplierPayablesModalOpen || offlineMode || !tenant?.tenant_id) return;
+    void loadSupplierPayablesBoard();
+  }, [
+    loadSupplierPayablesBoard,
+    offlineMode,
+    supplierPayablesDueFilter,
+    supplierPayablesModalOpen,
+    supplierPayablesStatusFilter,
+    tenant?.tenant_id,
+  ]);
+
   const openCreateModal = async () => {
     if (offlineMode) {
       setError('Compras no permite registros en modo offline.');
@@ -645,6 +853,131 @@ export default function PurchasesScreen({
     }
 
     setPaymentForm(createPaymentForm(purchasePayable.balance || ''));
+    setPaymentFormError('');
+    setPaymentModalOpen(true);
+  };
+
+  const openPurchaseOrdersModal = async () => {
+    if (offlineMode) {
+      setError('Las OCs pendientes requieren conexión.');
+      return;
+    }
+    setError('');
+    setPurchaseOrdersModalOpen(true);
+    await loadPendingPurchaseOrders();
+  };
+
+  const receivePendingPurchaseOrder = async (order) => {
+    if (!tenant?.tenant_id || !userProfile?.user_id || !order?.purchase_order_id) {
+      setError('No se pudo identificar la orden de compra.');
+      return;
+    }
+
+    const pendingLines = (order.lines || [])
+      .filter((line) => Number(line.qty_remaining || 0) > 0)
+      .map((line) => ({
+        purchase_order_line_id: line.purchase_order_line_id,
+        variant_id: line.variant_id,
+        qty_to_receive: Number(line.qty_remaining || 0),
+        unit_cost: Number(line.unit_cost || 0),
+        batch_number: line.batch_number || null,
+        expiration_date: line.expiration_date || null,
+        physical_location: line.physical_location || null,
+      }));
+
+    if (!pendingLines.length) {
+      setError('La OC ya no tiene líneas pendientes por recibir.');
+      return;
+    }
+
+    setReceivingPurchaseOrderId(order.purchase_order_id);
+    try {
+      const result = await receivePurchaseOrderPartial({
+        tenantId: tenant.tenant_id,
+        purchaseOrderId: order.purchase_order_id,
+        createdBy: userProfile.user_id,
+        lines: pendingLines,
+        note: order.note || null,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'No fue posible recibir la orden.');
+      }
+
+      Alert.alert('OC recibida', 'La orden pendiente se registró en inventario.');
+      await Promise.all([loadPendingPurchaseOrders(), refreshListAfterSave()]);
+    } catch (nextError) {
+      setError(nextError.message);
+    } finally {
+      if (mountedRef.current) {
+        setReceivingPurchaseOrderId('');
+      }
+    }
+  };
+
+  const openSupplierPayablesModal = async () => {
+    if (offlineMode) {
+      setError('Las cuentas por pagar requieren conexión.');
+      return;
+    }
+    setError('');
+    setSupplierPayablesModalOpen(true);
+    await loadSupplierPayablesBoard();
+  };
+
+  const openSuggestionsModal = async () => {
+    if (offlineMode) {
+      setError('Las sugerencias IA requieren conexión.');
+      return;
+    }
+    setError('');
+    setSuggestionsModalOpen(true);
+    if (!suggestions.length) {
+      await loadSuggestions();
+    }
+  };
+
+  const addSuggestionToDraft = async (item, { closeModal = false } = {}) => {
+    const opened = await openCreateModalWithLines([buildSuggestionLine(item)], { replaceExisting: false });
+    if (opened && closeModal) {
+      setSuggestionsModalOpen(false);
+      setAiAnalysisModalOpen(false);
+    }
+  };
+
+  const createDraftFromSuggestions = async (itemsToUse = suggestions) => {
+    const draftLines = (itemsToUse || []).map(buildSuggestionLine).filter(Boolean);
+    const opened = await openCreateModalWithLines(draftLines, { replaceExisting: true });
+    if (opened) {
+      setSuggestionsModalOpen(false);
+      setAiAnalysisModalOpen(false);
+    }
+  };
+
+  const openAiAnalysisModal = async () => {
+    if (!aiEnabled) {
+      setError('La IA avanzada no está disponible en este entorno.');
+      return;
+    }
+    if (offlineMode) {
+      setError('El análisis IA requiere conexión.');
+      return;
+    }
+    setError('');
+    setAiAnalysisModalOpen(true);
+    if (!aiAnalysis) {
+      await loadAiAnalysis();
+    }
+  };
+
+  const openPayableFromBoard = (row) => {
+    if (!row?.payable_id) {
+      setError('No se pudo identificar la cuenta por pagar.');
+      return;
+    }
+    setSelectedPurchaseDetail((prev) => ({ ...(prev || {}), purchase_id: row.purchase_id || '' }));
+    setPurchasePayable(row);
+    setPaymentForm(createPaymentForm(row.balance || ''));
     setPaymentFormError('');
     setPaymentModalOpen(true);
   };
@@ -1224,10 +1557,8 @@ export default function PurchasesScreen({
         await refreshListAfterSave();
         Alert.alert('Compra registrada', 'La compra se guardo correctamente.');
       } else {
-        Alert.alert(
-          'Orden guardada',
-          'La orden de compra quedo en borrador. La recepcion y el seguimiento avanzado siguen en web.',
-        );
+        await loadPendingPurchaseOrders();
+        Alert.alert('Orden guardada', 'La orden de compra quedó lista para seguimiento y recepción desde mobile.');
       }
     } catch (nextError) {
       setFormError(nextError.message);
@@ -1271,6 +1602,7 @@ export default function PurchasesScreen({
 
       setCreatePayableModalOpen(false);
       await refreshCurrentPurchaseBundle();
+      await loadSupplierPayablesBoard();
       Alert.alert('Cuenta por pagar creada', 'La cuenta por pagar ya quedo asociada a la compra.');
     } catch (nextError) {
       setPayableFormError(nextError.message);
@@ -1317,6 +1649,7 @@ export default function PurchasesScreen({
 
       setPaymentModalOpen(false);
       await refreshCurrentPurchaseBundle();
+      await loadSupplierPayablesBoard();
       Alert.alert('Abono registrado', 'El pago quedo registrado correctamente.');
     } catch (nextError) {
       setPaymentFormError(nextError.message);
@@ -1461,7 +1794,7 @@ export default function PurchasesScreen({
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
       <View style={[styles.noticeBox, isLightTheme && styles.noticeBoxLight]}>
         <Text style={[styles.noticeText, isLightTheme && styles.noticeTextLight]}>
-          Ya puedes registrar compras, guardar ordenes de compra y revisar el detalle de cada compra desde mobile. En offline se mantiene solo consulta con cache local; recepcion avanzada y seguimiento detallado siguen en web.
+          Ya puedes registrar compras, guardar y recibir OCs, revisar CxP proveedor y apoyarte en IA desde mobile. En offline se mantiene solo consulta con cache local.
         </Text>
       </View>
 
@@ -1478,6 +1811,65 @@ export default function PurchasesScreen({
           onSelect={(nextValue) => updateFilters({ location_id: nextValue || '' })}
         />
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.actionsScroll}
+        contentContainerStyle={styles.actionsRow}
+      >
+        <Pressable
+          style={[styles.quickActionBtn, isLightTheme && styles.quickActionBtnLight, offlineMode && styles.actionDisabled]}
+          onPress={openPurchaseOrdersModal}
+          disabled={offlineMode}
+        >
+          <Text style={[styles.quickActionTitle, isLightTheme && styles.quickActionTitleLight]}>
+            OC Pendientes
+          </Text>
+          <Text style={[styles.quickActionMeta, isLightTheme && styles.quickActionMetaLight]}>
+            {loadingPurchaseOrders ? 'Cargando...' : `${pendingPurchaseOrdersCount} por recibir`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.quickActionBtn, isLightTheme && styles.quickActionBtnLight, offlineMode && styles.actionDisabled]}
+          onPress={openSupplierPayablesModal}
+          disabled={offlineMode}
+        >
+          <Text style={[styles.quickActionTitle, isLightTheme && styles.quickActionTitleLight]}>
+            CxP Proveedores
+          </Text>
+          <Text style={[styles.quickActionMeta, isLightTheme && styles.quickActionMetaLight]}>
+            {loadingSupplierPayablesBoard ? 'Cargando...' : `${supplierPayablesTotal} cuentas · ${supplierPayablesOpenCount} abiertas`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.quickActionBtn, isLightTheme && styles.quickActionBtnLight, offlineMode && styles.actionDisabled]}
+          onPress={openSuggestionsModal}
+          disabled={offlineMode}
+        >
+          <Text style={[styles.quickActionTitle, isLightTheme && styles.quickActionTitleLight]}>
+            Sugerencias IA
+          </Text>
+          <Text style={[styles.quickActionMeta, isLightTheme && styles.quickActionMetaLight]}>
+            {loadingSuggestions ? 'Cargando...' : `${suggestions.length} sugerencias · ${criticalSuggestionsCount} críticas`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.quickActionBtn, isLightTheme && styles.quickActionBtnLight, (!aiEnabled || offlineMode) && styles.actionDisabled]}
+          onPress={openAiAnalysisModal}
+          disabled={!aiEnabled || offlineMode}
+        >
+          <Text style={[styles.quickActionTitle, isLightTheme && styles.quickActionTitleLight]}>
+            Análisis IA
+          </Text>
+          <Text style={[styles.quickActionMeta, isLightTheme && styles.quickActionMetaLight]}>
+            {aiEnabled ? 'Resumen ejecutivo y riesgos' : 'No disponible'}
+          </Text>
+        </Pressable>
+      </ScrollView>
 
       <PaginatedList
         themeMode={resolvedThemeMode}
@@ -1557,6 +1949,376 @@ export default function PurchasesScreen({
           </View>
         )}
       />
+
+      <BottomSheetModal
+        visible={purchaseOrdersModalOpen}
+        onClose={() => setPurchaseOrdersModalOpen(false)}
+        themeMode={resolvedThemeMode}
+        maxHeight="88%"
+        footer={(
+          <Pressable
+            style={[styles.modalCloseBtn, isLightTheme && styles.modalCloseBtnLight]}
+            onPress={() => setPurchaseOrdersModalOpen(false)}
+          >
+            <Text style={[styles.modalCloseBtnText, isLightTheme && styles.modalCloseBtnTextLight]}>
+              Cerrar
+            </Text>
+          </Pressable>
+        )}
+      >
+        <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>OC Pendientes</Text>
+        <Text style={[styles.modalSubtitle, isLightTheme && styles.modalSubtitleLight]}>
+          Recibe rápidamente las órdenes pendientes desde mobile.
+        </Text>
+
+        {loadingPurchaseOrders ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={isLightTheme ? '#2563eb' : '#93c5fd'} />
+            <Text style={[styles.loadingText, isLightTheme && styles.loadingTextLight]}>Cargando órdenes...</Text>
+          </View>
+        ) : null}
+
+        {!loadingPurchaseOrders && !pendingPurchaseOrders.length ? (
+          <View style={[styles.emptyBox, isLightTheme && styles.emptyBoxLight]}>
+            <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay órdenes pendientes por recibir.</Text>
+          </View>
+        ) : null}
+
+        {(pendingPurchaseOrders || []).map((order) => (
+          <View key={order.purchase_order_id} style={[styles.detailPanel, isLightTheme && styles.detailPanelLight]}>
+            <Text style={[styles.lineDetailTitle, isLightTheme && styles.lineDetailTitleLight]}>
+              {order.supplier?.trade_name || order.supplier?.legal_name || 'Proveedor'}
+            </Text>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+              {order.location?.name || 'Sin sede'} · {formatDisplayDateTime(order.created_at)}
+            </Text>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+              Líneas: {order.lines_count || 0} · Pendientes: {order.pending_lines_count || 0} · Total {money(order.total || order.computed_total || 0)}
+            </Text>
+            {(order.lines || []).slice(0, 4).map((line) => (
+              <View key={line.purchase_order_line_id} style={[styles.lineDetailCard, isLightTheme && styles.lineDetailCardLight]}>
+                <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                  {line.variant?.product?.name || 'Producto'}
+                  {line.variant?.variant_name ? ` · ${line.variant.variant_name}` : ''}
+                </Text>
+                <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                  SKU: {line.variant?.sku || '-'} · Pedido {Number(line.qty_ordered || 0).toLocaleString('es-CO')} · Recibido {Number(line.qty_received || 0).toLocaleString('es-CO')}
+                </Text>
+              </View>
+            ))}
+            <Pressable
+              style={[styles.smallActionBtn, styles.smallActionBtnOrange, receivingPurchaseOrderId === order.purchase_order_id && styles.actionDisabled]}
+              onPress={() => receivePendingPurchaseOrder(order)}
+              disabled={receivingPurchaseOrderId === order.purchase_order_id}
+            >
+              <Text style={styles.smallActionBtnOrangeText}>
+                {receivingPurchaseOrderId === order.purchase_order_id ? 'Recibiendo...' : 'Recibir pendiente'}
+              </Text>
+            </Pressable>
+          </View>
+        ))}
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        visible={supplierPayablesModalOpen}
+        onClose={() => setSupplierPayablesModalOpen(false)}
+        themeMode={resolvedThemeMode}
+        maxHeight="88%"
+        footer={(
+          <Pressable
+            style={[styles.modalCloseBtn, isLightTheme && styles.modalCloseBtnLight]}
+            onPress={() => setSupplierPayablesModalOpen(false)}
+          >
+            <Text style={[styles.modalCloseBtnText, isLightTheme && styles.modalCloseBtnTextLight]}>
+              Cerrar
+            </Text>
+          </Pressable>
+        )}
+      >
+        <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>CxP Proveedores</Text>
+        <Text style={[styles.modalSubtitle, isLightTheme && styles.modalSubtitleLight]}>
+          Bandeja compacta de cuentas por pagar para seguimiento rápido.
+        </Text>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.actionsScroll} contentContainerStyle={styles.actionsRow}>
+          {[
+            { key: 'OPEN_PARTIAL', label: 'Abiertas y parciales' },
+            { key: 'ALL', label: 'Todas' },
+            { key: 'PAID', label: 'Pagadas' },
+          ].map((item) => (
+            <Pressable
+              key={item.key}
+              style={[
+                styles.filterChipMini,
+                isLightTheme && styles.filterChipMiniLight,
+                supplierPayablesStatusFilter === item.key && styles.filterChipMiniActive,
+              ]}
+              onPress={() => setSupplierPayablesStatusFilter(item.key)}
+            >
+              <Text style={[
+                styles.filterChipMiniText,
+                isLightTheme && styles.filterChipMiniTextLight,
+                supplierPayablesStatusFilter === item.key && styles.filterChipMiniTextActive,
+              ]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
+          {[7, 15, 30, null].map((value) => (
+            <Pressable
+              key={String(value)}
+              style={[
+                styles.filterChipMini,
+                isLightTheme && styles.filterChipMiniLight,
+                supplierPayablesDueFilter === value && styles.filterChipMiniActive,
+              ]}
+              onPress={() => setSupplierPayablesDueFilter(value)}
+            >
+              <Text style={[
+                styles.filterChipMiniText,
+                isLightTheme && styles.filterChipMiniTextLight,
+                supplierPayablesDueFilter === value && styles.filterChipMiniTextActive,
+              ]}>
+                {value == null ? 'Sin vencimiento' : `<= ${value} días`}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {loadingSupplierPayablesBoard ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={isLightTheme ? '#2563eb' : '#93c5fd'} />
+            <Text style={[styles.loadingText, isLightTheme && styles.loadingTextLight]}>Cargando cuentas por pagar...</Text>
+          </View>
+        ) : null}
+
+        {!loadingSupplierPayablesBoard && !supplierPayablesBoard.length ? (
+          <View style={[styles.emptyBox, isLightTheme && styles.emptyBoxLight]}>
+            <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay cuentas por pagar para este filtro.</Text>
+          </View>
+        ) : null}
+
+        {(supplierPayablesBoard || []).map((row) => {
+          const statusMeta = getPayableStatusMeta(row.status);
+          return (
+            <View key={row.payable_id} style={[styles.detailPanel, isLightTheme && styles.detailPanelLight]}>
+              <View style={styles.paymentHeader}>
+                <Text style={[styles.lineDetailTitle, isLightTheme && styles.lineDetailTitleLight]}>
+                  {row.supplier_name || 'Proveedor'}
+                </Text>
+                <View style={[styles.statusPill, { borderColor: statusMeta.borderColor, backgroundColor: statusMeta.backgroundColor }]}>
+                  <Text style={[styles.statusPillText, { color: statusMeta.textColor }]}>{statusMeta.label}</Text>
+                </View>
+              </View>
+              <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+                {row.location_name || 'Sin sede'} · Factura {row.invoice_number || '-'}
+              </Text>
+              <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+                Vence: {formatDisplayDate(row.due_date)} · Saldo: {money(row.balance || 0)}
+                {row.is_overdue ? ' · Vencida' : row.days_to_due != null ? ` · ${row.days_to_due} días` : ''}
+              </Text>
+              <View style={styles.cardActions}>
+                <Pressable
+                  style={[styles.cardActionBtn, isLightTheme && styles.cardActionBtnLight]}
+                  onPress={() => openPurchaseDetail({ purchase_id: row.purchase_id })}
+                >
+                  <Text style={[styles.cardActionBtnText, isLightTheme && styles.cardActionBtnTextLight]}>
+                    Ver compra
+                  </Text>
+                </Pressable>
+                {['OPEN', 'PARTIAL'].includes(row.status) ? (
+                  <Pressable
+                    style={[styles.cardActionBtn, isLightTheme && styles.cardActionBtnLight]}
+                    onPress={() => openPayableFromBoard(row)}
+                  >
+                    <Text style={[styles.cardActionBtnText, isLightTheme && styles.cardActionBtnTextLight]}>
+                      Pagar saldo
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          );
+        })}
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        visible={suggestionsModalOpen}
+        onClose={() => setSuggestionsModalOpen(false)}
+        themeMode={resolvedThemeMode}
+        maxHeight="88%"
+        footer={(
+          <View style={styles.modalFooter}>
+            <Pressable
+              style={[styles.modalFooterBtn, styles.ghostBtn, isLightTheme && styles.ghostBtnLight]}
+              onPress={() => setSuggestionsModalOpen(false)}
+            >
+              <Text style={[styles.ghostBtnText, isLightTheme && styles.ghostBtnTextLight]}>Cerrar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalFooterBtn, styles.secondaryBtn, suggestions.length === 0 && styles.actionDisabled]}
+              onPress={() => createDraftFromSuggestions()}
+              disabled={suggestions.length === 0}
+            >
+              <Text style={styles.secondaryBtnText}>Crear borrador</Text>
+            </Pressable>
+          </View>
+        )}
+      >
+        <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Sugerencias IA</Text>
+        <Text style={[styles.modalSubtitle, isLightTheme && styles.modalSubtitleLight]}>
+          Reabastecimiento sugerido con base en rotación y stock.
+        </Text>
+
+        {loadingSuggestions ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={isLightTheme ? '#2563eb' : '#93c5fd'} />
+            <Text style={[styles.loadingText, isLightTheme && styles.loadingTextLight]}>Cargando sugerencias...</Text>
+          </View>
+        ) : null}
+
+        {!loadingSuggestions && !(suggestions || []).length ? (
+          <View style={[styles.emptyBox, isLightTheme && styles.emptyBoxLight]}>
+            <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay sugerencias activas.</Text>
+          </View>
+        ) : null}
+
+        {(suggestions || []).map((item, index) => (
+          <View key={`${item.variant_id || item.product_name}-${index}`} style={[styles.lineDetailCard, isLightTheme && styles.lineDetailCardLight]}>
+            <Text style={[styles.lineDetailTitle, isLightTheme && styles.lineDetailTitleLight]}>
+              {item.product_name || 'Producto'}
+              {item.variant_name ? ` · ${item.variant_name}` : ''}
+            </Text>
+            <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+              Prioridad {item.priority || '-'} · Stock {Number(item.current_stock || 0).toLocaleString('es-CO')} · Demanda {Number(item.avg_daily_demand || 0).toLocaleString('es-CO')}
+            </Text>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+              {item.reason || 'Sin motivo detallado.'}
+            </Text>
+            <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
+              Sugerido: {Number(item.suggested_order_qty || 0).toLocaleString('es-CO')} · Costo {money(item.unit_cost || 0)}
+            </Text>
+            <Pressable
+              style={[styles.smallActionBtn, styles.smallActionBtnOrange]}
+              onPress={() => addSuggestionToDraft(item, { closeModal: true })}
+            >
+              <Text style={styles.smallActionBtnOrangeText}>Agregar a compra</Text>
+            </Pressable>
+          </View>
+        ))}
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        visible={aiAnalysisModalOpen}
+        onClose={() => setAiAnalysisModalOpen(false)}
+        themeMode={resolvedThemeMode}
+        maxHeight="90%"
+        footer={(
+          <View style={styles.modalFooter}>
+            <Pressable
+              style={[styles.modalFooterBtn, styles.ghostBtn, isLightTheme && styles.ghostBtnLight]}
+              onPress={() => setAiAnalysisModalOpen(false)}
+            >
+              <Text style={[styles.ghostBtnText, isLightTheme && styles.ghostBtnTextLight]}>Cerrar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalFooterBtn, styles.secondaryBtn, loadingAiAnalysis && styles.actionDisabled]}
+              onPress={() => loadAiAnalysis({ forceRefresh: true })}
+              disabled={loadingAiAnalysis}
+            >
+              <Text style={styles.secondaryBtnText}>{loadingAiAnalysis ? 'Actualizando...' : 'Actualizar'}</Text>
+            </Pressable>
+          </View>
+        )}
+      >
+        <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>Análisis IA de Compras</Text>
+        <Text style={[styles.modalSubtitle, isLightTheme && styles.modalSubtitleLight]}>
+          Resumen ejecutivo, alertas y oportunidades detectadas por IA.
+        </Text>
+
+        {loadingAiAnalysis ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={isLightTheme ? '#2563eb' : '#93c5fd'} />
+            <Text style={[styles.loadingText, isLightTheme && styles.loadingTextLight]}>Generando análisis IA...</Text>
+          </View>
+        ) : null}
+
+        {!loadingAiAnalysis && aiAnalysisError ? (
+          <View style={[styles.formErrorBox, isLightTheme && styles.formErrorBoxLight]}>
+            <Text style={styles.formErrorText}>{aiAnalysisError}</Text>
+          </View>
+        ) : null}
+
+        {!loadingAiAnalysis && aiAnalysis?.executive_summary ? (
+          <View style={[styles.detailPanel, isLightTheme && styles.detailPanelLight]}>
+            <View style={styles.summaryGrid}>
+              <View style={[styles.summaryItem, isLightTheme && styles.summaryItemLight]}>
+                <Text style={[styles.summaryLabel, isLightTheme && styles.summaryLabelLight]}>Críticos</Text>
+                <Text style={[styles.summaryValueDanger, isLightTheme && styles.summaryValueDangerLight]}>
+                  {Number(aiAnalysis.executive_summary.critical_products_count || 0)}
+                </Text>
+              </View>
+              <View style={[styles.summaryItem, isLightTheme && styles.summaryItemLight]}>
+                <Text style={[styles.summaryLabel, isLightTheme && styles.summaryLabelLight]}>Inversión</Text>
+                <Text style={[styles.summaryValuePrimary, isLightTheme && styles.summaryValuePrimaryLight]}>
+                  {money(aiAnalysis.executive_summary.total_investment || 0)}
+                </Text>
+              </View>
+              <View style={[styles.summaryItem, isLightTheme && styles.summaryItemLight]}>
+                <Text style={[styles.summaryLabel, isLightTheme && styles.summaryLabelLight]}>Alta confianza</Text>
+                <Text style={[styles.summaryValueSuccess, isLightTheme && styles.summaryValueSuccessLight]}>
+                  {Number(aiAnalysis.executive_summary.high_confidence_count || 0)}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+              Insight clave: {aiAnalysis.executive_summary.key_insight || '-'}
+            </Text>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+              Recomendación: {aiAnalysis.executive_summary.recommendation || '-'}
+            </Text>
+          </View>
+        ) : null}
+
+        {(aiAnalysis?.warnings || []).slice(0, 3).map((warning, index) => (
+          <View key={`${warning.product_name || 'warning'}-${index}`} style={[styles.warningBox, isLightTheme && styles.warningBoxLight]}>
+            <Text style={[styles.warningText, isLightTheme && styles.warningTextLight]}>
+              {warning.product_name || 'Alerta'}: {warning.message || 'Sin detalle'}
+            </Text>
+          </View>
+        ))}
+
+        {(aiAnalysis?.insights || []).slice(0, 4).map((insight, index) => (
+          <View key={`${insight.title || 'insight'}-${index}`} style={[styles.lineDetailCard, isLightTheme && styles.lineDetailCardLight]}>
+            <Text style={[styles.lineDetailTitle, isLightTheme && styles.lineDetailTitleLight]}>{insight.title || 'Insight'}</Text>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>{insight.description || '-'}</Text>
+          </View>
+        ))}
+
+        {(aiAnalysis?.suggestions || []).slice(0, 10).map((item, index) => (
+          <View key={`${item.variant_id || item.product_name}-${index}`} style={[styles.lineDetailCard, isLightTheme && styles.lineDetailCardLight]}>
+            <Text style={[styles.lineDetailTitle, isLightTheme && styles.lineDetailTitleLight]}>
+              {item.product_name || 'Producto'}
+              {item.variant_name ? ` · ${item.variant_name}` : ''}
+            </Text>
+            <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+              Prioridad IA {item.ai_priority || item.priority || '-'} · Confianza {Math.round(Number(item.ai_confidence || 0) * 100)}%
+            </Text>
+            <Text style={[styles.infoText, isLightTheme && styles.infoTextLight]}>
+              {item.ai_reasoning || item.reason || 'Sin razonamiento disponible.'}
+            </Text>
+            <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
+              Sugerido: {Number(item.ai_suggested_qty || item.suggested_order_qty || 0).toLocaleString('es-CO')} · Costo {money(item.unit_cost || 0)}
+            </Text>
+            <Pressable
+              style={[styles.smallActionBtn, styles.smallActionBtnOrange]}
+              onPress={() => addSuggestionToDraft(item, { closeModal: true })}
+            >
+              <Text style={styles.smallActionBtnOrangeText}>Agregar sugerencia IA</Text>
+            </Pressable>
+          </View>
+        ))}
+      </BottomSheetModal>
 
       <BottomSheetModal
         visible={createModalOpen}
@@ -2252,6 +3014,67 @@ const styles = StyleSheet.create({
   noticeText: { color: '#cbd5e1', fontSize: 12, lineHeight: 18 },
   noticeTextLight: { color: '#475569' },
   filtersBlock: { marginBottom: 8 },
+  actionsScroll: { marginBottom: 10 },
+  actionsRow: { gap: 8, paddingRight: 12 },
+  quickActionBtn: {
+    minWidth: 176,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1d4ed8',
+    backgroundColor: '#0b1220',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  quickActionBtnLight: {
+    borderColor: '#bfdbfe',
+    backgroundColor: '#ffffff',
+  },
+  quickActionTitle: {
+    color: '#dbeafe',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  quickActionTitleLight: {
+    color: '#1d4ed8',
+  },
+  quickActionMeta: {
+    color: '#93c5fd',
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  quickActionMetaLight: {
+    color: '#475569',
+  },
+  filterChipMini: {
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterChipMiniLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+  },
+  filterChipMiniActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#1d4ed8',
+  },
+  filterChipMiniText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterChipMiniTextLight: {
+    color: '#334155',
+  },
+  filterChipMiniTextActive: {
+    color: '#eff6ff',
+  },
   card: {
     backgroundColor: '#111827',
     borderWidth: 1,
@@ -2282,6 +3105,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   cardActionBtn: {
     minHeight: 38,

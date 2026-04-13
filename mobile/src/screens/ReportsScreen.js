@@ -34,6 +34,13 @@ const CASH_SUBTABS = [
   { key: 'differences', label: 'Sesiones con Diferencias' },
 ];
 
+const INVENTORY_SUBTABS = [
+  { key: 'low-stock', label: 'Stock Bajo' },
+  { key: 'by-location', label: 'Por Sede' },
+  { key: 'no-movement', label: 'Sin Movimiento' },
+  { key: 'expiring', label: 'Proximos a Vencer' },
+];
+
 const STOCK_ALERT_FILTERS = [
   { key: '', label: 'Todas' },
   { key: 'OUT_OF_STOCK', label: 'Sin stock' },
@@ -126,6 +133,7 @@ export default function ReportsScreen({
   const [aiQuerySummary, setAiQuerySummary] = useState(null);
   const [salesSubtab, setSalesSubtab] = useState('daily');
   const [cashSubtab, setCashSubtab] = useState('by-register');
+  const [inventorySubtab, setInventorySubtab] = useState('low-stock');
   const [stockAlertLevelFilter, setStockAlertLevelFilter] = useState('');
   const [error, setError] = useState('');
   const themeMode = useThemeMode();
@@ -956,33 +964,135 @@ export default function ReportsScreen({
               </View>
             </View>
 
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Productos con Stock Bajo</Text>
-              {(inventory?.low_stock_items || []).slice(0, 30).map((item, idx) => (
-                <View key={`${item.product_name}-${idx}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{item.product_name}</Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
-                    Stock {item.on_hand} / Min {item.min_stock} · Costo {money(item.cost || 0)}
-                  </Text>
-                </View>
-              ))}
-              {(inventory?.low_stock_items || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin alertas</Text>
-              ) : null}
+            <View style={styles.kpiRow}>
+              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Sin Movimiento</Text>
+                <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{inventory?.summary?.no_movement || 0}</Text>
+              </View>
+              <View style={[styles.kpiCard, isLightTheme && styles.kpiCardLight]}>
+                <Text style={[styles.kpiLabel, isLightTheme && styles.kpiLabelLight]}>Por Vencer</Text>
+                <Text style={[styles.kpiValue, isLightTheme && styles.kpiValueLight]}>{inventory?.summary?.expiring_soon || 0}</Text>
+              </View>
             </View>
 
-            <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
-              <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Productos sin Stock</Text>
-              {(inventory?.out_of_stock_items || []).slice(0, 20).map((item, idx) => (
-                <View key={`${item.product_name}-${idx}`} style={[styles.lineRow, isLightTheme && styles.lineRowLight]}>
-                  <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{item.product_name}</Text>
-                  <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>0 / Min {item.min_stock}</Text>
+            {renderSubtabs(INVENTORY_SUBTABS, inventorySubtab, setInventorySubtab)}
+
+            {inventorySubtab === 'low-stock' ? (
+              <>
+                <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                  <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Productos con Stock Bajo</Text>
+                  {(inventory?.low_stock_items || []).slice(0, 40).map((item, idx) => (
+                    <View key={`${item.product_name}-${item.location_name || 'na'}-${idx}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                      <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                        {item.product_name}
+                        {item.variant_name ? ` · ${item.variant_name}` : ''}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        SKU: {item.sku || '-'} · Sede: {item.location_name || '-'}
+                      </Text>
+                      <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>
+                        Stock {item.on_hand} / Min {item.min_stock} · Costo {money(item.cost || 0)}
+                      </Text>
+                    </View>
+                  ))}
+                  {(inventory?.low_stock_items || []).length === 0 ? (
+                    <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin alertas</Text>
+                  ) : null}
                 </View>
-              ))}
-              {(inventory?.out_of_stock_items || []).length === 0 ? (
-                <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
-              ) : null}
-            </View>
+
+                <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                  <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Productos sin Stock</Text>
+                  {(inventory?.out_of_stock_items || []).slice(0, 30).map((item, idx) => (
+                    <View key={`${item.product_name}-${item.location_name || 'na'}-${idx}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                      <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                        {item.product_name}
+                        {item.variant_name ? ` · ${item.variant_name}` : ''}
+                      </Text>
+                      <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                        SKU: {item.sku || '-'} · Sede: {item.location_name || '-'}
+                      </Text>
+                      <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>0 / Min {item.min_stock}</Text>
+                    </View>
+                  ))}
+                  {(inventory?.out_of_stock_items || []).length === 0 ? (
+                    <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos</Text>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {inventorySubtab === 'by-location' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Inventario por Sede</Text>
+                {(inventory?.by_location || []).map((item) => (
+                  <View key={item.location} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>{item.location || 'Sin sede'}</Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      SKUs: {Number(item.skus || 0).toLocaleString('es-CO')} · Unidades: {Number(item.units || 0).toLocaleString('es-CO')}
+                    </Text>
+                    <Text style={[styles.lineValue, isLightTheme && styles.lineValueLight]}>{money(item.value || 0)}</Text>
+                  </View>
+                ))}
+                {(inventory?.by_location || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>Sin datos por sede</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {inventorySubtab === 'no-movement' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Productos sin Movimiento</Text>
+                {(inventory?.no_movement_items || []).map((item) => (
+                  <View key={`${item.variant_id || item.sku}-${item.location_name || 'na'}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                      {item.product_name}
+                      {item.variant_name ? ` · ${item.variant_name}` : ''}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      SKU: {item.sku || '-'} · Sede: {item.location_name || '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Stock: {Number(item.on_hand || 0).toLocaleString('es-CO')} · Días sin movimiento: {item.no_movement_days || 30}
+                    </Text>
+                    <Text style={[styles.lineValue, styles.negativeText]}>
+                      Capital inmovilizado: {money(item.frozen_value || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {(inventory?.no_movement_items || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay productos inmovilizados para este rango</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {inventorySubtab === 'expiring' ? (
+              <View style={[styles.sectionCard, isLightTheme && styles.sectionCardLight]}>
+                <Text style={[styles.sectionTitle, isLightTheme && styles.sectionTitleLight]}>Lotes Proximos a Vencer</Text>
+                <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                  Valor en riesgo: {money(inventory?.summary?.total_at_risk || 0)}
+                </Text>
+                {(inventory?.expiring_items || []).map((item) => (
+                  <View key={item.batch_id || `${item.batch_number}-${item.expiration_date}`} style={[styles.lineBlock, isLightTheme && styles.lineBlockLight]}>
+                    <Text style={[styles.lineLabel, isLightTheme && styles.lineLabelLight]}>
+                      {item.product_name}
+                      {item.variant_name ? ` · ${item.variant_name}` : ''}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Lote: {item.batch_number || '-'} · SKU: {item.sku || '-'}
+                    </Text>
+                    <Text style={[styles.subtleText, isLightTheme && styles.subtleTextLight]}>
+                      Sede: {item.location_name || '-'} · Vence: {formatDateLabel(item.expiration_date)}
+                    </Text>
+                    <Text style={[styles.lineValue, item.status === 'EXPIRED' || item.status === 'CRITICAL' ? styles.negativeText : styles.positiveText]}>
+                      {item.days_to_expiry < 0 ? 'Vencido' : `${item.days_to_expiry} dias`} · Cant. {Number(item.quantity || 0).toLocaleString('es-CO')} · Riesgo {money(item.at_risk_value || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {(inventory?.expiring_items || []).length === 0 ? (
+                  <Text style={[styles.emptyText, isLightTheme && styles.emptyTextLight]}>No hay lotes próximos a vencer</Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         ) : null}
 

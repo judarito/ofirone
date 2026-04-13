@@ -17,6 +17,7 @@ describe('setupGuideContent', () => {
       'Purchases',
       'Inventory',
       'Reports',
+      'HelpCenter',
     ]);
   });
 

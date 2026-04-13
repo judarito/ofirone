@@ -861,19 +861,59 @@
                     </div>
                   </v-alert>
 
-                  <div
-                    v-if="invoiceImportUnmatched.length"
-                    class="d-flex flex-wrap ga-2 mt-3"
-                  >
-                    <v-chip
-                      v-for="item in invoiceImportUnmatched"
-                      :key="`${item.raw_name}-${item.sku || 'na'}`"
-                      color="warning"
-                      size="small"
-                      variant="outlined"
-                    >
-                      Sin match: {{ item.raw_name }}
-                    </v-chip>
+                  <div v-if="invoiceImportUnmatched.length" class="mt-3">
+                    <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-2">
+                      <div class="text-body-2 font-weight-medium">
+                        Artículos sin catálogo
+                      </div>
+                      <v-btn
+                        color="success"
+                        variant="tonal"
+                        size="small"
+                        prepend-icon="mdi-auto-fix"
+                        :loading="creatingInvoiceCatalog"
+                        @click="createMissingInvoiceCatalogItems()"
+                      >
+                        Crear todos
+                      </v-btn>
+                    </div>
+
+                    <v-row dense>
+                      <v-col
+                        v-for="item in invoiceImportUnmatched"
+                        :key="item.import_id || `${item.raw_name}-${item.sku || 'na'}`"
+                        cols="12"
+                        md="6"
+                      >
+                        <v-card variant="outlined">
+                          <v-card-text class="pa-3">
+                            <div class="font-weight-bold text-body-2">
+                              {{ item.raw_name }}
+                            </div>
+                            <div class="text-caption text-medium-emphasis mt-1">
+                              Cantidad: {{ Number(item.quantity || 0).toLocaleString('es-CO') }}
+                              <span v-if="item.sku">· SKU: {{ item.sku }}</span>
+                              <span v-if="item.unit_price != null">· Costo: {{ formatMoney(item.unit_price || 0) }}</span>
+                            </div>
+                            <div v-if="item.create_error" class="text-caption text-error mt-2">
+                              {{ item.create_error }}
+                            </div>
+                            <div class="d-flex justify-end mt-3">
+                              <v-btn
+                                color="primary"
+                                variant="tonal"
+                                size="small"
+                                prepend-icon="mdi-plus-box"
+                                :loading="creatingInvoiceCatalogIds.includes(item.import_id)"
+                                @click="createMissingInvoiceCatalogItems([item.import_id])"
+                              >
+                                Crear y agregar
+                              </v-btn>
+                            </div>
+                          </v-card-text>
+                        </v-card>
+                      </v-col>
+                    </v-row>
                   </div>
                 </v-sheet>
               </v-col>
@@ -1580,6 +1620,7 @@ import supabaseService from '@/services/supabase.service'
 import purchasesService from '@/services/purchases.service'
 import batchesService from '@/services/batches.service'
 import thirdPartiesService from '@/services/thirdParties.service'
+import { suggestCatalogProductFromInvoiceLine } from '@/services/purchaseInvoiceAssistant.service'
 import { analyzeInvoiceFile } from '@/services/purchaseInvoiceOcr.service'
 import ListView from '@/components/ListView.vue'
 import ContextHelpCard from '@/components/ContextHelpCard.vue'
@@ -1614,6 +1655,9 @@ const invoiceFileInput = ref(null)
 const scanningInvoice = ref(false)
 const invoiceImportSummary = ref(null)
 const invoiceImportUnmatched = ref([])
+const invoiceImportUnmatchedAll = ref([])
+const creatingInvoiceCatalog = ref(false)
+const creatingInvoiceCatalogIds = ref([])
 
 // Variables para detalle de compra
 const detailDialog = ref(false)
@@ -2626,6 +2670,7 @@ const openCreateDialog = async () => {
   }
   invoiceImportSummary.value = null
   invoiceImportUnmatched.value = []
+  invoiceImportUnmatchedAll.value = []
   dialog.value = true
   await Promise.all([loadInitialVariants(), loadSuppliers()])
 }
@@ -2941,6 +2986,124 @@ const loadInvoiceCatalog = async () => {
   }))
 }
 
+const buildPurchaseLineFromCreatedVariant = (line, variant) => {
+  const quantity = Math.max(1, Number(line?.quantity || 1))
+  const unitCost =
+    line?.unit_price != null && Number.isFinite(Number(line.unit_price))
+      ? Number(line.unit_price)
+      : line?.line_total != null && Number.isFinite(Number(line.line_total))
+        ? Number((Number(line.line_total) / quantity).toFixed(2))
+        : Number(variant?.cost || 0)
+
+  return createPurchaseLine({
+    variant_id: variant?.variant_id || null,
+    qty: quantity,
+    unit_cost: unitCost,
+    requires_expiration: !!variant?.requires_expiration,
+    batch_number: '',
+    expiration_date: null,
+    physical_location: '',
+    label: variant?._displayName || `${variant?.product?.name || 'Producto'}${variant?.variant_name ? ` - ${variant.variant_name}` : ''}`,
+    product_name: variant?.product?.name || 'Producto',
+    variant_name: variant?.variant_name || '',
+    sku: variant?.sku || null,
+    source: 'invoice_ocr',
+    invoice_confidence: Number(line?.confidence || 0),
+    invoice_match_reason: 'catalog_create',
+    invoice_raw_name: line?.raw_name || '',
+  })
+}
+
+const syncInvoiceImportSummary = (unmatched = [], createdDelta = 0) => {
+  invoiceImportUnmatchedAll.value = unmatched
+  if (!invoiceImportSummary.value) return
+  invoiceImportSummary.value = {
+    ...invoiceImportSummary.value,
+    unmatchedCount: unmatched.length,
+    createdCount: Number(invoiceImportSummary.value.createdCount || 0) + createdDelta,
+    unmatchedPreview: unmatched.slice(0, 6),
+  }
+  invoiceImportUnmatched.value = unmatched.slice(0, 6)
+}
+
+const createMissingInvoiceCatalogItems = async (targetImportIds = []) => {
+  if (!tenantId.value) {
+    showMsg('No hay tenant activo para crear artículos.', 'error')
+    return
+  }
+
+  const pendingIds = new Set(Array.isArray(targetImportIds) ? targetImportIds : [])
+  const candidates = (invoiceImportUnmatchedAll.value || []).filter((item) => {
+    if (!pendingIds.size) return true
+    return pendingIds.has(item.import_id)
+  })
+
+  if (!candidates.length) return
+
+  creatingInvoiceCatalog.value = true
+  creatingInvoiceCatalogIds.value = candidates.map((item) => item.import_id)
+
+  try {
+    const createdImportIds = []
+    const failedById = new Map()
+    const createdLines = []
+
+    for (const item of candidates) {
+      const suggestionResult = await suggestCatalogProductFromInvoiceLine({
+        tenantId: tenantId.value,
+        line: item,
+      })
+
+      const suggestion = suggestionResult?.data || {}
+      const createResult = await purchasesService.createCatalogVariantForPurchase({
+        tenantId: tenantId.value,
+        rawName: item.raw_name,
+        productName: suggestion.product_name || item.raw_name,
+        variantName: suggestion.variant_name || 'Predeterminada',
+        suggestedSku: suggestion.suggested_sku || null,
+        unitCost: item?.unit_price != null ? Number(item.unit_price || 0) : Number(item?.line_total || 0) / Math.max(1, Number(item?.quantity || 1)),
+        requiresExpiration: suggestion.requires_expiration === true,
+        inventoryBehavior: suggestion.inventory_behavior || 'RESELL',
+        notes: suggestion.notes || `Creado desde factura: ${item.raw_name}`,
+        isComponent: suggestion.is_component === true,
+      })
+
+      if (!createResult.success || !createResult.data?.variant_id) {
+        failedById.set(item.import_id, createResult.error || suggestionResult?.error || 'No se pudo crear el artículo.')
+        continue
+      }
+
+      createdImportIds.push(item.import_id)
+      createdLines.push(buildPurchaseLineFromCreatedVariant(item, createResult.data))
+    }
+
+    if (createdLines.length) {
+      purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, createdLines)
+      await loadVariants('')
+    }
+
+    const nextUnmatched = (invoiceImportUnmatchedAll.value || [])
+      .filter((item) => !createdImportIds.includes(item.import_id))
+      .map((item) => {
+        if (!failedById.has(item.import_id)) return item
+        return { ...item, create_error: failedById.get(item.import_id) }
+      })
+
+    syncInvoiceImportSummary(nextUnmatched, createdImportIds.length)
+
+    if (failedById.size > 0) {
+      showMsg(Array.from(failedById.values())[0] || 'Algunos artículos no se pudieron crear.', 'warning')
+    } else if (createdImportIds.length > 0) {
+      showMsg(`Se crearon y agregaron ${createdImportIds.length} artículo(s) faltante(s).`, 'success')
+    }
+  } catch (error) {
+    showMsg(`Error creando faltantes: ${error.message}`, 'error')
+  } finally {
+    creatingInvoiceCatalog.value = false
+    creatingInvoiceCatalogIds.value = []
+  }
+}
+
 const maybeAutofillSupplierFromInvoice = async (invoice = {}) => {
   const vendorName = String(invoice?.vendor_name || '').trim()
   if (!vendorName) return null
@@ -2980,7 +3143,12 @@ const handleInvoiceFileSelected = async (event) => {
     }
 
     const catalog = await loadInvoiceCatalog()
-    const matches = matchInvoiceLinesToCatalog(analysisResult.data.line_items, catalog)
+    const invoiceLines = (analysisResult.data.line_items || []).map((line, index) => ({
+      ...line,
+      import_id: `web-purchase-invoice-${Date.now()}-${index}`,
+      create_error: '',
+    }))
+    const matches = matchInvoiceLinesToCatalog(invoiceLines, catalog)
     const importedLines = buildPurchaseLinesFromInvoiceMatches(matches.matched)
     purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, importedLines)
 
@@ -2994,6 +3162,7 @@ const handleInvoiceFileSelected = async (event) => {
       supplierMatch,
       unmatched: matches.unmatched,
     })
+    invoiceImportUnmatchedAll.value = matches.unmatched
     invoiceImportUnmatched.value = invoiceImportSummary.value.unmatchedPreview
 
     if (importedLines.length === 0) {

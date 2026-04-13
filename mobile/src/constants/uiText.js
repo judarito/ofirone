@@ -23,7 +23,7 @@ export const APP_TEXT = {
   loginMenuLoadFailed: 'Sesión iniciada, pero no fue posible cargar el menú dinámico.',
   loginFailed: 'No fue posible iniciar sesión.',
   offlineInitError: 'Error al inicializar el modo offline.',
-  userManualWebOnly: 'El manual de usuario está disponible solo en la app web.',
+  userManualWebOnly: 'El centro de ayuda está disponible en mobile. Contabilidad y billing avanzados siguen web-only.',
   noOfflineCache: 'No hay caché local para modo offline.',
   continueOffline: 'Continuar sin conexión',
   lastCachePrefix: 'Última caché',
@@ -42,6 +42,7 @@ export const APP_TEXT = {
   newSaleHint: 'Registrar pedido, pago y factura',
   aiCenter: 'Centro IA',
   aiCenterSummary: '8 análisis: inventario, compras, ventas, cajas, cartera, producción, terceros y dashboard',
+  webOnlySuffix: 'está disponible solo en la app web por ahora.',
   mobileUnavailableSuffix: 'no está disponible en mobile todavía.',
 };
 
@@ -55,4 +56,8 @@ export function buildNoAccessLabelText(label) {
 
 export function buildMobileUnavailableText(label) {
   return `"${label}" ${APP_TEXT.mobileUnavailableSuffix}`;
+}
+
+export function buildWebOnlyText(label) {
+  return `"${label}" ${APP_TEXT.webOnlySuffix}`;
 }

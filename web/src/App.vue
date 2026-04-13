@@ -339,7 +339,7 @@ const drawer = ref(true)
 const menuDisplayMode = ref(loadMenuDisplayMode())
 const expandedGridSections = ref({})
 const isGridMenuMode = computed(() => menuDisplayMode.value === MENU_DISPLAY_MODE_GRID)
-const sidebarWidth = computed(() => (isGridMenuMode.value ? 352 : 304))
+const sidebarWidth = computed(() => (isGridMenuMode.value ? 392 : 304))
 
 // Menús dinámicos cargados desde DB (fn_get_user_menus)
 const dynamicMenuTree = ref(null)  // null = sin cargar, [] = cargado vacío, [{...}] = árbol

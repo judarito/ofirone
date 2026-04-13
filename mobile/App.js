@@ -83,7 +83,7 @@ import CategoriesScreen from './src/screens/CategoriesScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import LayawayScreen from './src/screens/LayawayScreen';
 import AboutScreen from './src/screens/AboutScreen';
-import { APP_TEXT, COMMON_TEXT, buildMobileUnavailableText, buildNoAccessLabelText, buildNoAccessModuleText } from './src/constants/uiText';
+import { APP_TEXT, COMMON_TEXT, buildMobileUnavailableText, buildNoAccessLabelText, buildNoAccessModuleText, buildWebOnlyText } from './src/constants/uiText';
 import PaymentMethodsScreen from './src/screens/PaymentMethodsScreen';
 import PointOfSaleScreen from './src/screens/PointOfSaleScreen';
 import ProductionOrdersScreen from './src/screens/ProductionOrdersScreen';
@@ -93,10 +93,14 @@ import ReportsScreen from './src/screens/ReportsScreen';
 import AIInsightsScreen from './src/screens/AIInsightsScreen';
 import SalesHistoryScreen from './src/screens/SalesHistoryScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import HelpCenterScreen from './src/screens/HelpCenterScreen';
+import RolesScreen from './src/screens/RolesScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import SetupScreen from './src/screens/SetupScreen';
 import TaxRulesScreen from './src/screens/TaxRulesScreen';
 import TaxesScreen from './src/screens/TaxesScreen';
 import TenantConfigScreen from './src/screens/TenantConfigScreen';
+import TenantManagementScreen from './src/screens/TenantManagementScreen';
 import ThirdPartiesScreen from './src/screens/ThirdPartiesScreen';
 import UnitsScreen from './src/screens/UnitsScreen';
 import LocationsScreen from './src/screens/LocationsScreen';
@@ -178,6 +182,8 @@ const SCREEN_ICON_MAP = {
   Reports: 'bar-chart-outline',
   AIInsights: 'sparkles-outline',
   Setup: 'settings-outline',
+  Settings: 'options-outline',
+  HelpCenter: 'help-circle-outline',
   TenantConfig: 'business-outline',
   TenantManagement: 'business-outline',
   Locations: 'location-outline',
@@ -185,6 +191,7 @@ const SCREEN_ICON_MAP = {
   TaxRules: 'document-text-outline',
   PricingRules: 'trending-up-outline',
   Users: 'person-outline',
+  Roles: 'shield-outline',
   RolesMenus: 'shield-checkmark-outline',
   About: 'information-circle-outline',
 };
@@ -201,6 +208,10 @@ const SCREEN_ACCENT_MAP = {
   Products: SCREEN_ACCENT_COLORS.Products,
   CashSessions: SCREEN_ACCENT_COLORS.CashSessions,
   Setup: SCREEN_ACCENT_COLORS.Setup,
+  Settings: SCREEN_ACCENT_COLORS.Setup,
+  HelpCenter: SCREEN_ACCENT_COLORS.Setup,
+  Roles: SCREEN_ACCENT_COLORS.Setup,
+  TenantConfig: SCREEN_ACCENT_COLORS.Setup,
   TenantManagement: SCREEN_ACCENT_COLORS.Setup,
 };
 
@@ -215,7 +226,7 @@ function resolveMenuAccent(item) {
 }
 
 const HOME_BAR_COLORS = HOME_BAR_THEME_COLORS;
-const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights']);
+const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights', 'HelpCenter', 'Settings']);
 
 const ActiveModuleScreen = memo(function ActiveModuleScreen({
   currentScreen,
@@ -232,6 +243,9 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
   reportsInitialTab,
   navigateToScreen,
   handleLocalThemeChange,
+  themePreference,
+  menuDisplayMode,
+  handleMenuDisplayModeChange,
 }) {
   switch (currentScreen) {
     case 'PointOfSale':
@@ -380,14 +394,38 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
       return <AIInsightsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} />;
     case 'Setup':
       return <SetupScreen onOpenScreen={navigateToScreen} themeMode={themeMode} />;
+    case 'Settings':
+      return (
+        <SettingsScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          themeMode={themeMode}
+          themePreference={themePreference}
+          menuDisplayMode={menuDisplayMode}
+          tenantSettings={tenantSettings}
+          onThemeChange={handleLocalThemeChange}
+          onMenuDisplayModeChange={handleMenuDisplayModeChange}
+          onOpenScreen={navigateToScreen}
+        />
+      );
+    case 'HelpCenter':
+      return <HelpCenterScreen onOpenScreen={navigateToScreen} themeMode={themeMode} />;
     case 'TenantConfig':
-    case 'TenantManagement':
       return (
         <TenantConfigScreen
           tenant={tenant}
           offlineMode={offlineMode}
           themeMode={themeMode}
           onLocalThemeChange={handleLocalThemeChange}
+        />
+      );
+    case 'TenantManagement':
+      return (
+        <TenantManagementScreen
+          tenant={tenant}
+          offlineMode={offlineMode}
+          themeMode={themeMode}
+          onOpenScreen={navigateToScreen}
         />
       );
     case 'Locations':
@@ -400,6 +438,17 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
       return <PricingRulesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
     case 'Users':
       return <UsersScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+    case 'Roles':
+      return (
+        <RolesScreen
+          tenant={tenant}
+          userProfile={userProfile}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          onOpenScreen={navigateToScreen}
+        />
+      );
     case 'RolesMenus':
       return (
         <RolesMenusScreen
@@ -1286,7 +1335,9 @@ function AppContent() {
     }
 
     if (item.action === 'openManual') {
-      setError(APP_TEXT.userManualWebOnly);
+      navigateToScreen('HelpCenter', { reset: false });
+      setLastMenuAction('');
+      setMenuOpen(false);
       return;
     }
 
@@ -1301,6 +1352,11 @@ function AppContent() {
       if (!didNavigate) return;
       setLastMenuAction('');
       setMenuOpen(false);
+      return;
+    }
+
+    if (item.mobileAvailability === 'web-only') {
+      setError(buildWebOnlyText(item.label || item.title));
       return;
     }
 
@@ -1795,6 +1851,9 @@ function AppContent() {
           reportsInitialTab={reportsInitialTab}
           navigateToScreen={navigateToScreen}
           handleLocalThemeChange={handleLocalThemeChange}
+          themePreference={themePreference}
+          menuDisplayMode={menuDisplayMode}
+          handleMenuDisplayModeChange={handleMenuDisplayModeChange}
         />
       )}
       </View>

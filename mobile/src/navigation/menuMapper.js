@@ -1,6 +1,7 @@
 const ROUTE_SCREEN_MAP = {
   '/': 'Home',
   '/about': 'About',
+  '/help': 'HelpCenter',
   '/pos': 'PointOfSale',
   '/sales': 'Sales',
   '/third-parties': 'ThirdParties',
@@ -32,7 +33,7 @@ const ROUTE_SCREEN_MAP = {
   '/reports/produccion': 'Reports',
   '/ai-insights': 'AIInsights',
   '/setup': 'Setup',
-  '/settings': 'Setup',
+  '/settings': 'Settings',
   '/tenant-config': 'TenantConfig',
   '/tenant-management': 'TenantManagement',
   '/tenant_management': 'TenantManagement',
@@ -41,10 +42,16 @@ const ROUTE_SCREEN_MAP = {
   '/tax-rules': 'TaxRules',
   '/pricing-rules': 'PricingRules',
   '/superadmin/roles-menus': 'RolesMenus',
-  '/roles': 'RolesMenus',
+  '/roles': 'Roles',
   '/auth': 'Users',
   '/cartera': 'Cartera',
 };
+
+const WEB_ONLY_ROUTE_PREFIXES = [
+  '/accounting',
+  '/contabilidad',
+  '/superadmin/billing',
+];
 
 const CORE_MENU_SECTIONS = [
   {
@@ -134,6 +141,17 @@ export function mapMenuItemToScreen(route) {
   return ROUTE_SCREEN_MAP[normalizedRoute] || null;
 }
 
+export function resolveMobileAvailability(route, action = '') {
+  const normalizedRoute = normalizeRoute(route);
+  if (String(action || '').trim()) return 'supported';
+  if (!normalizedRoute) return 'unsupported';
+  if (ROUTE_SCREEN_MAP[normalizedRoute]) return 'supported';
+  if (WEB_ONLY_ROUTE_PREFIXES.some((prefix) => normalizedRoute === prefix || normalizedRoute.startsWith(`${prefix}/`))) {
+    return 'web-only';
+  }
+  return 'unsupported';
+}
+
 export function normalizeMenuRoute(route) {
   return normalizeRoute(route);
 }
@@ -187,10 +205,12 @@ export function annotateMenuTreeWithSupport(menuTree) {
   return mergedTree.map((section) => ({
     ...section,
     targetScreen: mapMenuItemToScreen(section.route),
+    mobileAvailability: resolveMobileAvailability(section.route, section.action),
     supportedOnMobile: Boolean(section.action || mapMenuItemToScreen(section.route)),
     children: (section.children || []).map((child) => ({
       ...child,
       targetScreen: mapMenuItemToScreen(child.route),
+      mobileAvailability: resolveMobileAvailability(child.route, child.action),
       supportedOnMobile: Boolean(child.action || mapMenuItemToScreen(child.route)),
     })),
   }));

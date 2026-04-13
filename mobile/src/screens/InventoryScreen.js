@@ -22,6 +22,7 @@ import {
 } from '../services/inventoryCatalog.service';
 import {
   createManualAdjustment,
+  createPurchaseIngress,
   createTransfer,
   getPendingTransfers,
   receiveTransfer,
@@ -111,6 +112,17 @@ function createTransferForm(defaultLocationId = '') {
   };
 }
 
+function createPurchaseForm(defaultLocationId = '') {
+  return {
+    location_id: defaultLocationId || '',
+    variant_id: '',
+    variant_label: '',
+    quantity: '1',
+    unit_cost: '',
+    note: '',
+  };
+}
+
 export default function InventoryScreen({
   tenant,
   userProfile,
@@ -128,6 +140,7 @@ export default function InventoryScreen({
   const [variantOptions, setVariantOptions] = useState([]);
   const [variantsLoading, setVariantsLoading] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [pendingTransfersModalOpen, setPendingTransfersModalOpen] = useState(false);
   const [pendingTransfersLocationId, setPendingTransfersLocationId] = useState('');
@@ -135,6 +148,7 @@ export default function InventoryScreen({
   const [pendingTransfers, setPendingTransfers] = useState([]);
   const [receivingTransferId, setReceivingTransferId] = useState('');
   const [adjustForm, setAdjustForm] = useState(() => createAdjustmentForm(''));
+  const [purchaseForm, setPurchaseForm] = useState(() => createPurchaseForm(''));
   const [transferForm, setTransferForm] = useState(() => createTransferForm(''));
   const mountedRef = useRef(true);
   const variantSearchRequestRef = useRef(0);
@@ -212,6 +226,7 @@ export default function InventoryScreen({
   useEffect(() => {
     if (!defaultLocationId) return;
     setAdjustForm((prev) => (prev.location_id ? prev : { ...prev, location_id: defaultLocationId }));
+    setPurchaseForm((prev) => (prev.location_id ? prev : { ...prev, location_id: defaultLocationId }));
     setTransferForm((prev) => (prev.from_location_id ? prev : { ...prev, from_location_id: defaultLocationId }));
   }, [defaultLocationId]);
 
@@ -365,8 +380,36 @@ export default function InventoryScreen({
     }));
   };
 
+  const handleSelectPurchaseVariant = (nextVariantId) => {
+    if (!nextVariantId) {
+      setPurchaseForm((prev) => ({
+        ...prev,
+        variant_id: '',
+        variant_label: '',
+        unit_cost: '',
+      }));
+      return;
+    }
+
+    const selected = variantSelectOptions.find((item) => String(item.key) === String(nextVariantId));
+    const variant = selected?.raw || null;
+    setPurchaseForm((prev) => ({
+      ...prev,
+      variant_id: nextVariantId,
+      variant_label: selected?.label || prev.variant_label,
+      unit_cost:
+        variant?.cost !== null && variant?.cost !== undefined
+          ? String(variant.cost)
+          : prev.unit_cost,
+    }));
+  };
+
   const resetAdjustmentForm = () => {
     setAdjustForm(createAdjustmentForm(defaultLocationId));
+  };
+
+  const resetPurchaseForm = () => {
+    setPurchaseForm(createPurchaseForm(defaultLocationId));
   };
 
   const resetTransferForm = () => {
@@ -481,6 +524,61 @@ export default function InventoryScreen({
       Alert.alert('Traslado registrado', 'El traslado quedo enviado en transito.');
     } finally {
       setTransferring(false);
+    }
+  };
+
+  const submitPurchaseIngress = async () => {
+    if (offlineMode) {
+      setOperationError('Inventario no permite ingresos por compra en modo offline.');
+      return;
+    }
+    if (!tenant?.tenant_id || !userProfile?.user_id) {
+      setOperationError('Necesitas un tenant y usuario validos para registrar ingresos.');
+      return;
+    }
+    if (!purchaseForm.location_id) {
+      setOperationError('Selecciona la sede del ingreso.');
+      return;
+    }
+    if (!purchaseForm.variant_id) {
+      setOperationError('Selecciona el producto o variante para el ingreso.');
+      return;
+    }
+
+    const quantity = parseDecimalInput(purchaseForm.quantity);
+    const unitCost = parseDecimalInput(purchaseForm.unit_cost);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setOperationError('La cantidad del ingreso debe ser mayor a 0.');
+      return;
+    }
+    if (!Number.isFinite(unitCost) || unitCost < 0) {
+      setOperationError('El costo unitario del ingreso debe ser mayor o igual a 0.');
+      return;
+    }
+
+    setOperationError('');
+    setPurchasing(true);
+    try {
+      const result = await createPurchaseIngress({
+        tenantId: tenant.tenant_id,
+        locationId: purchaseForm.location_id,
+        variantId: purchaseForm.variant_id,
+        quantity,
+        unitCost,
+        note: String(purchaseForm.note || '').trim() || null,
+        createdBy: userProfile.user_id,
+      });
+
+      if (!result.success) {
+        setOperationError(result.error || 'No fue posible registrar el ingreso por compra.');
+        return;
+      }
+
+      resetPurchaseForm();
+      Alert.alert('Ingreso registrado', 'El ingreso por compra se guardó correctamente.');
+    } finally {
+      setPurchasing(false);
     }
   };
 
@@ -900,6 +998,92 @@ export default function InventoryScreen({
           </Text>
         </Pressable>
       </View>
+
+      <View style={[styles.operationCard, isLightTheme && styles.operationCardLight]}>
+        <Text style={[styles.operationTitle, isLightTheme && styles.operationTitleLight]}>
+          Ingreso por Compra
+        </Text>
+
+        <SearchableSelectField
+          title="Sede"
+          themeMode={resolvedThemeMode}
+          valueLabel={
+            locationFilterOptions.find((item) => String(item.key) === String(purchaseForm.location_id))?.label ||
+            'Seleccionar sede'
+          }
+          clearLabel="Sin sede"
+          placeholder="Seleccionar sede"
+          searchPlaceholder="Buscar sede..."
+          options={locationFilterOptions}
+          selectedKey={purchaseForm.location_id}
+          allowClear={false}
+          disabled={offlineMode}
+          onSelect={(nextValue) => setPurchaseForm((prev) => ({ ...prev, location_id: nextValue || '' }))}
+        />
+
+        <SearchableSelectField
+          title="Producto / Variante"
+          themeMode={resolvedThemeMode}
+          valueLabel={purchaseForm.variant_label || 'Buscar producto/variante'}
+          clearLabel="Sin producto"
+          placeholder="Buscar producto/variante"
+          searchPlaceholder="Buscar producto o SKU..."
+          options={variantSelectOptions}
+          selectedKey={purchaseForm.variant_id}
+          disabled={offlineMode}
+          onSelect={handleSelectPurchaseVariant}
+          onSearchQueryChange={loadVariants}
+          loadingOptions={variantsLoading}
+          emptyText="No hay productos para esa busqueda."
+        />
+
+        <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight]}>Cantidad</Text>
+        <TextInput
+          style={[styles.input, isLightTheme && styles.inputLight]}
+          value={purchaseForm.quantity}
+          onChangeText={(value) => setPurchaseForm((prev) => ({ ...prev, quantity: value }))}
+          placeholder="1"
+          placeholderTextColor="#64748b"
+          keyboardType="numeric"
+          editable={!offlineMode}
+        />
+
+        <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight]}>Costo unitario</Text>
+        <TextInput
+          style={[styles.input, isLightTheme && styles.inputLight]}
+          value={purchaseForm.unit_cost}
+          onChangeText={(value) => setPurchaseForm((prev) => ({ ...prev, unit_cost: value }))}
+          placeholder="0"
+          placeholderTextColor="#64748b"
+          keyboardType="numeric"
+          editable={!offlineMode}
+        />
+
+        <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight]}>Nota</Text>
+        <TextInput
+          style={[styles.input, styles.noteInput, isLightTheme && styles.inputLight]}
+          value={purchaseForm.note}
+          onChangeText={(value) => setPurchaseForm((prev) => ({ ...prev, note: value }))}
+          placeholder="Factura, referencia o detalle del ingreso"
+          placeholderTextColor="#64748b"
+          multiline
+          editable={!offlineMode}
+        />
+
+        <Pressable
+          style={[
+            styles.primaryActionBtn,
+            styles.successActionBtn,
+            (offlineMode || purchasing) && styles.actionDisabled,
+          ]}
+          onPress={submitPurchaseIngress}
+          disabled={offlineMode || purchasing}
+        >
+          <Text style={styles.primaryActionBtnText}>
+            {purchasing ? 'Registrando ingreso...' : 'Registrar Ingreso'}
+          </Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 
@@ -1234,6 +1418,10 @@ const styles = StyleSheet.create({
   infoActionBtn: {
     backgroundColor: '#3b82f6',
     borderColor: '#2563eb',
+  },
+  successActionBtn: {
+    backgroundColor: '#22c55e',
+    borderColor: '#16a34a',
   },
   primaryActionBtnText: { color: '#0f172a', fontWeight: '800', fontSize: 14 },
   secondaryActionBtn: {

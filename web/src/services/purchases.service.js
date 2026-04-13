@@ -1,6 +1,48 @@
 import supabaseService from './supabase.service'
 import aiPurchaseAdvisor from './ai-purchase-advisor.service'
 
+function normalizeText(value) {
+  return String(value || '').trim()
+}
+
+function normalizeInventoryBehavior(value) {
+  const raw = String(value || 'RESELL').trim().toUpperCase()
+  if (raw === 'MANUFACTURED' || raw === 'SERVICE' || raw === 'BUNDLE') return raw
+  return 'RESELL'
+}
+
+function generateSku(value) {
+  const normalized = String(value || 'PRD')
+    .trim()
+    .replace(/[^A-Za-z0-9]/g, '')
+    .slice(0, 3)
+    .toUpperCase()
+  const suffix = Math.floor(Math.random() * 900000) + 100000
+  return `${normalized || 'PRD'}-${suffix}`
+}
+
+function resolveRequiresExpiration(variantRow) {
+  if (variantRow?.requires_expiration !== null && variantRow?.requires_expiration !== undefined) {
+    return Boolean(variantRow.requires_expiration)
+  }
+  return Boolean(variantRow?.product?.requires_expiration)
+}
+
+function formatVariantLabel(variantRow) {
+  const productName = variantRow?.product?.name || 'Producto'
+  const variantName = variantRow?.variant_name ? ` - ${variantRow.variant_name}` : ''
+  const sku = variantRow?.sku ? ` (${variantRow.sku})` : ''
+  return `${productName}${variantName}${sku}`
+}
+
+function normalizeVariantRow(variantRow) {
+  return {
+    ...variantRow,
+    requires_expiration: resolveRequiresExpiration(variantRow),
+    _displayName: formatVariantLabel(variantRow),
+  }
+}
+
 class PurchasesService {
   /**
    * Obtener sugerencias inteligentes de compra
@@ -360,6 +402,139 @@ class PurchasesService {
         success: false,
         error: error.message
       }
+    }
+  }
+
+  async createCatalogVariantForPurchase({
+    tenantId,
+    rawName,
+    productName,
+    variantName = 'Predeterminada',
+    suggestedSku = null,
+    unitCost = 0,
+    requiresExpiration = false,
+    inventoryBehavior = 'RESELL',
+    notes = null,
+    isComponent = false
+  } = {}) {
+    if (!tenantId) {
+      return { success: false, error: 'Tenant invalido para crear articulo.' }
+    }
+
+    const safeProductName = normalizeText(productName || rawName)
+    if (!safeProductName) {
+      return { success: false, error: 'Nombre de producto requerido para crear articulo.' }
+    }
+
+    const safeVariantName = normalizeText(variantName || 'Predeterminada') || 'Predeterminada'
+    const safeNotes = normalizeText(notes || '') || null
+    const safeCost = Number.isFinite(Number(unitCost)) ? Number(unitCost) : 0
+    const safeSku = normalizeText(suggestedSku || '') || generateSku(safeProductName)
+    const safeInventoryBehavior = normalizeInventoryBehavior(inventoryBehavior)
+
+    try {
+      let productId = null
+      let productRow = null
+
+      const { data: existingProducts, error: productSearchError } = await supabaseService.client
+        .from('products')
+        .select('product_id, name, requires_expiration, unit_id')
+        .eq('tenant_id', tenantId)
+        .ilike('name', safeProductName)
+        .limit(1)
+
+      if (productSearchError) throw productSearchError
+
+      if (existingProducts?.length) {
+        productRow = existingProducts[0]
+        productId = productRow.product_id
+      } else {
+        const { data: createdProduct, error: createProductError } = await supabaseService.client
+          .from('products')
+          .insert({
+            tenant_id: tenantId,
+            name: safeProductName,
+            description: safeNotes,
+            category_id: null,
+            unit_id: null,
+            is_active: true,
+            track_inventory: true,
+            requires_expiration: Boolean(requiresExpiration),
+            inventory_behavior: safeInventoryBehavior,
+            is_component: Boolean(isComponent),
+          })
+          .select('product_id, name, requires_expiration, unit_id')
+          .single()
+
+        if (createProductError) throw createProductError
+        productRow = createdProduct
+        productId = createdProduct?.product_id || null
+      }
+
+      if (!productId) {
+        throw new Error('No se pudo resolver el producto para crear la variante.')
+      }
+
+      const { data: existingVariants, error: variantSearchError } = await supabaseService.client
+        .from('product_variants')
+        .select(`
+          variant_id,
+          sku,
+          variant_name,
+          cost,
+          requires_expiration,
+          is_active,
+          product:product_id(product_id,name,requires_expiration)
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('product_id', productId)
+        .ilike('variant_name', safeVariantName)
+        .limit(1)
+
+      if (variantSearchError) throw variantSearchError
+
+      if (existingVariants?.length) {
+        return {
+          success: true,
+          data: normalizeVariantRow(existingVariants[0]),
+          created: false,
+        }
+      }
+
+      const { data: createdVariant, error: createVariantError } = await supabaseService.client
+        .from('product_variants')
+        .insert({
+          tenant_id: tenantId,
+          product_id: productId,
+          sku: safeSku,
+          variant_name: safeVariantName,
+          cost: safeCost,
+          price: 0,
+          price_includes_tax: false,
+          is_active: true,
+          requires_expiration: Boolean(requiresExpiration),
+          unit_id: productRow?.unit_id || null,
+        })
+        .select(`
+          variant_id,
+          sku,
+          variant_name,
+          cost,
+          requires_expiration,
+          is_active,
+          product:product_id(product_id,name,requires_expiration)
+        `)
+        .single()
+
+      if (createVariantError) throw createVariantError
+
+      return {
+        success: true,
+        data: normalizeVariantRow(createdVariant),
+        created: true,
+      }
+    } catch (error) {
+      return { success: false, error: error.message }
     }
   }
 
@@ -750,4 +925,3 @@ class PurchasesService {
 }
 
 export default new PurchasesService()
-

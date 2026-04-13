@@ -2,7 +2,7 @@
 
 Fecha de actualizacion: 2026-04-12
 Owner: Equipo POSLite
-Ultimo cambio registrado: web suma Centro IA, OCR de facturas en compras y carga masiva por foto; mobile suma onboarding/ayuda compacta en Setup
+Ultimo cambio registrado: mobile alinea navegacion y semantica con web; `settings`, `roles`, `tenant management` y ayuda ya no presentan paridad falsa
 
 ## Regla de versionado de contexto (obligatoria)
 
@@ -28,6 +28,61 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 ```
 
 ## Estado tecnico actual
+
+### Ajuste reciente de paridad transversal (2026-04-12) — mobile ya no finge equivalencias con web
+
+- Aunque el cambio principal vive del lado mobile, afecta la lectura real de paridad del monorepo y por eso queda registrado aqui.
+- `mobile` ahora corrige varias falsas equivalencias respecto a rutas web:
+  - `/settings` ya no abre `Setup`; ahora tiene `SettingsScreen`
+  - `/roles` ya no abre `RolesMenus`; ahora tiene `RolesScreen` como vista de consulta
+  - `TenantManagement` ya no cae en `TenantConfigScreen`; ahora tiene `TenantManagementScreen`
+  - `openManual` ya no muestra error; ahora abre `HelpCenterScreen`
+- `mobile/src/navigation/menuMapper.js` ahora marca `accounting` y `superadmin/billing` como `web-only`.
+- `mobile/src/components/MenuDrawer.js` ya expone esos accesos con badge `WEB`, evitando que el usuario interprete falta de permiso o paridad incompleta como bug.
+- Cobertura agregada del lado mobile para esta tanda:
+  - `mobile/src/__tests__/menuMapper.test.js`
+  - `mobile/src/__tests__/helpCenter.test.js`
+  - actualizacion de `mobile/src/__tests__/setupGuideContent.test.js`
+- Lectura vigente desde web:
+  - `help`, `settings` y `roles` ya tienen un espejo conceptual mas sano en mobile
+  - `accounting` y `superadmin billing` siguen siendo diferencias deliberadas `web-only`
+
+### Ajuste reciente de estabilidad (2026-04-12) — reportes de vencimiento usan columna real de lotes
+
+- `src/services/reports.service.js` corrige una referencia legacy a `inventory_batches.quantity_on_hand`.
+- La columna real del proyecto es `inventory_batches.on_hand`.
+- El fix aplicado:
+  - `select(...)` ahora pide `on_hand`
+  - el filtro `.gt(...)` ahora usa `on_hand`
+  - `quantity` y `at_risk_value` ahora se calculan desde `on_hand`
+- Este ajuste tambien se hizo en el lado mobile para mantener paridad de inventario/reportes.
+
+### Ajuste reciente de paridad (2026-04-12) — OCR de compras ahora crea faltantes desde web
+
+- `src/views/Purchases.vue` ya no se queda solo en mostrar lineas sin match detectadas por OCR.
+- El flujo web ahora permite:
+  - detectar faltantes de catalogo desde la factura
+  - sugerir nombre/variante con IA
+  - crear la variante faltante
+  - agregarla inmediatamente al borrador de compra
+- Soporte nuevo:
+  - `src/services/purchaseInvoiceAssistant.service.js`
+  - `src/services/purchases.service.js` ahora expone `createCatalogVariantForPurchase(...)`
+- Cobertura agregada:
+  - `src/services/__tests__/purchaseInvoiceAssistant.service.test.js`
+- Estado funcional vigente:
+  - web y mobile quedan alineados en la capacidad de crear articulos faltantes desde factura OCR
+  - la UI web mantiene preview corto de faltantes, pero la accion `Crear todos` opera sobre la lista completa pendiente
+
+### Ajuste reciente de paridad (2026-04-12) — brechas cerradas en mobile que impactan a web
+
+- Aunque estos cambios viven del lado mobile, afectan la lectura real de paridad del monorepo y por eso quedan registrados aqui:
+  - `mobile/src/screens/ReportsScreen.js` ya cubre inventario por sede, sin movimiento y proximos a vencer
+  - `mobile/src/screens/PurchasesScreen.js` ya cubre OCs pendientes, CxP proveedores, sugerencias IA y analisis IA
+  - `mobile/src/screens/InventoryScreen.js` ya incluye `Ingreso por Compra`
+- Lectura de producto vigente despues de este ajuste:
+  - `tenant management` y `contabilidad avanzada` siguen siendo `web-only`
+  - inventario, compras y reportes quedan con mucha menor disparidad entre apps
 
 ### Ajuste reciente de paridad (2026-04-12) — IA/OCR en web + ayuda compacta en mobile
 

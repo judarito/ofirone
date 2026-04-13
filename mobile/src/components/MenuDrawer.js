@@ -36,36 +36,41 @@ export function MenuDrawer({
     const code = section.code || section.title;
     const hasChildren = Boolean(section.children?.length);
     const isExpanded = Boolean(expandedSections[code]);
+    const sectionWebOnly = section.mobileAvailability === 'web-only';
+    const sectionUnsupported = !section.supportedOnMobile && !section.action;
     const sectionRoleAllowed = section.targetScreen
       ? canAccessScreenByMenu(section.targetScreen, section.route)
       : true;
     const hasEnabledChild = hasChildren
       ? (section.children || []).some((child) => {
           const childUnsupported = !child.supportedOnMobile && !child.action;
-          if (childUnsupported) return false;
+          if (childUnsupported && child.mobileAvailability !== 'web-only') return false;
           if (!child.targetScreen) return true;
           return canAccessScreenByMenu(child.targetScreen, child.route);
         })
       : false;
     const sectionDisabled = hasChildren
-      ? !sectionRoleAllowed && !hasEnabledChild
-      : !sectionRoleAllowed;
+      ? !sectionRoleAllowed && !hasEnabledChild && !sectionWebOnly
+      : (!sectionRoleAllowed || (sectionUnsupported && !sectionWebOnly));
 
     return {
       code,
       hasChildren,
       isExpanded,
       sectionDisabled,
+      sectionWebOnly,
     };
   };
 
   const buildChildMeta = (child) => {
     const childUnsupported = !child.supportedOnMobile && !child.action;
+    const childWebOnly = child.mobileAvailability === 'web-only';
     const childRoleBlocked =
       Boolean(child.targetScreen) && !canAccessScreenByMenu(child.targetScreen, child.route);
 
     return {
-      childDisabled: childUnsupported || childRoleBlocked,
+      childDisabled: childRoleBlocked || (childUnsupported && !childWebOnly),
+      childWebOnly,
     };
   };
 
@@ -78,7 +83,13 @@ export function MenuDrawer({
     >
       <View style={styles.menuOverlay}>
         <Pressable style={styles.menuBackdrop} onPress={onClose} />
-        <View style={[styles.menuDrawer, isLightTheme ? null : styles.menuDrawerDark]}>
+        <View
+          style={[
+            styles.menuDrawer,
+            isGridMode ? styles.menuDrawerWide : null,
+            isLightTheme ? null : styles.menuDrawerDark,
+          ]}
+        >
           <View style={[styles.menuHeader, isLightTheme ? null : styles.menuHeaderDark]}>
             <View style={styles.menuHeaderBrand}>
               <Image
@@ -217,7 +228,7 @@ export function MenuDrawer({
 
             {!isGridMode
               ? (menuTree || []).map((section) => {
-                  const { code, hasChildren, isExpanded, sectionDisabled } = buildSectionMeta(section);
+                  const { code, hasChildren, isExpanded, sectionDisabled, sectionWebOnly } = buildSectionMeta(section);
 
                   return (
                     <View key={code} style={styles.menuSection}>
@@ -263,7 +274,13 @@ export function MenuDrawer({
                             {section.label || section.title}
                           </Text>
                         </View>
-                        {hasChildren && !sectionDisabled ? (
+                        {sectionWebOnly ? (
+                          <View style={[styles.availabilityBadge, isLightTheme && styles.availabilityBadgeLight]}>
+                            <Text style={[styles.availabilityBadgeText, isLightTheme && styles.availabilityBadgeTextLight]}>
+                              WEB
+                            </Text>
+                          </View>
+                        ) : hasChildren && !sectionDisabled ? (
                           <Text
                             style={[styles.menuChevron, isLightTheme ? null : styles.menuChevronDark]}
                           >
@@ -281,7 +298,7 @@ export function MenuDrawer({
                       {hasChildren && isExpanded ? (
                         <View style={styles.menuChildren}>
                           {section.children.map((child) => {
-                            const { childDisabled } = buildChildMeta(child);
+                            const { childDisabled, childWebOnly } = buildChildMeta(child);
 
                             return (
                               <Pressable
@@ -320,7 +337,13 @@ export function MenuDrawer({
                                 >
                                   {child.label || child.title}
                                 </Text>
-                                {childDisabled ? (
+                                {childWebOnly ? (
+                                  <View style={[styles.availabilityBadge, isLightTheme && styles.availabilityBadgeLight]}>
+                                    <Text style={[styles.availabilityBadgeText, isLightTheme && styles.availabilityBadgeTextLight]}>
+                                      WEB
+                                    </Text>
+                                  </View>
+                                ) : childDisabled ? (
                                   <Ionicons
                                     name="lock-closed-outline"
                                     size={13}
@@ -347,7 +370,7 @@ export function MenuDrawer({
               : (
                 <View style={styles.menuGrid}>
                   {(menuTree || []).map((section) => {
-                    const { code, hasChildren, isExpanded, sectionDisabled } =
+                    const { code, hasChildren, isExpanded, sectionDisabled, sectionWebOnly } =
                       buildSectionMeta(section);
 
                     return (
@@ -408,7 +431,13 @@ export function MenuDrawer({
                               ? `${section.children.length} accesos`
                               : 'Abrir módulo'}
                           </Text>
-                          {sectionDisabled ? (
+                          {sectionWebOnly ? (
+                            <View style={[styles.availabilityBadge, isLightTheme && styles.availabilityBadgeLight]}>
+                              <Text style={[styles.availabilityBadgeText, isLightTheme && styles.availabilityBadgeTextLight]}>
+                                WEB
+                              </Text>
+                            </View>
+                          ) : sectionDisabled ? (
                             <Ionicons
                               name="lock-closed-outline"
                               size={14}
@@ -427,7 +456,7 @@ export function MenuDrawer({
                         {hasChildren && isExpanded ? (
                           <View style={styles.menuGridChildren}>
                             {section.children.map((child) => {
-                              const { childDisabled } = buildChildMeta(child);
+                              const { childDisabled, childWebOnly } = buildChildMeta(child);
 
                               return (
                                 <Pressable
@@ -458,6 +487,13 @@ export function MenuDrawer({
                                   >
                                     {child.label || child.title}
                                   </Text>
+                                  {childWebOnly ? (
+                                    <View style={[styles.availabilityBadge, isLightTheme && styles.availabilityBadgeLight]}>
+                                      <Text style={[styles.availabilityBadgeText, isLightTheme && styles.availabilityBadgeTextLight]}>
+                                        WEB
+                                      </Text>
+                                    </View>
+                                  ) : null}
                                 </Pressable>
                               );
                             })}
@@ -506,6 +542,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: '#cddcf1',
     paddingBottom: 14,
+  },
+  menuDrawerWide: {
+    width: '92%',
+    maxWidth: 436,
   },
   menuDrawerDark: {
     backgroundColor: '#0c1528',
@@ -918,6 +958,27 @@ const styles = StyleSheet.create({
   },
   menuLockedIcon: {
     color: '#7c8fae',
+  },
+  availabilityBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    backgroundColor: '#3b2a04',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: 'center',
+  },
+  availabilityBadgeLight: {
+    borderColor: '#facc15',
+    backgroundColor: '#fef3c7',
+  },
+  availabilityBadgeText: {
+    color: '#fde68a',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  availabilityBadgeTextLight: {
+    color: '#92400e',
   },
   menuFooter: {
     borderTopWidth: 1,

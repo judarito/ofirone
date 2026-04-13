@@ -627,12 +627,12 @@ class ReportsService {
       let query = supabaseService.client
         .from('inventory_batches')
         .select(`
-          batch_id, batch_number, expiration_date, quantity_on_hand,
+          batch_id, batch_number, expiration_date, on_hand,
           variant:variant_id(sku, variant_name, cost, product:product_id(name)),
           location:location_id(name)
         `)
         .eq('tenant_id', tenantId)
-        .gt('quantity_on_hand', 0)
+        .gt('on_hand', 0)
         .lte('expiration_date', cutoffStr)
         .order('expiration_date', { ascending: true })
 
@@ -654,9 +654,9 @@ class ReportsService {
           product_name: b.variant?.product?.name,
           variant_name: b.variant?.variant_name,
           location: b.location?.name,
-          quantity: parseFloat(b.quantity_on_hand) || 0,
+          quantity: parseFloat(b.on_hand) || 0,
           unit_cost: parseFloat(b.variant?.cost) || 0,
-          at_risk_value: (parseFloat(b.quantity_on_hand) || 0) * (parseFloat(b.variant?.cost) || 0)
+          at_risk_value: (parseFloat(b.on_hand) || 0) * (parseFloat(b.variant?.cost) || 0)
         }
       })
 

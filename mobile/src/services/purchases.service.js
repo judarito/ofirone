@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { listThirdParties } from './thirdParties.service';
+import aiPurchaseAdvisor from './ai-purchase-advisor.service';
 
 function resolveRequiresExpiration(variantRow) {
   if (variantRow?.requires_expiration !== null && variantRow?.requires_expiration !== undefined) {
@@ -347,6 +348,209 @@ export async function createPurchaseOrder({
   }
 }
 
+export async function getInventoryRotationAnalysis(tenantId) {
+  if (!tenantId) {
+    return { success: false, error: 'Tenant invalido para analizar rotacion.', data: [] };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('vw_inventory_rotation_analysis')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('days_of_stock_remaining', { ascending: true, nullsFirst: false })
+      .limit(100);
+
+    if (error) throw error;
+    return { success: true, data: data || [] };
+  } catch (error) {
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function getPurchaseSuggestions(tenantId, minPriority = 3, limit = 50) {
+  if (!tenantId) {
+    return { success: false, error: 'Tenant invalido para sugerencias.', data: [] };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('fn_get_purchase_suggestions', {
+      p_tenant_id: tenantId,
+      p_min_priority: minPriority,
+      p_limit: limit,
+    });
+
+    if (error) throw error;
+    return { success: true, data: data || [] };
+  } catch (error) {
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function getAIPurchaseAnalysis(tenantId, options = {}) {
+  if (!tenantId) {
+    return { success: false, error: 'Tenant invalido para analisis de IA.', data: null };
+  }
+
+  try {
+    if (!aiPurchaseAdvisor.isAvailable()) {
+      return {
+        success: false,
+        error: 'Servicio de IA no disponible. Verifique la Edge Function configurada.',
+        data: null,
+      };
+    }
+
+    const [suggestionsResult, rotationResult] = await Promise.all([
+      getPurchaseSuggestions(tenantId, options.priorityLevel || 3, 100),
+      getInventoryRotationAnalysis(tenantId),
+    ]);
+
+    if (!suggestionsResult.success || !rotationResult.success) {
+      throw new Error('Error obteniendo datos base para análisis.');
+    }
+
+    const aiAnalysis = await aiPurchaseAdvisor.generatePurchaseRecommendations(
+      tenantId,
+      rotationResult.data || [],
+      suggestionsResult.data || [],
+      options,
+    );
+
+    const executiveSummary = aiPurchaseAdvisor.generateExecutiveSummary(aiAnalysis);
+
+    return {
+      success: true,
+      data: {
+        ...aiAnalysis,
+        executive_summary: executiveSummary,
+        base_suggestions: suggestionsResult.data || [],
+        analysis_timestamp: new Date().toISOString(),
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error.message, data: null };
+  }
+}
+
+export function isAIAvailable() {
+  return aiPurchaseAdvisor.isAvailable();
+}
+
+export async function getOpenPurchaseOrders(tenantId) {
+  if (!tenantId) {
+    return { success: false, error: 'Tenant invalido para consultar OCs.', data: [] };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .select(`
+        purchase_order_id,
+        tenant_id,
+        location_id,
+        supplier_id,
+        status,
+        note,
+        total,
+        created_at,
+        location:location_id(name),
+        supplier:supplier_id(third_party_id,legal_name,trade_name,document_number),
+        lines:purchase_order_lines(
+          purchase_order_line_id,
+          variant_id,
+          qty_ordered,
+          qty_received,
+          unit_cost,
+          batch_number,
+          expiration_date,
+          physical_location,
+          variant:variant_id(
+            sku,
+            variant_name,
+            product:product_id(name)
+          )
+        )
+      `)
+      .eq('tenant_id', tenantId)
+      .in('status', ['DRAFT', 'PARTIAL'])
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: (data || []).map((order) => ({
+        ...order,
+        lines_count: order.lines?.length || 0,
+        pending_lines_count:
+          order.lines?.filter((line) => Number(line.qty_received || 0) < Number(line.qty_ordered || 0))
+            .length || 0,
+        computed_total:
+          order.lines?.reduce(
+            (sum, line) => sum + Number(line.qty_ordered || 0) * Number(line.unit_cost || 0),
+            0,
+          ) || 0,
+        lines: (order.lines || []).map((line) => ({
+          ...line,
+          qty_received: Number(line.qty_received || 0),
+          qty_remaining: Math.max(
+            Number(line.qty_ordered || 0) - Number(line.qty_received || 0),
+            0,
+          ),
+        })),
+      })),
+    };
+  } catch (error) {
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function receivePurchaseOrder({
+  tenantId,
+  purchaseOrderId,
+  createdBy,
+  note = null,
+}) {
+  try {
+    const { data, error } = await supabase.rpc('sp_receive_purchase_order', {
+      p_tenant: tenantId,
+      p_purchase_order_id: purchaseOrderId,
+      p_created_by: createdBy,
+      p_note: note,
+    });
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function receivePurchaseOrderPartial({
+  tenantId,
+  purchaseOrderId,
+  createdBy,
+  lines,
+  note = null,
+}) {
+  try {
+    const { data, error } = await supabase.rpc('sp_receive_purchase_order_partial', {
+      p_tenant: tenantId,
+      p_purchase_order_id: purchaseOrderId,
+      p_created_by: createdBy,
+      p_lines: lines,
+      p_note: note,
+    });
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getPurchaseDetail(tenantId, purchaseId) {
   try {
     const { data: header } = await supabase
@@ -546,6 +750,94 @@ export async function registerSupplierPayment({
     return { success: true, data };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+}
+
+export async function getSupplierPayablesDashboard({
+  tenantId,
+  status = 'OPEN_PARTIAL',
+  dueInDays = null,
+  page = 1,
+  pageSize = 20,
+} = {}) {
+  if (!tenantId) {
+    return { success: false, error: 'Tenant invalido para consultar CxP.', data: [], total: 0 };
+  }
+
+  try {
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const safePageSize = Number.isInteger(pageSize) && pageSize > 0 ? pageSize : 20;
+    const from = (safePage - 1) * safePageSize;
+    const to = from + safePageSize - 1;
+
+    let query = supabase
+      .from('supplier_payables')
+      .select(`
+        payable_id,
+        purchase_id,
+        supplier_id,
+        invoice_number,
+        due_date,
+        total_amount,
+        paid_amount,
+        balance,
+        status,
+        created_at,
+        purchase:purchase_id(
+          location_id,
+          location:location_id(name)
+        ),
+        supplier:supplier_id(
+          legal_name,
+          trade_name
+        )
+      `, { count: 'exact' })
+      .eq('tenant_id', tenantId);
+
+    if (status === 'OPEN_PARTIAL') {
+      query = query.in('status', ['OPEN', 'PARTIAL']);
+    } else if (status && status !== 'ALL') {
+      query = query.eq('status', status);
+    }
+
+    if (dueInDays !== null && dueInDays !== undefined) {
+      const untilDate = new Date();
+      untilDate.setDate(untilDate.getDate() + Number(dueInDays));
+      query = query
+        .not('due_date', 'is', null)
+        .lte('due_date', untilDate.toISOString().slice(0, 10));
+    }
+
+    const { data, error, count } = await query
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return {
+      success: true,
+      data: (data || []).map((row) => {
+        const dueDate = row.due_date ? new Date(`${row.due_date}T00:00:00`) : null;
+        const daysToDue =
+          dueDate ? Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+        return {
+          ...row,
+          supplier_name: row.supplier?.trade_name || row.supplier?.legal_name || 'Proveedor',
+          location_id: row.purchase?.location_id || null,
+          location_name: row.purchase?.location?.name || 'Sin sede',
+          days_to_due: daysToDue,
+          is_overdue: dueDate ? dueDate.getTime() < today.getTime() : false,
+        };
+      }),
+      total: Number(count || 0),
+    };
+  } catch (error) {
+    return { success: false, error: error.message, data: [], total: 0 };
   }
 }
 

@@ -1,5 +1,3 @@
-import { APP_TEXT } from './uiText';
-
 export const SETUP_OPTIONS = [
   {
     key: 'TenantConfig',
@@ -51,11 +49,32 @@ export const SETUP_OPTIONS = [
     accent: '#4db7ff',
   },
   {
+    key: 'Roles',
+    title: 'Roles',
+    subtitle: 'Consulta roles y permisos asignados',
+    icon: 'shield-outline',
+    accent: '#8f7cff',
+  },
+  {
     key: 'RolesMenus',
     title: 'Roles y Menús',
     subtitle: 'Roles, permisos y asignación de menús',
     icon: 'shield-checkmark-outline',
     accent: '#57d65a',
+  },
+  {
+    key: 'Settings',
+    title: 'Preferencias',
+    subtitle: 'Tema y vista del menú',
+    icon: 'options-outline',
+    accent: '#ffb347',
+  },
+  {
+    key: 'HelpCenter',
+    title: 'Centro de Ayuda',
+    subtitle: 'Guías, FAQs y rutas operativas',
+    icon: 'help-circle-outline',
+    accent: '#4db7ff',
   },
 ];
 
@@ -88,6 +107,13 @@ export const GUIDED_ROUTES = [
     icon: 'bar-chart-outline',
     accent: '#f7c843',
   },
+  {
+    key: 'HelpCenter',
+    title: 'Ayuda',
+    subtitle: 'Abrir manual y FAQs operativas',
+    icon: 'help-circle-outline',
+    accent: '#4db7ff',
+  },
 ];
 
 export const HELP_FAQS = [
@@ -101,7 +127,7 @@ export const HELP_FAQS = [
   },
   {
     question: '¿Dónde está el manual completo?',
-    answer: APP_TEXT.userManualWebOnly,
+    answer: 'Ábrelo desde Centro de Ayuda en mobile. Para contabilidad y billing avanzados sigue usando la web.',
   },
 ];
 
