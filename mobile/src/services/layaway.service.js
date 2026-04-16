@@ -1,11 +1,25 @@
 import { supabase } from '../lib/supabase';
 
+async function refreshLayawayOperationalState(tenantId) {
+  if (!tenantId) return;
+
+  const { error } = await supabase.rpc('fn_expire_due_layaways', {
+    p_tenant: tenantId,
+  });
+
+  if (error) {
+    console.warn('No se pudo refrescar el estado operativo de plan separe:', error.message);
+  }
+}
+
 export async function getLayawayContracts(tenantId, page = 1, pageSize = 20, status = null) {
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido', data: [], total: 0 };
   }
 
   try {
+    await refreshLayawayOperationalState(tenantId);
+
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
@@ -33,6 +47,8 @@ export async function getLayawayDetail(tenantId, layawayId) {
   }
 
   try {
+    await refreshLayawayOperationalState(tenantId);
+
     const { data: contract, error: contractError } = await supabase
       .from('layaway_contracts')
       .select(
@@ -101,8 +117,35 @@ export async function getLayawayDetail(tenantId, layawayId) {
   }
 }
 
+export async function createLayaway(tenantId, contractData) {
+  if (!tenantId) {
+    return { success: false, error: 'tenantId es requerido', data: null };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('sp_create_layaway', {
+      p_tenant: tenantId,
+      p_location: contractData.location_id,
+      p_customer: contractData.customer_id,
+      p_created_by: contractData.created_by,
+      p_items: contractData.items,
+      p_due_date: contractData.due_date || null,
+      p_note: contractData.note || null,
+      p_initial_payment: contractData.initial_payment || null,
+      p_installments: contractData.installments || null,
+    });
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message, data: null };
+  }
+}
+
 export async function addLayawayPayment(tenantId, layawayId, paymentData) {
   try {
+    await refreshLayawayOperationalState(tenantId);
+
     const { error } = await supabase.rpc('sp_add_layaway_payment', {
       p_tenant: tenantId,
       p_layaway: layawayId,
@@ -122,6 +165,8 @@ export async function addLayawayPayment(tenantId, layawayId, paymentData) {
 
 export async function completeLayaway(tenantId, layawayId, soldBy, note = null) {
   try {
+    await refreshLayawayOperationalState(tenantId);
+
     const { data, error } = await supabase.rpc('sp_complete_layaway_to_sale', {
       p_tenant: tenantId,
       p_layaway: layawayId,
@@ -150,5 +195,26 @@ export async function cancelLayaway(tenantId, layawayId, cancelledBy, status = '
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+}
+
+export async function getStockAvailable(tenantId, locationId, variantId) {
+  if (!tenantId || !locationId || !variantId) {
+    return { success: false, error: 'tenantId, locationId y variantId son requeridos', data: null };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('vw_stock_available')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('location_id', locationId)
+      .eq('variant_id', variantId)
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message, data: null };
   }
 }

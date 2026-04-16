@@ -301,10 +301,10 @@
               </v-chip>
               <v-chip
                 size="small"
-                :color="isIncoming(item.move_type) ? 'success' : 'error'"
+                :color="isIncoming(item) ? 'success' : 'error'"
                 variant="tonal"
               >
-                Cantidad: {{ isIncoming(item.move_type) ? '+' : '-' }}{{ item.quantity }}
+                Cantidad: {{ Number(item.signed_qty || 0) > 0 ? '+' : '' }}{{ item.signed_qty ?? item.quantity }}
               </v-chip>
               <v-chip size="small" variant="tonal">Sede: {{ item.location?.name || '-' }}{{ item.to_location ? ` -> ${item.to_location.name}` : '' }}</v-chip>
               <v-chip size="small" variant="tonal" color="primary">Costo: {{ formatMoney(item.unit_cost) }}</v-chip>
@@ -492,6 +492,7 @@ const { userProfile } = useAuth()
 const tab = ref('stock')
 const locations = ref([])
 const allowedTabs = ['stock', 'components', 'kardex', 'operations']
+const CLIENT_FILTER_FETCH_LIMIT = 1000
 
 // Stock
 const stockItems = ref([])
@@ -612,13 +613,26 @@ const moveTypes = [
   { label: 'Traslado Entrada', value: 'TRANSFER_IN' }
 ]
 
-const moveTypeLabel = (t) => moveTypes.find(m => m.value === t)?.label || t
+const moveTypeLabel = (t) => ({
+  PURCHASE_IN: 'Compra',
+  PURCHASE_RETURN_OUT: 'Devolucion Proveedor',
+  SALE_OUT: 'Venta',
+  RETURN_IN: 'Devolución',
+  ADJUSTMENT: 'Ajuste',
+  ADJUSTMENT_IN: 'Ajuste Entrada',
+  ADJUSTMENT_OUT: 'Ajuste Salida',
+  TRANSFER_OUT: 'Traslado Salida',
+  TRANSFER_IN: 'Traslado Entrada',
+  PRODUCTION_IN: 'Produccion Entrada',
+  PRODUCTION_OUT: 'Produccion Salida',
+}[t] || t)
 const moveTypeColor = (t) => ({
   PURCHASE_IN: 'green', RETURN_IN: 'orange', TRANSFER_IN: 'blue',
+  ADJUSTMENT_IN: 'amber', ADJUSTMENT_OUT: 'deep-orange',
   PURCHASE_RETURN_OUT: 'deep-orange',
   SALE_OUT: 'red', TRANSFER_OUT: 'purple', ADJUSTMENT: 'amber'
 }[t] || 'grey')
-const isIncoming = (t) => ['PURCHASE_IN', 'RETURN_IN', 'TRANSFER_IN', 'ADJUSTMENT'].includes(t)
+const isIncoming = (item) => Number(item?.signed_qty ?? item?.quantity ?? 0) >= 0
 
 const showMsg = (msg, color = 'success') => { snackbarMessage.value = msg; snackbarColor.value = color; snackbar.value = true }
 
@@ -684,12 +698,11 @@ const loadStock = async () => {
   if (!tenantId.value) return
   loadingStock.value = true
   try {
-    const r = await inventoryService.getStockBalances(tenantId.value, stockPage.value, stockPageSize.value, {
+    const r = await inventoryService.getStockBalances(tenantId.value, 1, CLIENT_FILTER_FETCH_LIMIT, {
       location_id: stockLocationFilter.value || undefined
     })
     if (r.success) {
-      // Filtrar solo productos que NO son componentes
-      stockItems.value = (r.data || [])
+      const filteredRows = (r.data || [])
         .filter(item => {
           const isComponent = item.variant?.is_component === true || item.variant?.product?.is_component === true
           return !isComponent
@@ -698,7 +711,11 @@ const loadStock = async () => {
           ...item,
           _list_key: `${item.location_id}-${item.variant_id}`
         }))
-      stockTotal.value = stockItems.value.length
+      stockTotal.value = filteredRows.length
+
+      const from = (stockPage.value - 1) * stockPageSize.value
+      const to = from + stockPageSize.value
+      stockItems.value = filteredRows.slice(from, to)
     }
   } finally {
     loadingStock.value = false
@@ -729,15 +746,18 @@ const loadKardex = async () => {
 // Cargar componentes/insumos (solo productos marcados como componentes)
 const loadComponents = async () => {
   if (!tenantId.value) return
-  const r = await inventoryService.getStockBalances(tenantId.value, componentPage.value, componentPageSize.value, {
+  const r = await inventoryService.getStockBalances(tenantId.value, 1, CLIENT_FILTER_FETCH_LIMIT, {
     location_id: componentLocationFilter.value || undefined
   })
   if (r.success) { 
-    // Filtrar solo productos que SON componentes (a nivel variante o producto)
-    componentItems.value = r.data.filter(item => {
+    const filteredRows = (r.data || []).filter(item => {
       return item.variant?.is_component === true || item.variant?.product?.is_component === true
     })
-    componentTotal.value = componentItems.value.length
+    componentTotal.value = filteredRows.length
+
+    const from = (componentPage.value - 1) * componentPageSize.value
+    const to = from + componentPageSize.value
+    componentItems.value = filteredRows.slice(from, to)
   }
 }
 

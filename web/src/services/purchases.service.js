@@ -43,6 +43,33 @@ function normalizeVariantRow(variantRow) {
   }
 }
 
+function buildPurchaseSummaryRow(purchaseRow, purchaseLines = []) {
+  const firstLine = purchaseLines[0] || null
+  const firstProductName = firstLine?.variant?.product?.name || 'Compra'
+  const firstVariantName = firstLine?.variant?.variant_name ? ` - ${firstLine.variant.variant_name}` : ''
+  const itemsCount = purchaseLines.length
+
+  return {
+    purchase_id: purchaseRow?.purchase_id,
+    supplier_name: purchaseRow?.supplier?.trade_name || purchaseRow?.supplier?.legal_name || 'Sin proveedor',
+    supplier_document: purchaseRow?.supplier?.document_number || '',
+    items_count: itemsCount,
+    items_summary: itemsCount > 1
+      ? `${firstProductName}${firstVariantName} +${itemsCount - 1} item${itemsCount - 1 === 1 ? '' : 's'}`
+      : `${firstProductName}${firstVariantName}`,
+    qty_total: purchaseLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0),
+    sku: firstLine?.variant?.sku || '',
+    variant_name: firstLine?.variant?.variant_name || '',
+    product_name: firstLine?.variant?.product?.name || '',
+    location_name: purchaseRow?.location?.name || '',
+    total: Number(purchaseRow?.total || 0),
+    purchased_at: purchaseRow?.created_at,
+    purchased_by_name: purchaseRow?.created_by_user?.full_name || '',
+    note: purchaseRow?.note || '',
+    current_price: Number(firstLine?.variant?.price || 0),
+  }
+}
+
 class PurchasesService {
   /**
    * Obtener sugerencias inteligentes de compra
@@ -177,26 +204,19 @@ class PurchasesService {
       const to = from + pageSize - 1
 
       let query = supabaseService.client
-        .from('inventory_moves')
+        .from('purchases')
         .select(`
-          inventory_move_id,
-          move_type,
+          purchase_id,
+          tenant_id,
           location_id,
-          variant_id,
-          quantity,
-          unit_cost,
           created_at,
           note,
+          total,
           location:location_id(name),
-          variant:variant_id(
-            sku,
-            variant_name,
-            product:product_id(name)
-          ),
+          supplier:supplier_id(legal_name, trade_name, document_number),
           created_by_user:created_by(full_name)
         `, { count: 'exact' })
         .eq('tenant_id', tenantId)
-        .eq('move_type', 'PURCHASE_IN')
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -214,22 +234,41 @@ class PurchasesService {
 
       if (error) throw error
 
-      // Transformar datos para mejor acceso
-      const purchases = (data || []).map(item => ({
-        purchase_id: item.inventory_move_id,
-        sku: item.variant?.sku || '',
-        variant_name: item.variant?.variant_name || '',
-        product_name: item.variant?.product?.name || '',
-        location_name: item.location?.name || '',
-        quantity: item.quantity,
-        unit_cost: item.unit_cost,
-        line_total: item.quantity * item.unit_cost,
-        purchased_at: item.created_at,
-        purchased_by_name: item.created_by_user?.full_name || '',
-        note: item.note,
-        // Para compatibilidad con cálculo de precio actual
-        current_price: item.variant?.price || 0
-      }))
+      const purchaseIds = (data || []).map((item) => item.purchase_id).filter(Boolean)
+      const linesByPurchase = new Map()
+
+      if (purchaseIds.length > 0) {
+        const { data: lineRows, error: lineError } = await supabaseService.client
+          .from('inventory_moves')
+          .select(`
+            source_id,
+            quantity,
+            unit_cost,
+            variant:variant_id(
+              sku,
+              variant_name,
+              price,
+              product:product_id(name)
+            )
+          `)
+          .eq('tenant_id', tenantId)
+          .eq('move_type', 'PURCHASE_IN')
+          .in('source_id', purchaseIds)
+          .order('created_at', { ascending: true })
+
+        if (lineError) throw lineError
+
+        ;(lineRows || []).forEach((line) => {
+          const key = line.source_id
+          if (!key) return
+          if (!linesByPurchase.has(key)) {
+            linesByPurchase.set(key, [])
+          }
+          linesByPurchase.get(key).push(line)
+        })
+      }
+
+      const purchases = (data || []).map((item) => buildPurchaseSummaryRow(item, linesByPurchase.get(item.purchase_id) || []))
 
       return {
         success: true,

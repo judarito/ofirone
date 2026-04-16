@@ -182,25 +182,29 @@ export async function listInventoryMoves({
 } = {}) {
   try {
     let query = supabase
-      .from('inventory_moves')
+      .from('vw_kardex')
       .select(
         `
           inventory_move_id,
           tenant_id,
           move_type,
           location_id,
+          location_name,
           to_location_id,
+          to_location_name,
           variant_id,
-          quantity,
+          signed_qty,
+          abs_qty,
           unit_cost,
           note,
           source,
           source_id,
           created_at,
-          location:location_id(name),
-          to_location:to_location_id(name),
-          variant:variant_id(sku,variant_name,product:product_id(name)),
-          created_by_user:created_by(full_name)
+          sku,
+          variant_name,
+          product_name,
+          created_by,
+          created_by_name
         `,
         { count: 'exact' },
       )
@@ -212,12 +216,35 @@ export async function listInventoryMoves({
       query = query.eq('location_id', locationId);
     }
     if (moveType) {
-      query = query.eq('move_type', moveType);
+      if (moveType === 'ADJUSTMENT') {
+        query = query.in('move_type', ['ADJUSTMENT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT']);
+      } else {
+        query = query.eq('move_type', moveType);
+      }
     }
 
     const { data, error, count } = await query;
     if (error) throw error;
-    return { success: true, data: data || [], total: Number(count || 0) };
+    return {
+      success: true,
+      data: (data || []).map((row) => ({
+        ...row,
+        quantity: Number(row.abs_qty ?? 0),
+        abs_qty: Number(row.abs_qty ?? 0),
+        signed_qty: Number(row.signed_qty ?? 0),
+        location: row.location_name ? { name: row.location_name } : null,
+        to_location: row.to_location_name ? { name: row.to_location_name } : null,
+        variant: {
+          sku: row.sku || null,
+          variant_name: row.variant_name || null,
+          product: {
+            name: row.product_name || null,
+          },
+        },
+        created_by_user: row.created_by_name ? { full_name: row.created_by_name } : null,
+      })),
+      total: Number(count || 0),
+    };
   } catch (error) {
     return { success: false, error: error.message, data: [], total: 0 };
   }

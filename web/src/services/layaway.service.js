@@ -1,12 +1,26 @@
 import supabaseService from './supabase.service'
 import { serviceErrorResult } from '@/utils/appErrors'
 
+async function refreshLayawayOperationalState(tenantId) {
+  if (!tenantId) return
+
+  const { error } = await supabaseService.client.rpc('fn_expire_due_layaways', {
+    p_tenant: tenantId,
+  })
+
+  if (error) {
+    console.warn('No se pudo refrescar el estado operativo de plan separe:', error.message)
+  }
+}
+
 const layawayService = {
   /**
    * Obtener lista de contratos de plan separe
    */
   async getLayawayContracts(tenantId, page = 1, pageSize = 10, status = null) {
     try {
+      await refreshLayawayOperationalState(tenantId)
+
       let query = supabaseService.client
         .from('vw_layaway_summary')
         .select('*', { count: 'exact' })
@@ -36,6 +50,8 @@ const layawayService = {
    */
   async getLayawayDetail(tenantId, layawayId) {
     try {
+      await refreshLayawayOperationalState(tenantId)
+
       // Contrato principal
       const { data: contract, error: contractError } = await supabaseService.client
         .from('layaway_contracts')
@@ -137,6 +153,8 @@ const layawayService = {
    */
   async addPayment(tenantId, layawayId, paymentData) {
     try {
+      await refreshLayawayOperationalState(tenantId)
+
       const { error } = await supabaseService.client
         .rpc('sp_add_layaway_payment', {
           p_tenant: tenantId,
@@ -162,6 +180,8 @@ const layawayService = {
    */
   async completeLayaway(tenantId, layawayId, soldBy, note = null) {
     try {
+      await refreshLayawayOperationalState(tenantId)
+
       const { data, error } = await supabaseService.client
         .rpc('sp_complete_layaway_to_sale', {
           p_tenant: tenantId,

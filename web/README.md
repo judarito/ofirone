@@ -51,12 +51,17 @@ VITE_DEEPSEEK_TEXT_EDGE_FUNCTION=deepseek-proxy
 VITE_DEEPSEEK_TEXT_MODEL=deepseek-chat
 VITE_OPS_RAG_EDGE_FUNCTION=ops-rag-agent
 VITE_PRODUCT_PHOTO_PARSER_EDGE_FUNCTION=product-photo-parser
+VITE_AUTH_RECOVERY_URL=
 ```
 
 Notas:
 
 - La llave de IA no va en frontend.
 - `DEEPSEEK_API_KEY` debe configurarse como secreto en Supabase Edge Functions.
+- `VITE_AUTH_RECOVERY_URL` debe apuntar a la URL publica que abrira el flujo de recuperacion.
+  Ejemplo: `https://app.tudominio.com/login`
+- Esa misma URL debe estar permitida en Supabase Auth:
+  - `Authentication > URL Configuration > Redirect URLs`
 
 ## Instalacion local
 

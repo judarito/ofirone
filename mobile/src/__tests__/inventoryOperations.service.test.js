@@ -6,17 +6,7 @@ jest.mock('../lib/supabase', () => ({
 }));
 
 const { supabase } = require('../lib/supabase');
-const { createPurchaseIngress } = require('../services/inventoryOperations.service');
-
-function buildInsertChain(result) {
-  return {
-    select() {
-      return {
-        single: () => Promise.resolve(result),
-      };
-    },
-  };
-}
+const { createManualAdjustment, createPurchaseIngress } = require('../services/inventoryOperations.service');
 
 describe('inventoryOperations.service', () => {
   beforeEach(() => {
@@ -51,18 +41,8 @@ describe('inventoryOperations.service', () => {
   });
 
   it('registra un ingreso por compra y aplica delta de stock', async () => {
-    supabase.from.mockImplementation((table) => {
-      if (table !== 'inventory_moves') throw new Error(`tabla no mockeada: ${table}`);
-      return {
-        insert: () => buildInsertChain({
-          data: { inventory_move_id: 'm1', move_type: 'PURCHASE_IN' },
-          error: null,
-        }),
-      };
-    });
-
     supabase.rpc.mockImplementation((fnName) => {
-      if (fnName === 'fn_apply_stock_delta') return Promise.resolve({ error: null });
+      if (fnName === 'sp_create_manual_purchase_ingress') return Promise.resolve({ data: 'm1', error: null });
       if (fnName === 'fn_refresh_stock_alerts') return Promise.resolve({ error: null });
       throw new Error(`rpc no mockeada: ${fnName}`);
     });
@@ -78,12 +58,45 @@ describe('inventoryOperations.service', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(supabase.from).toHaveBeenCalledWith('inventory_moves');
-    expect(supabase.rpc).toHaveBeenCalledWith('fn_apply_stock_delta', {
+    expect(supabase.rpc).toHaveBeenCalledWith('sp_create_manual_purchase_ingress', {
       p_tenant: 't1',
       p_location: 'l1',
       p_variant: 'v1',
-      p_delta: 3,
+      p_quantity: 3,
+      p_unit_cost: 12000,
+      p_created_by: 'u1',
+      p_note: 'Ingreso manual',
+    });
+  });
+
+  it('registra un ajuste atómico con rpc específico', async () => {
+    supabase.rpc.mockImplementation((fnName) => {
+      if (fnName === 'sp_create_inventory_adjustment') return Promise.resolve({ data: 'm2', error: null });
+      if (fnName === 'fn_refresh_stock_alerts') return Promise.resolve({ error: null });
+      throw new Error(`rpc no mockeada: ${fnName}`);
+    });
+
+    const result = await createManualAdjustment({
+      tenantId: 't1',
+      locationId: 'l1',
+      variantId: 'v1',
+      quantity: 2,
+      unitCost: 5000,
+      isIncrease: false,
+      note: 'Ajuste de salida',
+      createdBy: 'u1',
+    });
+
+    expect(result.success).toBe(true);
+    expect(supabase.rpc).toHaveBeenCalledWith('sp_create_inventory_adjustment', {
+      p_tenant: 't1',
+      p_location: 'l1',
+      p_variant: 'v1',
+      p_quantity: 2,
+      p_unit_cost: 5000,
+      p_is_increase: false,
+      p_created_by: 'u1',
+      p_note: 'Ajuste de salida',
     });
   });
 });

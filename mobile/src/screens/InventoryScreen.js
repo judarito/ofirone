@@ -58,6 +58,8 @@ function moveTypeLabel(type) {
     SALE_OUT: 'Venta',
     RETURN_IN: 'Devolucion',
     ADJUSTMENT: 'Ajuste',
+    ADJUSTMENT_IN: 'Ajuste entrada',
+    ADJUSTMENT_OUT: 'Ajuste salida',
     TRANSFER_OUT: 'Traslado salida',
     TRANSFER_IN: 'Traslado entrada',
     PRODUCTION_IN: 'Produccion entrada',
@@ -679,11 +681,11 @@ export default function InventoryScreen({
                   style={[
                     styles.kardexValue,
                     isLightTheme && styles.kardexValueLight,
-                    Number(item.quantity || 0) >= 0 ? styles.qtyPositive : styles.qtyNegative,
+                    Number(item.signed_qty || item.quantity || 0) >= 0 ? styles.qtyPositive : styles.qtyNegative,
                   ]}
                 >
-                  {Number(item.quantity || 0) >= 0 ? '+' : ''}
-                  {Number(item.quantity || 0).toLocaleString('es-CO')}
+                  {Number(item.signed_qty || item.quantity || 0) > 0 ? '+' : ''}
+                  {Number(item.signed_qty || item.quantity || 0).toLocaleString('es-CO')}
                 </Text>
               </View>
               <View style={styles.kardexRow}>

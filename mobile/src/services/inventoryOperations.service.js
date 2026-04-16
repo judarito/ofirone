@@ -33,38 +33,22 @@ export async function createManualAdjustment({
       return { success: false, error: 'El costo unitario debe ser mayor o igual a 0.' };
     }
 
-    const { data: moveRow, error: moveError } = await supabase
-      .from('inventory_moves')
-      .insert({
-        tenant_id: tenantId,
-        move_type: 'ADJUSTMENT',
-        location_id: locationId,
-        variant_id: variantId,
-        quantity: safeQuantity,
-        unit_cost: safeUnitCost,
-        source: 'MANUAL',
-        source_id: null,
-        note: note || null,
-        created_by: createdBy,
-      })
-      .select()
-      .single();
-
-    if (moveError) throw moveError;
-
-    const delta = isIncrease ? safeQuantity : -safeQuantity;
-    const { error: stockError } = await supabase.rpc('fn_apply_stock_delta', {
+    const { data: moveId, error: moveError } = await supabase.rpc('sp_create_inventory_adjustment', {
       p_tenant: tenantId,
       p_location: locationId,
       p_variant: variantId,
-      p_delta: delta,
+      p_quantity: safeQuantity,
+      p_unit_cost: safeUnitCost,
+      p_is_increase: isIncrease !== false,
+      p_created_by: createdBy,
+      p_note: note || null,
     });
 
-    if (stockError) throw stockError;
+    if (moveError) throw moveError;
 
     await refreshStockAlertsBestEffort();
 
-    return { success: true, data: moveRow };
+    return { success: true, data: moveId };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -141,37 +125,21 @@ export async function createPurchaseIngress({
       return { success: false, error: 'El costo unitario debe ser mayor o igual a 0.' };
     }
 
-    const { data: moveRow, error: moveError } = await supabase
-      .from('inventory_moves')
-      .insert({
-        tenant_id: tenantId,
-        move_type: 'PURCHASE_IN',
-        location_id: locationId,
-        variant_id: variantId,
-        quantity: safeQuantity,
-        unit_cost: safeUnitCost,
-        source: 'MANUAL_PURCHASE',
-        source_id: null,
-        note: note || null,
-        created_by: createdBy,
-      })
-      .select()
-      .single();
-
-    if (moveError) throw moveError;
-
-    const { error: stockError } = await supabase.rpc('fn_apply_stock_delta', {
+    const { data: moveId, error: moveError } = await supabase.rpc('sp_create_manual_purchase_ingress', {
       p_tenant: tenantId,
       p_location: locationId,
       p_variant: variantId,
-      p_delta: safeQuantity,
+      p_quantity: safeQuantity,
+      p_unit_cost: safeUnitCost,
+      p_created_by: createdBy,
+      p_note: note || null,
     });
 
-    if (stockError) throw stockError;
+    if (moveError) throw moveError;
 
     await refreshStockAlertsBestEffort();
 
-    return { success: true, data: moveRow };
+    return { success: true, data: moveId };
   } catch (error) {
     return { success: false, error: error.message };
   }

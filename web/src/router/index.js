@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { supabase } from '@/plugins/supabase'
 import { canManageTenants } from '@/utils/superAdmin'
+import { detectRecoveryFromWindow, isRecoveryNavigationTarget } from '@/utils/authRecovery'
 import rolesService from '@/services/roles.service'
 import supabaseService from '@/services/supabase.service'
 import tenantBillingService, { getBillingRouteAccess } from '@/services/tenantBilling.service'
@@ -73,9 +74,12 @@ function canAccessPathByMenu(path, allowedRoutes) {
 }
 
 function isRecoveryNavigation(to) {
-  const hash = (to.hash || '').toLowerCase()
-  const fullPath = (to.fullPath || '').toLowerCase()
-  return hash.includes('type=recovery') || fullPath.includes('type=recovery')
+  return isRecoveryNavigationTarget({
+    path: to?.path,
+    fullPath: to?.fullPath,
+    hash: to?.hash,
+    search: typeof to?.fullPath === 'string' ? to.fullPath.split('#')[0] : '',
+  }) || detectRecoveryFromWindow()
 }
 async function getAllowedMenuRoutes(authUserId) {
   return getAllowedMenuRoutesWithOptions(authUserId, { force: false })

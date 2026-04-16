@@ -29,6 +29,44 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 
 ## Estado tecnico actual
 
+### Ajuste reciente de plan separe (2026-04-16) — reglas operativas y UI quedan alineadas entre web/mobile/backend
+
+- `plan separe` deja de depender de reglas parcialmente duplicadas o solo visibles en UI.
+- La fuente canonica de calculo y lectura de contratos ahora vive en `../shared/utils/layawayContract.js`.
+- Web ya consume esa capa compartida en:
+  - `src/views/LayawayContracts.vue`
+  - `src/views/LayawayDetail.vue`
+- Cobertura funcional nueva del lado web:
+  - altas con cuotas opcionales
+  - detalle de cuotas
+  - etiquetas/estados consistentes
+- Backend compartido nuevo:
+  - `../shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql`
+- Reglas nuevas relevantes para web:
+  - `sp_create_layaway(...)` ya respeta el setting `reserve_stock_on_layaway`
+  - contratos guardan si reservaron stock en `stock_reserved_on_create`
+  - cancelacion/completado no liberan reserva cuando el contrato no la genero
+  - `fn_expire_due_layaways(...)` expira contratos vencidos con saldo
+- `src/services/layaway.service.js` ahora refresca ese estado operativo antes de:
+  - listar contratos
+  - abrir detalle
+  - registrar abonos
+  - completar contratos
+- Cobertura agregada:
+  - `src/utils/__tests__/layawayContract.test.js`
+  - `src/services/__tests__/layaway.service.test.js`
+
+### Ajuste reciente de auth (2026-04-16) — recovery de password ya no cae al home con sesion activa
+
+- El flujo de recuperacion de contraseña en web ya no se rompe si el usuario abre el enlace estando logueado.
+- Se introdujo `src/utils/authRecovery.js` para unificar la deteccion de recovery.
+- Integraciones nuevas:
+  - `src/router/index.js`
+  - `src/composables/useAuth.js`
+  - `src/views/Login.vue`
+- Regla vigente:
+  - si `/login` llega con marcadores de recovery o si Supabase emite `PASSWORD_RECOVERY`, la vista debe quedar en modo restablecer contraseña y no redirigir al inicio.
+
 ### Ajuste reciente de arquitectura backend (2026-04-16) — web deja de ser dueno de los artefactos Supabase compartidos
 
 - Se unifico el backend Supabase comun del monorepo.

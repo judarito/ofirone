@@ -125,6 +125,29 @@
             </div>
           </v-card-text>
         </v-card>
+
+        <v-card class="mt-3">
+          <v-card-title>
+            <v-icon start>mdi-calendar-month</v-icon>
+            Cuotas pactadas
+          </v-card-title>
+          <v-card-text>
+            <v-list v-if="contract.installments && contract.installments.length > 0" density="compact">
+              <v-list-item v-for="installment in contract.installments" :key="installment.layaway_installment_id || installment.due_date">
+                <v-list-item-title>
+                  {{ formatDate(installment.due_date) }} - {{ formatMoney(installment.amount) }}
+                </v-list-item-title>
+                <v-list-item-subtitle>
+                  Estado: {{ installment.status || 'PENDING' }}
+                </v-list-item-subtitle>
+              </v-list-item>
+            </v-list>
+            <div v-else class="text-center text-grey py-4">
+              <v-icon size="48">mdi-calendar-remove</v-icon>
+              <div>Sin cuotas registradas</div>
+            </div>
+          </v-card-text>
+        </v-card>
       </v-col>
 
       <!-- Resumen y acciones -->
@@ -347,6 +370,7 @@ import { formatMoney, formatDateTimeFull as formatDate } from '@/utils/formatter
 import { useI18n } from '@/i18n'
 import { useTenantSettings } from '@/composables/useTenantSettings'
 import { validateCashSessionForOperation } from '../../../shared/utils/cashSessionUtils'
+import { LAYAWAY_STATUS, getLayawayStatusLabel } from '../../../shared/utils/layawayContract'
 
 const { t } = useI18n()
 
@@ -392,18 +416,13 @@ const rules = {
 }
 
 const getStatusColor = (status) => ({
-  ACTIVE: 'success',
-  COMPLETED: 'primary',
-  CANCELLED: 'error',
-  EXPIRED: 'warning'
+  [LAYAWAY_STATUS.ACTIVE]: 'success',
+  [LAYAWAY_STATUS.COMPLETED]: 'primary',
+  [LAYAWAY_STATUS.CANCELLED]: 'error',
+  [LAYAWAY_STATUS.EXPIRED]: 'warning',
 }[status] || 'grey')
 
-const getStatusLabel = (status) => ({
-  ACTIVE: 'Activo',
-  COMPLETED: 'Completado',
-  CANCELLED: 'Cancelado',
-  EXPIRED: 'Expirado'
-}[status] || status)
+const getStatusLabel = (status) => getLayawayStatusLabel(status)
 
 const handlePrintContract = async () => {
   if (!contract.value) return

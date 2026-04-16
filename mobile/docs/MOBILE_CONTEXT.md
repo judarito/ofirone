@@ -3,6 +3,26 @@
 Fecha: 2026-04-16  
 Estado: Documento base de contexto para desarrollo diario, actualizado con la regla de backend Supabase compartido
 
+## 0) Actualizacion reciente (2026-04-16)
+
+- `Plan Separe` ya no queda como modulo parcial en mobile.
+- La logica compartida del contrato ahora vive en `../shared/utils/layawayContract.js`.
+- `mobile/src/screens/LayawayScreen.js` ahora soporta:
+  - crear contrato
+  - agregar productos
+  - abono inicial
+  - cuotas
+  - expiracion/cancelacion operativa
+- `mobile/src/services/layaway.service.js` refresca estado operativo con `fn_expire_due_layaways(...)` antes de listar, abrir detalle, cobrar o completar.
+- Backend compartido nuevo:
+  - `../shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql`
+- Regla de negocio reforzada:
+  - `reserve_stock_on_layaway` ya se respeta desde backend
+  - solo se libera reserva si realmente existio al crear el contrato
+- Cobertura agregada:
+  - `mobile/src/__tests__/layaway.service.test.js`
+  - `web/src/utils/__tests__/layawayContract.test.js` como base comun de la logica compartida
+
 ## 1) Proposito
 
 POSLite Mobile es la app React Native (Expo) para operacion de punto de venta multi-tenant, con soporte offline-first, sincronizacion diferida y consumo de backend Supabase (tablas, vistas y RPC).

@@ -232,6 +232,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { clearRecoveryIntent, detectRecoveryFromWindow, persistRecoveryIntent } from '@/utils/authRecovery'
 import { useTenant } from '@/composables/useTenant'
 import { useTheme } from '@/composables/useTheme'
 import { useSuperAdmin } from '@/composables/useSuperAdmin'
@@ -352,18 +353,17 @@ const handleUpdatePassword = async () => {
   recoverySuccess.value = true
   recoveryMessage.value = t('login.passwordUpdated')
   setTimeout(() => {
+    clearRecoveryIntent()
     router.push('/')
   }, 1200)
 }
 
 onMounted(async () => {
   await ensureThemeForUser({ authUserId: null })
-  const hash = (window.location.hash || '').toLowerCase()
-  const search = (window.location.search || '').toLowerCase()
-  recoveryMode.value =
-    hash.includes('type=recovery') ||
-    search.includes('type=recovery') ||
-    (hash.includes('access_token=') && hash.includes('refresh_token='))
+  recoveryMode.value = detectRecoveryFromWindow()
+  if (recoveryMode.value) {
+    persistRecoveryIntent()
+  }
 })
 </script>
 

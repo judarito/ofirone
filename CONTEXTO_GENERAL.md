@@ -33,6 +33,46 @@ Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
   - `web`: `accounting-queue-worker`, `deepseek-proxy`
   - `mobile`: `deepseek-ocr-proxy`, `ops-rag-agent`, `product-photo-analyzer`, `product-photo-parser`, `push-dispatcher`
 
+## Actualizacion reciente (2026-04-16) — plan separe queda endurecido y compartido entre apps
+
+- Se cerro una tanda de consistencia funcional de `plan separe` entre `web`, `mobile` y backend.
+- La logica transversal del contrato ahora vive en:
+  - `shared/utils/layawayContract.js`
+- Esa capa compartida centraliza:
+  - calculo de lineas y totales
+  - borradores y saneamiento de cuotas
+  - etiquetas de estado
+  - deteccion de `due soon`, vencido y auto-expiracion
+- Backend compartido nuevo:
+  - `shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql`
+- La migracion endurece tres reglas operativas:
+  - `sp_create_layaway(...)` ya respeta `reserve_stock_on_layaway`
+  - contratos guardan si realmente reservaron stock en `stock_reserved_on_create`
+  - cancelacion/completado solo liberan reserva si esa reserva existio
+- Tambien agrega `fn_expire_due_layaways(...)` para expirar automaticamente contratos vencidos con saldo pendiente.
+- `web` y `mobile` ahora refrescan ese estado operativo antes de listar, ver detalle, cobrar o completar contratos:
+  - `web/src/services/layaway.service.js`
+  - `mobile/src/services/layaway.service.js`
+- Paridad funcional nueva:
+  - `web` ya expone cuotas dentro del flujo de creacion y del detalle
+  - `mobile` ya no queda solo en seguimiento/cobro; ahora tambien puede crear contratos, registrar abono inicial, definir cuotas y expirar manualmente
+- Cobertura agregada para esta tanda:
+  - `web/src/utils/__tests__/layawayContract.test.js`
+  - `web/src/services/__tests__/layaway.service.test.js`
+  - `mobile/src/__tests__/layaway.service.test.js`
+
+## Actualizacion reciente (2026-04-16) — recovery de password en web ya no colisiona con sesion activa
+
+- El flujo de restablecimiento de contraseña en `web` ya no redirige al inicio cuando el usuario abre el enlace estando autenticado.
+- Se introdujo utilidad compartida de deteccion de recovery en:
+  - `web/src/utils/authRecovery.js`
+- El ajuste se conecto en:
+  - `web/src/router/index.js`
+  - `web/src/composables/useAuth.js`
+  - `web/src/views/Login.vue`
+- Regla vigente:
+  - si la navegacion llega con marcadores de recovery (`type=recovery`, `code`, `token_hash`, `access_token` o flag interno), `/login` debe permanecer en modo restablecer contraseña y no tratarse como login autenticado normal
+
 ## Actualizacion reciente (2026-04-15) — mobile suma gestion avanzada de lotes y onboarding operativo
 
 - `mobile` cierra dos brechas importantes frente a `web` en `BatchManagement` y `Setup / onboarding`.

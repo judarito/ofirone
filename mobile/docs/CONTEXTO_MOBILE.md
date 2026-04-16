@@ -1184,11 +1184,12 @@ Consideracion de experiencia:
 
 Estado observado hoy:
 
-- no encontre suite de tests automatizados en el repo
-- no encontre configuracion activa de ESLint o Prettier
-- el proyecto depende bastante de smoke testing manual
+- existe suite automatizada parcial con `jest`, especialmente en `src/__tests__`
+- `package.json` ya expone `test`, `test:watch` y `test:coverage`
+- tambien existe configuracion activa de `eslint` y `prettier`, aunque la cobertura de uso todavia no es uniforme
+- el proyecto sigue dependiendo bastante de smoke testing manual para flujos nativos, offline y UX compleja
 
-Esto coincide con la deuda declarada en el checklist y aumenta el riesgo de regresiones, sobre todo en modulos grandes como POS, reportes, terceros y `App.js`.
+Aunque esto mejora la base de calidad respecto a estados anteriores, el riesgo de regresiones sigue siendo alto en modulos grandes como POS, reportes, terceros y `App.js`.
 
 ## 13. Deuda tecnica principal
 
@@ -1253,6 +1254,40 @@ Backend Supabase compartido:
   - `supabase/functions/product-photo-analyzer`
   - `supabase/functions/product-photo-parser`
   - `supabase/functions/push-dispatcher`
+
+Plan Separe:
+
+- `mobile/src/screens/LayawayScreen.js` ya no es solo bandeja de seguimiento/cobro.
+- La app mobile ahora soporta:
+  - crear contratos de plan separe
+  - agregar productos/variantes al contrato
+  - registrar abono inicial
+  - pactar cuotas
+  - ver cuotas en detalle
+  - marcar contratos como expirados cuando aplique operativamente
+- La logica compartida del modulo ahora vive en:
+  - `shared/utils/layawayContract.js`
+- Esa capa centraliza:
+  - calculo de lineas
+  - resumen de borrador
+  - cuotas saneadas
+  - etiquetas de estado
+  - deteccion de `due soon`, vencido y auto-expiracion
+- Backend compartido nuevo:
+  - `shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql`
+- Regla de negocio reforzada:
+  - `reserve_stock_on_layaway` ya se respeta en `sp_create_layaway(...)`
+  - contratos registran si reservaron stock con `stock_reserved_on_create`
+  - cancelacion/completado solo liberan reserva cuando esa reserva existio
+  - `fn_expire_due_layaways(...)` expira automaticamente contratos activos vencidos con saldo
+- `src/services/layaway.service.js` ahora refresca ese estado operativo antes de:
+  - listar
+  - abrir detalle
+  - cobrar
+  - completar
+- Cobertura agregada:
+  - `src/__tests__/layaway.service.test.js`
+  - `../web/src/utils/__tests__/layawayContract.test.js` como cobertura base de la logica compartida
 
 Fotos de producto:
 

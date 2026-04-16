@@ -7,6 +7,25 @@ class InventoryService {
     this.stockTable = 'stock_balances'
   }
 
+  _normalizeInventoryMove(row) {
+    return {
+      ...row,
+      quantity: Number(row?.abs_qty ?? row?.quantity ?? 0),
+      abs_qty: Number(row?.abs_qty ?? row?.quantity ?? 0),
+      signed_qty: Number(row?.signed_qty ?? row?.quantity ?? 0),
+      location: row?.location_name ? { name: row.location_name } : null,
+      to_location: row?.to_location_name ? { name: row.to_location_name } : null,
+      variant: {
+        sku: row?.sku || null,
+        variant_name: row?.variant_name || null,
+        product: {
+          name: row?.product_name || null,
+        },
+      },
+      created_by_user: row?.created_by_name ? { full_name: row.created_by_name } : null,
+    }
+  }
+
   _getComputedAlertLevel(stockRow) {
     const onHand = Number(stockRow?.on_hand || 0)
     const reserved = Number(stockRow?.reserved || 0)
@@ -125,16 +144,30 @@ class InventoryService {
       const to = from + pageSize - 1
 
       let query = supabaseService.client
-        .from(this.movesTable)
+        .from('vw_kardex')
         .select(`
-          *,
-          location:location_id(name),
-          to_location:to_location_id(name),
-          variant:variant_id(
-            sku, variant_name,
-            product:product_id(name)
-          ),
-          created_by_user:created_by(full_name)
+          tenant_id,
+          location_id,
+          location_name,
+          variant_id,
+          sku,
+          product_id,
+          product_name,
+          variant_name,
+          created_at,
+          move_type,
+          source,
+          source_id,
+          signed_qty,
+          abs_qty,
+          unit_cost,
+          note,
+          created_by,
+          created_by_name,
+          inventory_move_id,
+          to_location_id,
+          to_location_name,
+          is_incoming
         `, { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
@@ -142,13 +175,21 @@ class InventoryService {
 
       if (filters.location_id) query = query.eq('location_id', filters.location_id)
       if (filters.variant_id) query = query.eq('variant_id', filters.variant_id)
-      if (filters.move_type) query = query.eq('move_type', filters.move_type)
+      if (filters.move_type === 'ADJUSTMENT') {
+        query = query.in('move_type', ['ADJUSTMENT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT'])
+      } else if (filters.move_type) {
+        query = query.eq('move_type', filters.move_type)
+      }
       if (filters.from_date) query = query.gte('created_at', filters.from_date)
       if (filters.to_date) query = query.lte('created_at', filters.to_date)
 
       const { data, error, count } = await query
       if (error) throw error
-      return { success: true, data: data || [], total: count || 0 }
+      return {
+        success: true,
+        data: (data || []).map((row) => this._normalizeInventoryMove(row)),
+        total: count || 0,
+      }
     } catch (error) {
       return serviceErrorResult(error, { data: [], total: 0 })
     }
@@ -169,38 +210,22 @@ class InventoryService {
   // Crear movimiento manual (ajuste)
   async createManualAdjustment(tenantId, adjustment) {
     try {
-      // Insertar movimiento
-      const moveData = {
-        tenant_id: tenantId,
-        move_type: 'ADJUSTMENT',
-        location_id: adjustment.location_id,
-        variant_id: adjustment.variant_id,
-        quantity: Math.abs(adjustment.quantity),
-        unit_cost: adjustment.unit_cost || 0,
-        source: 'MANUAL',
-        source_id: null,
-        note: adjustment.note || null,
-        created_by: adjustment.created_by
-      }
-
-      const { data, error } = await supabaseService.insert(this.movesTable, moveData)
-      if (error) throw error
-
-      // Actualizar stock_balances con delta
-      const delta = adjustment.is_increase ? Math.abs(adjustment.quantity) : -Math.abs(adjustment.quantity)
-      const { error: stockErr } = await supabaseService.client.rpc('fn_apply_stock_delta', {
+      const { data, error } = await supabaseService.client.rpc('sp_create_inventory_adjustment', {
         p_tenant: tenantId,
         p_location: adjustment.location_id,
         p_variant: adjustment.variant_id,
-        p_delta: delta
+        p_quantity: Math.abs(Number(adjustment.quantity || 0)),
+        p_unit_cost: Number(adjustment.unit_cost || 0),
+        p_is_increase: adjustment.is_increase !== false,
+        p_created_by: adjustment.created_by || null,
+        p_note: adjustment.note || null,
       })
-
-      if (stockErr) throw stockErr
+      if (error) throw error
       
       // Refrescar alertas después de cambios en stock
       await this.refreshStockAlerts()
       
-      return { success: true, data: data[0] }
+      return { success: true, data }
     } catch (error) {
       return serviceErrorResult(error)
     }
@@ -292,31 +317,22 @@ class InventoryService {
   // Crear ingreso por compra
   async createPurchaseEntry(tenantId, entry) {
     try {
-      const { data, error } = await supabaseService.insert(this.movesTable, {
-        tenant_id: tenantId,
-        move_type: 'PURCHASE_IN',
-        location_id: entry.location_id,
-        variant_id: entry.variant_id,
-        quantity: entry.quantity,
-        unit_cost: entry.unit_cost || 0,
-        source: 'PURCHASE',
-        note: entry.note || null,
-        created_by: entry.created_by
+      const { data, error } = await supabaseService.client.rpc('sp_create_manual_purchase_ingress', {
+        p_tenant: tenantId,
+        p_location: entry.location_id,
+        p_variant: entry.variant_id,
+        p_quantity: Number(entry.quantity || 0),
+        p_unit_cost: Number(entry.unit_cost || 0),
+        p_created_by: entry.created_by || null,
+        p_note: entry.note || null,
       })
 
       if (error) throw error
 
-      await supabaseService.client.rpc('fn_apply_stock_delta', {
-        p_tenant: tenantId,
-        p_location: entry.location_id,
-        p_variant: entry.variant_id,
-        p_delta: entry.quantity
-      })
-
       // Refrescar alertas después de entrada por compra
       await this.refreshStockAlerts()
 
-      return { success: true, data: data[0] }
+      return { success: true, data }
     } catch (error) {
       return serviceErrorResult(error)
     }

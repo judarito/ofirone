@@ -283,6 +283,67 @@
                   ></v-text-field>
                 </v-col>
               </template>
+
+              <v-col cols="12">
+                <v-divider class="my-2"></v-divider>
+                <v-checkbox v-model="hasInstallments" label="Registrar cuotas pactadas" hide-details density="compact"></v-checkbox>
+              </v-col>
+
+              <template v-if="hasInstallments">
+                <v-col cols="12" class="pt-0">
+                  <div class="d-flex justify-space-between align-center mb-2">
+                    <div class="text-subtitle-2">Cuotas</div>
+                    <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="addInstallment">
+                      Agregar cuota
+                    </v-btn>
+                  </div>
+
+                  <div v-if="formData.installments.length === 0" class="text-caption text-grey">
+                    Agrega fechas y montos para dejar el plan de pagos pactado.
+                  </div>
+
+                  <v-row
+                    v-for="(installment, index) in formData.installments"
+                    :key="installment.installment_id"
+                    class="mb-1"
+                  >
+                    <v-col cols="12" md="5">
+                      <v-text-field
+                        v-model="installment.due_date"
+                        type="date"
+                        label="Fecha cuota"
+                        prepend-inner-icon="mdi-calendar-clock"
+                        variant="outlined"
+                        density="compact"
+                        :min="today"
+                      ></v-text-field>
+                    </v-col>
+                    <v-col cols="12" md="5">
+                      <v-text-field
+                        v-model.number="installment.amount"
+                        type="number"
+                        label="Monto"
+                        prepend-inner-icon="mdi-currency-usd"
+                        variant="outlined"
+                        density="compact"
+                        min="0"
+                      ></v-text-field>
+                    </v-col>
+                    <v-col cols="12" md="2" class="d-flex align-center">
+                      <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        color="error"
+                        @click="removeInstallment(index)"
+                      ></v-btn>
+                    </v-col>
+                  </v-row>
+
+                  <div v-if="installmentsSummary.count > 0" class="text-caption text-grey mt-2">
+                    {{ installmentsSummary.count }} cuota(s) · Total pactado {{ formatMoney(installmentsSummary.totalAmount) }}
+                  </div>
+                </v-col>
+              </template>
             </v-row>
           </v-form>
         </v-card-text>
@@ -314,10 +375,18 @@ import paymentMethodsService from '@/services/paymentMethods.service'
 import locationsService from '@/services/locations.service'
 import cashService from '@/services/cash.service'
 import taxesService from '@/services/taxes.service'
-import { calculateDiscount } from '@/utils/discountCalculator'
 import { formatMoney, formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
 import { validateCashSessionForOperation } from '../../../shared/utils/cashSessionUtils'
+import {
+  LAYAWAY_STATUS,
+  calculateLayawayDraftLine,
+  createLayawayInstallmentDraft,
+  getLayawayStatusLabel,
+  sanitizeLayawayInstallments,
+  summarizeLayawayDraftItems,
+  summarizeLayawayInstallments,
+} from '../../../shared/utils/layawayContract'
 
 const { t } = useI18n()
 
@@ -340,6 +409,7 @@ const snackbarColor = ref('success')
 
 const createForm = ref(null)
 const hasInitialPayment = ref(false)
+const hasInstallments = ref(false)
 const locations = ref([])
 const paymentMethods = ref([])
 const currentSession = ref(null)
@@ -362,7 +432,8 @@ const formData = ref({
   location_id: null,
   due_date: null,
   note: '',
-  items: []
+  items: [],
+  installments: [],
 })
 
 const initialPayment = ref({
@@ -372,28 +443,10 @@ const initialPayment = ref({
 })
 
 const contractTotals = computed(() => {
-  let subtotal = 0, discount = 0, tax = 0
-  formData.value.items.forEach(item => {
-    const base = item.qty * item.unit_price
-    subtotal += base
-    // Calcular descuento según tipo
-    const discountAmount = calculateDiscount(
-      base,
-      item.discount || 0,
-      item.discount_type || 'AMOUNT'
-    )
-    discount += discountAmount
-    // Impuesto simplificado al 19% sobre base - descuento
-    const taxBase = base - discountAmount
-    tax += taxBase * 0.19
-  })
-  return {
-    subtotal: Math.round(subtotal),
-    discount: Math.round(discount),
-    tax: Math.round(tax),
-    total: Math.round(subtotal - discount + tax)
-  }
+  return summarizeLayawayDraftItems(formData.value.items)
 })
+
+const installmentsSummary = computed(() => summarizeLayawayInstallments(formData.value.installments))
 
 const rules = {
   required: v => !!v || 'Campo requerido',
@@ -401,18 +454,13 @@ const rules = {
 }
 
 const getStatusColor = (status) => ({
-  ACTIVE: 'success',
-  COMPLETED: 'primary',
-  CANCELLED: 'error',
-  EXPIRED: 'warning'
+  [LAYAWAY_STATUS.ACTIVE]: 'success',
+  [LAYAWAY_STATUS.COMPLETED]: 'primary',
+  [LAYAWAY_STATUS.CANCELLED]: 'error',
+  [LAYAWAY_STATUS.EXPIRED]: 'warning',
 }[status] || 'grey')
 
-const getStatusLabel = (status) => ({
-  ACTIVE: 'Activo',
-  COMPLETED: 'Completado',
-  CANCELLED: 'Cancelado',
-  EXPIRED: 'Expirado'
-}[status] || status)
+const getStatusLabel = (status) => getLayawayStatusLabel(status)
 
 const loadContracts = async ({ page, pageSize, search, tenantId: tid }) => {
   if (!tid) return
@@ -440,7 +488,8 @@ const openCreateDialog = () => {
     location_id: locations.value[0]?.location_id || null,
     due_date: null,
     note: '',
-    items: []
+    items: [],
+    installments: [],
   }
   initialPayment.value = {
     payment_method_code: paymentMethods.value[0]?.code || '',
@@ -448,6 +497,7 @@ const openCreateDialog = () => {
     reference: ''
   }
   hasInitialPayment.value = false
+  hasInstallments.value = false
   createDialog.value = true
 }
 
@@ -455,6 +505,17 @@ const closeCreateDialog = () => {
   createDialog.value = false
   searchTerm.value = ''
   searchResults.value = []
+}
+
+const addInstallment = () => {
+  formData.value.installments.push(createLayawayInstallmentDraft())
+}
+
+const removeInstallment = (index) => {
+  formData.value.installments.splice(index, 1)
+  if (formData.value.installments.length === 0) {
+    hasInstallments.value = false
+  }
 }
 
 const searchCustomer = async (search) => {
@@ -521,7 +582,6 @@ const addProduct = async (variant) => {
     total: parseFloat(variant.price) || 0
   }
   
-  // 🆕 NUEVO: Calcular impuestos antes de agregar
   await recalculateItem(item)
   
   formData.value.items.push(item)
@@ -536,58 +596,9 @@ const removeProduct = (index) => {
 
 const recalculateItem = async (item) => {
   if (!tenantId.value || !item.variant_id) return
-  
-  // 1. Calcular subtotal
-  const subtotal = item.qty * item.unit_price
-  
-  // 2. Calcular descuento
-  const discountAmount = calculateDiscount(
-    subtotal,
-    item.discount || 0,
-    item.discount_type || 'AMOUNT'
-  )
-  
-  // 3. Precio después de descuento
-  const priceAfterDiscount = subtotal - discountAmount
-  if (priceAfterDiscount < 0) {
-    item.total = 0
-    item.tax_amount = 0
-    return
-  }
-  
-  // 4. Obtener información del impuesto
+
   const taxResult = await taxesService.getTaxInfoForVariant(tenantId.value, item.variant_id)
-  
-  if (taxResult.success && taxResult.rate) {
-    item.tax_rate = taxResult.rate
-    
-    // 5. 🆕 NUEVA LÓGICA: Calcular según si el precio incluye o no IVA
-    if (item.price_includes_tax) {
-      // IVA INCLUIDO: descomponer
-      const total = priceAfterDiscount
-      const base = total / (1 + item.tax_rate)
-      const tax = total - base
-      
-      item.base_amount = Math.round(base)
-      item.tax_amount = Math.round(tax)
-      item.total = Math.round(total)
-    } else {
-      // IVA ADICIONAL: agregar
-      const base = priceAfterDiscount
-      const tax = base * item.tax_rate
-      const total = base + tax
-      
-      item.base_amount = Math.round(base)
-      item.tax_amount = Math.round(tax)
-      item.total = Math.round(total)
-    }
-  } else {
-    // Sin impuesto
-    item.base_amount = Math.round(priceAfterDiscount)
-    item.tax_amount = 0
-    item.tax_rate = 0
-    item.total = Math.round(priceAfterDiscount)
-  }
+  Object.assign(item, calculateLayawayDraftLine(item, taxResult))
 }
 
 const createContract = async () => {
@@ -627,6 +638,10 @@ const createContract = async () => {
       cash_session_id: currentSession.value?.cash_session_id || null
     } : null
 
+    const installments = hasInstallments.value
+      ? sanitizeLayawayInstallments(formData.value.installments)
+      : []
+
     const r = await layawayService.createLayaway(tenantId.value, {
       location_id: formData.value.location_id,
       customer_id: formData.value.customer_id,
@@ -635,7 +650,7 @@ const createContract = async () => {
       due_date: formData.value.due_date || null,
       note: formData.value.note || null,
       initial_payment,
-      installments: null // Por ahora no se implementan cuotas en la UI
+      installments: installments.length > 0 ? installments : null
     })
 
     if (r.success) {

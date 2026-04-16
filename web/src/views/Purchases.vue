@@ -139,22 +139,22 @@
 
       <!-- Titulo del item -->
       <template #title="{ item }">
-        {{ item.product_name }}{{ item.variant_name ? ' - ' + item.variant_name : '' }}
+        {{ item.items_summary || 'Compra' }}
       </template>
 
       <!-- Subtitulo -->
       <template #subtitle="{ item }">
-        {{ formatDate(item.purchased_at) }} � {{ item.purchased_by_name }} � {{ item.location_name }}
+        {{ formatDate(item.purchased_at) }} • {{ item.purchased_by_name }} • {{ item.location_name }}
       </template>
 
       <!-- Contenido -->
       <template #content="{ item }">
         <div class="mt-2 d-flex flex-wrap ga-2">
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-barcode">SKU: {{ item.sku }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-numeric" color="info">Cant: {{ item.quantity }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-cash" color="primary">Costo: {{ formatMoney(item.unit_cost) }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-currency-usd" color="success">Total: {{ formatMoney(item.line_total) }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-tag" color="orange">Precio: {{ formatMoney(item.current_price) }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-truck">{{ item.supplier_name || 'Sin proveedor' }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-barcode">SKU: {{ item.sku || '-' }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-package-variant" color="info">Items: {{ item.items_count || 0 }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-numeric" color="info">Cant: {{ item.qty_total || 0 }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-currency-usd" color="success">Total: {{ formatMoney(item.total) }}</v-chip>
         </div>
         <div class="mt-2 text-caption text-grey">
           <v-icon size="small">mdi-cursor-default-click</v-icon>
@@ -2341,16 +2341,7 @@ const viewPurchaseDetail = async (item) => {
   if (!tenantId.value || !item.purchase_id) return
 
   try {
-    const { data: moveData, error: moveError } = await supabaseService.client
-      .from('inventory_moves')
-      .select('source_id')
-      .eq('inventory_move_id', item.purchase_id)
-      .eq('tenant_id', tenantId.value)
-      .single()
-
-    if (moveError) throw moveError
-
-    await openPurchaseDetailByPurchaseId(moveData.source_id)
+    await openPurchaseDetailByPurchaseId(item.purchase_id)
   } catch (error) {
     showMsg('Error al abrir detalle de compra: ' + error.message, 'error')
   }

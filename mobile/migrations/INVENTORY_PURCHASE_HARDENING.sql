@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql

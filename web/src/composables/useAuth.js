@@ -3,6 +3,7 @@ import { supabase } from '@/plugins/supabase'
 import supabaseService from '@/services/supabase.service'
 import router from '@/router'
 import { useTenant } from './useTenant'
+import { clearRecoveryIntent, persistRecoveryIntent } from '@/utils/authRecovery'
 import queryCache from '@/utils/queryCache'
 
 // Estado global de autenticación
@@ -10,6 +11,35 @@ const user = ref(null)
 const session = ref(null)
 const loading = ref(false)
 const userProfile = ref(null) // Datos del usuario desde la tabla users
+
+function normalizeAbsoluteUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  try {
+    return new URL(raw).toString()
+  } catch (_error) {
+    return ''
+  }
+}
+
+function resolvePasswordRecoveryRedirectUrl() {
+  const configuredRecoveryUrl = normalizeAbsoluteUrl(import.meta.env.VITE_AUTH_RECOVERY_URL)
+  if (configuredRecoveryUrl) return configuredRecoveryUrl
+
+  const configuredAppUrl = normalizeAbsoluteUrl(
+    import.meta.env.VITE_APP_URL || import.meta.env.VITE_PUBLIC_APP_URL,
+  )
+  if (configuredAppUrl) {
+    return `${configuredAppUrl.replace(/\/+$/, '')}/login`
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/login`
+  }
+
+  return ''
+}
 
 // Obtener datos del usuario desde la tabla users
 async function fetchUserProfile(authUserId) {
@@ -116,6 +146,19 @@ function setupAuthListener() {
     // porque Supabase bloquea llamadas auth concurrentes dentro del listener
     session.value = currentSession
     user.value = currentSession?.user ?? null
+
+    if (event === 'PASSWORD_RECOVERY') {
+      persistRecoveryIntent()
+      setTimeout(() => {
+        const currentRoute = router.currentRoute.value
+        const isLoginRoute = currentRoute?.path === '/login'
+        const alreadyMarked = currentRoute?.query?.recovery === '1'
+        if (!isLoginRoute || !alreadyMarked) {
+          router.replace({ path: '/login', query: { recovery: '1' } })
+        }
+      }, 0)
+      return
+    }
 
     if (event === 'SIGNED_OUT' || (!currentSession && event !== 'INITIAL_SESSION')) {
       handleSessionExpired()
@@ -276,6 +319,7 @@ export const useAuth = () => {
       session.value = null
       user.value = null
       userProfile.value = null
+      clearRecoveryIntent()
       supabaseService.invalidateSessionCache()
       queryCache.clearAll()
 
@@ -299,9 +343,10 @@ export const useAuth = () => {
   const resetPassword = async (email) => {
     loading.value = true
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`
-      })
+      const redirectTo = resolvePasswordRecoveryRedirectUrl()
+      const { error } = redirectTo
+        ? await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+        : await supabase.auth.resetPasswordForEmail(email)
 
       if (error) throw error
 
