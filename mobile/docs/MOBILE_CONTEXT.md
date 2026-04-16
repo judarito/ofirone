@@ -1,7 +1,7 @@
 # Contexto Tecnico - POSLite Mobile
 
-Fecha: 2026-03-07  
-Estado: Documento base de contexto para desarrollo diario
+Fecha: 2026-04-16  
+Estado: Documento base de contexto para desarrollo diario, actualizado con la regla de backend Supabase compartido
 
 ## 1) Proposito
 
@@ -31,6 +31,30 @@ POSLite Mobile es la app React Native (Expo) para operacion de punto de venta mu
   - Mapeo de rutas/menu y configuracion de pantallas soportadas.
 - `src/lib/*`
   - Cliente Supabase, contexto de tema y utilidades transversales.
+- `../shared/supabase/*`
+  - Fuente canonica del backend Supabase compartido con `web`.
+  - Cuando una migracion o Edge Function compartida cambie, se edita primero ahi.
+
+## 3.1) Regla nueva de backend compartido
+
+- El backend Supabase comun ya no debe mantenerse en paralelo dentro de `mobile/` y `web/`.
+- La fuente canonica de lo compartido ahora vive en:
+  - `shared/supabase/migrations`
+  - `shared/supabase/functions`
+- En `mobile/` se conservan rutas historicas para despliegue y referencia, pero los artefactos compartidos ahora apuntan por symlink a `shared/supabase`.
+- Script operativo:
+  - `scripts/sync-shared-supabase.sh link`
+  - `scripts/sync-shared-supabase.sh check`
+  - `scripts/sync-shared-supabase.sh sync` como fallback si el entorno no soporta bien symlinks
+- Edge Functions compartidas canonizadas:
+  - `create-tenant-user`
+  - `chat-order-parser`
+- Edge Functions que siguen siendo ownership especifico de mobile:
+  - `deepseek-ocr-proxy`
+  - `ops-rag-agent`
+  - `product-photo-analyzer`
+  - `product-photo-parser`
+  - `push-dispatcher`
 
 ## 4) Flujo de inicio (bootstrap)
 
@@ -118,4 +142,3 @@ Notas:
 - `docs/MOBILE_IMPLEMENTATION_CHECKLIST.md`
 - `docs/MOBILE_RD_REACT_NATIVE.md`
 - `docs/CORE_POS_EVOLUTION_SUMMARY.md`
-

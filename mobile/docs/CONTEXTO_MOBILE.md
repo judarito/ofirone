@@ -1,6 +1,6 @@
 # CONTEXTO_MOBILE
 
-Fecha: 2026-04-12
+Fecha: 2026-04-15
 Proyecto: POSLite Mobile / OfirOne
 Estado: Contexto operativo consolidado para trabajo diario
 
@@ -14,6 +14,57 @@ Regla de trabajo:
 - si se crea, migra, elimina o cambia el alcance de un modulo, este documento debe ajustarse
 - si cambia el flujo de navegacion, offline, sincronizacion, IA, tema o integraciones, este documento debe ajustarse
 - este archivo debe tratarse como fuente de contexto vivo para onboarding y desarrollo diario
+
+## Actualizacion reciente (2026-04-15) — BatchManagement y Setup dejan de ser vistas basicas
+
+### Gestion de lotes mas cercana a web
+
+- `src/screens/BatchesScreen.js` ya no solo lista lotes.
+- Ahora incorpora tres carriles operativos:
+  - `Lotes`
+  - `Alertas`
+  - `Reportes`
+- La pantalla ahora permite:
+  - filtrar por sede, nivel de alerta y numero de lote
+  - crear lotes manuales
+  - editar lotes existentes
+  - autogenerar `batch_number`
+  - abrir trazabilidad por lote
+  - consultar dashboard de vencimientos por sede
+  - consultar top de productos en riesgo
+- La logica nueva queda concentrada en `src/services/batches.service.js`, con soporte para:
+  - listado administrable con cache offline
+  - generacion de numero de lote via `fn_generate_batch_number`
+  - lectura de `vw_expiring_products`
+  - lectura de `vw_expiration_dashboard`
+  - lectura de `vw_batch_traceability`
+- Cobertura agregada:
+  - `src/__tests__/batches.service.test.js`
+
+### Setup convertido en onboarding operativo real
+
+- `src/screens/SetupScreen.js` ya no es solo un lanzador de modulos.
+- Ahora muestra:
+  - progreso esencial del tenant
+  - procesos operativos
+  - siguiente accion sugerida
+  - checklist por frente (`ventas`, `compras`, `caja`, `inventario`)
+  - origen de datos (`server` o `cache`)
+- La evaluacion del estado del tenant vive ahora en `src/services/setupAssistant.service.js`.
+- `App.js` ahora pasa `tenant` y `offlineMode` a `SetupScreen`, habilitando lectura real del contexto.
+- Cobertura agregada:
+  - `src/__tests__/setupAssistant.service.test.js`
+
+### Estado de paridad vigente despues de esta tanda
+
+- diferencias cerradas o muy reducidas:
+  - gestion operativa de lotes
+  - reportes compactos de vencimiento
+  - onboarding guiado por estado real del tenant
+- diferencias intencionales mantenidas:
+  - contabilidad avanzada sigue `web-only`
+  - billing/suscripcion avanzada sigue fuera de mobile
+  - modo offline sigue siendo capacidad propia de mobile
 
 ## Actualizacion reciente (2026-04-12) — navegacion y semantica alineadas con web
 
@@ -1176,6 +1227,32 @@ Antes de tocar codigo sensible, conviene asumir estas reglas practicas:
 - en flujos de POS, ventas, OCR o voz, probar en dispositivo/build nativo cuando aplique
 
 ## 16. Novedades recientes relevantes
+
+Backend Supabase compartido:
+
+- El backend Supabase comun entre `web` y `mobile` ya no vive duplicado fisicamente en ambas apps.
+- La fuente canonica ahora vive en:
+  - `shared/supabase/migrations`
+  - `shared/supabase/functions`
+- Estado actual:
+  - `145` migraciones comunes quedaron reconciliadas y sin divergencias entre apps
+  - `2` Edge Functions compartidas quedaron canonizadas:
+    - `create-tenant-user`
+    - `chat-order-parser`
+- En `mobile/` se mantienen las rutas historicas para no romper despliegues ni referencias, pero los archivos compartidos ahora apuntan por symlink a `shared/supabase`.
+- Script operativo del monorepo:
+  - `scripts/sync-shared-supabase.sh link`
+  - `scripts/sync-shared-supabase.sh check`
+  - `scripts/sync-shared-supabase.sh sync` si algun entorno no tolera symlinks
+- Regla de mantenimiento:
+  - si un archivo aparece en `shared/supabase/shared-migrations.txt` o `shared/supabase/shared-functions.txt`, se edita primero en `shared/supabase`
+  - no editar directamente el equivalente dentro de `mobile/` salvo que se este corrigiendo un problema de enlace o despliegue
+- Lo que sigue siendo backend especifico de mobile:
+  - `supabase/functions/deepseek-ocr-proxy`
+  - `supabase/functions/ops-rag-agent`
+  - `supabase/functions/product-photo-analyzer`
+  - `supabase/functions/product-photo-parser`
+  - `supabase/functions/push-dispatcher`
 
 Fotos de producto:
 

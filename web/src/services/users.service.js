@@ -1,4 +1,9 @@
 import { supabase } from '@/plugins/supabase'
+import { humanizeAppError } from '@/utils/appErrors'
+import {
+  changeTenantUserPasswordWithAuth,
+  createTenantUserWithAuth,
+} from '../../../shared/utils/tenantUserAdmin'
 
 /**
  * Obtener usuarios del tenant con paginación
@@ -138,26 +143,19 @@ export async function getUserById(tenantId, userId) {
 /**
  * Crear usuario (Supabase Auth + tabla users + roles)
  */
-export async function createUser({ email, password, full_name, roleIds = [], is_active = true }) {
+export async function createUser({ tenantId = null, email, password, full_name, roleIds = [], is_active = true }) {
   try {
-    // 1. Crear usuario en Supabase Auth usando la función admin
-    const { data: authData, error: authError } = await supabase.rpc('create_auth_user', {
-      p_email: email,
-      p_password: password,
-      p_full_name: full_name,
-      p_role_ids: roleIds,
-      p_is_active: is_active
+    return await createTenantUserWithAuth(supabase, {
+      tenantId,
+      email,
+      password,
+      full_name,
+      roleIds,
+      is_active,
     })
-
-    if (authError) {
-      console.error('Error al crear usuario:', authError)
-      throw authError
-    }
-
-    return authData
   } catch (error) {
     console.error('Error en createUser:', error)
-    throw error
+    throw new Error(humanizeAppError(error, { defaultMessage: 'No se pudo crear el usuario.' }))
   }
 }
 
@@ -255,22 +253,16 @@ export async function deleteUser(tenantId, userId) {
 /**
  * Cambiar contraseña de un usuario
  */
-export async function changeUserPassword(authUserId, newPassword) {
+export async function changeUserPassword(authUserId, newPassword, tenantId = null) {
   try {
-    const { data, error } = await supabase.rpc('change_user_password', {
-      p_auth_user_id: authUserId,
-      p_new_password: newPassword
+    return await changeTenantUserPasswordWithAuth(supabase, {
+      tenantId,
+      authUserId,
+      newPassword,
     })
-
-    if (error) {
-      console.error('Error al cambiar contraseña:', error)
-      throw error
-    }
-
-    return data
   } catch (error) {
     console.error('Error en changeUserPassword:', error)
-    throw error
+    throw new Error(humanizeAppError(error, { defaultMessage: 'No se pudo cambiar la contraseña.' }))
   }
 }
 

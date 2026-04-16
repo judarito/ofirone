@@ -14,6 +14,7 @@ import SearchableSelectField from '../components/SearchableSelectField';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useThemeMode } from '../lib/themeMode';
 import { humanizeAppError } from '../../../shared/utils/appErrors';
+import { getBomComponentLineCost, getBomEstimatedCost } from '../../../shared/utils/manufacturing';
 import { getBOMById, listBoms } from '../services/inventoryCatalog.service';
 
 const TYPE_FILTER_OPTIONS = [
@@ -35,10 +36,7 @@ function BOMDetailModal({ bom, visible, onClose, isLight }) {
   const components = bom?.bom_components || [];
 
   // Costo total estimado (suma unit_cost × qty × (1 + waste%))
-  const totalCost = components.reduce((acc, comp) => {
-    const wasteMultiplier = 1 + (comp.waste_percentage || 0) / 100;
-    return acc + (comp.component_variant?.cost || 0) * comp.quantity_required * wasteMultiplier;
-  }, 0);
+  const totalCost = getBomEstimatedCost(components);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -75,8 +73,11 @@ function BOMDetailModal({ bom, visible, onClose, isLight }) {
                   Componentes ({components.length})
                 </Text>
                 {components.map((comp, idx) => {
-                  const wasteMultiplier = 1 + (comp.waste_percentage || 0) / 100;
-                  const lineCost = (comp.component_variant?.cost || 0) * comp.quantity_required * wasteMultiplier;
+                  const lineCost = getBomComponentLineCost(
+                    comp.component_variant?.cost || 0,
+                    comp.quantity_required,
+                    comp.waste_percentage || 0,
+                  );
                   return (
                     <View key={comp.component_id || idx} style={[s.compRow, isLight && s.compRowLight]}>
                       <View style={{ flex: 1 }}>

@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase';
+import { ensureTenantBillingFeature } from './tenantBilling.service';
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
 
 const OCR_EDGE_FUNCTION = process.env.EXPO_PUBLIC_DEEPSEEK_OCR_EDGE_FUNCTION || 'deepseek-ocr-proxy';
 const TEXT_EDGE_FUNCTION = process.env.EXPO_PUBLIC_DEEPSEEK_TEXT_EDGE_FUNCTION || 'deepseek-proxy';
@@ -257,6 +259,12 @@ export async function analyzeInvoiceWithText({ tenantId, ocrText }) {
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.' };
   }
+  const billingAccess = await ensureTenantBillingFeature(tenantId, BILLING_FEATURE_CODES.OCR_IMPORT, {
+    featureLabel: 'OCR de facturas',
+  });
+  if (!billingAccess.success) {
+    return { success: false, error: billingAccess.error };
+  }
   const extractedText = String(ocrText || '').trim();
   if (!extractedText) {
     return { success: false, error: 'No hay texto OCR para analizar.' };
@@ -348,6 +356,12 @@ Texto OCR:
 export async function analyzeInvoiceWithImage({ tenantId, imageBase64, mimeType = 'image/jpeg' }) {
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.' };
+  }
+  const billingAccess = await ensureTenantBillingFeature(tenantId, BILLING_FEATURE_CODES.OCR_IMPORT, {
+    featureLabel: 'OCR de facturas',
+  });
+  if (!billingAccess.success) {
+    return { success: false, error: billingAccess.error };
   }
   if (!imageBase64) {
     return { success: false, error: 'No hay imagen en base64 para analizar.' };

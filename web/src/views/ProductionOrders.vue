@@ -348,6 +348,21 @@
               <div class="text-body-1 font-weight-bold text-success">{{ selectedOrder.quantity_produced }}</div>
             </v-col>
 
+            <v-col v-if="selectedOrder.estimated_cost" cols="12" md="6">
+              <div class="text-caption text-medium-emphasis">Costo Teórico:</div>
+              <div class="text-body-1">${{ (selectedOrder.estimated_cost || 0).toLocaleString() }}</div>
+            </v-col>
+
+            <v-col v-if="selectedOrder.actual_cost" cols="12" md="6">
+              <div class="text-caption text-medium-emphasis">Costo Real Total:</div>
+              <div class="text-body-1 font-weight-bold">${{ (selectedOrder.actual_cost || 0).toLocaleString() }}</div>
+            </v-col>
+
+            <v-col v-if="selectedOrder.actual_unit_cost" cols="12" md="6">
+              <div class="text-caption text-medium-emphasis">Costo Real Unitario:</div>
+              <div class="text-body-1 font-weight-bold">${{ (selectedOrder.actual_unit_cost || 0).toLocaleString() }}</div>
+            </v-col>
+
             <v-col v-if="selectedOrder.scheduled_start" cols="12" md="6">
               <div class="text-caption text-medium-emphasis">Programada:</div>
               <div class="text-body-2">{{ formatDateTime(selectedOrder.scheduled_start) }}</div>
@@ -458,6 +473,10 @@ import ListView from '@/components/ListView.vue'
 import manufacturingService from '@/services/manufacturing.service'
 import locationsService from '@/services/locations.service'
 import { humanizeAppError } from '@/utils/appErrors'
+import {
+  getBomEstimatedCost,
+  normalizeAvailabilityResult,
+} from '../../../shared/utils/manufacturing'
 
 export default {
   name: 'ProductionOrders',
@@ -619,9 +638,7 @@ export default {
             bom_id: bom.bom_id,
             display_name: `${bom.bom_name} - ${bom.product?.name || bom.variant?.variant_name}`,
             components_count: bom.bom_components?.length || 0,
-            estimated_cost: bom.bom_components?.reduce((sum, c) => 
-              sum + (c.quantity_required * (c.component_variant?.cost || 0)), 0
-            ) || 0
+            estimated_cost: getBomEstimatedCost(bom.bom_components || [])
           }))
         }
       } catch (error) {
@@ -641,13 +658,7 @@ export default {
         )
 
         if (result.success) {
-          componentAvailability.value = result.data.map(c => ({
-            component_variant_id: c.component_variant_id,
-            component_name: c.component_name || 'Sin nombre',
-            required_quantity: c.required_quantity,
-            available_quantity: c.available_quantity,
-            is_sufficient: c.is_sufficient
-          }))
+          componentAvailability.value = normalizeAvailabilityResult(result.data).components
         }
       } catch (error) {
         console.error('Error validating BOM availability:', error)

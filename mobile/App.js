@@ -42,6 +42,11 @@ import {
   normalizeMenuRoute,
 } from './src/navigation/menuMapper';
 import {
+  filterMenuTreeByBilling,
+  getBillingScreenAccess,
+  isOfflineModeAllowed,
+} from '../shared/utils/billingAccess';
+import {
   getMobileAppBarTitle,
   isMobileScreenSupported,
   resolveReportsInitialTab,
@@ -107,6 +112,7 @@ import LocationsScreen from './src/screens/LocationsScreen';
 import PricingRulesScreen from './src/screens/PricingRulesScreen';
 import UsersScreen from './src/screens/UsersScreen';
 import RolesMenusScreen from './src/screens/RolesMenusScreen';
+import { getTenantBillingSummary } from './src/services/tenantBilling.service';
 import { useConnectivity } from './src/hooks/useConnectivity';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useSync } from './src/hooks/useSync';
@@ -226,7 +232,13 @@ function resolveMenuAccent(item) {
 }
 
 const HOME_BAR_COLORS = HOME_BAR_THEME_COLORS;
-const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'AIInsights', 'HelpCenter', 'Settings']);
+const ALWAYS_ALLOWED_SCREENS = new Set(['Home', 'About', 'HelpCenter', 'Settings']);
+const BILLING_FEATURE_LABELS = {
+  AI_ASSISTANT: 'este módulo de IA',
+  ADVANCED_REPORTS: 'reportes avanzados',
+  OCR_IMPORT: 'importación OCR',
+  POS_CORE: 'operación comercial',
+};
 
 const ActiveModuleScreen = memo(function ActiveModuleScreen({
   currentScreen,
@@ -320,7 +332,15 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
         />
       );
     case 'Products':
-      return <ProductsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
+      return (
+        <ProductsScreen
+          tenant={tenant}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+          pageSize={pageSize}
+          onOpenScreen={navigateToScreen}
+        />
+      );
     case 'Categories':
       return <CategoriesScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} pageSize={pageSize} />;
     case 'Units':
@@ -393,7 +413,14 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
     case 'AIInsights':
       return <AIInsightsScreen tenant={tenant} themeMode={themeMode} offlineMode={offlineMode} />;
     case 'Setup':
-      return <SetupScreen onOpenScreen={navigateToScreen} themeMode={themeMode} />;
+      return (
+        <SetupScreen
+          tenant={tenant}
+          onOpenScreen={navigateToScreen}
+          themeMode={themeMode}
+          offlineMode={offlineMode}
+        />
+      );
     case 'Settings':
       return (
         <SettingsScreen
@@ -503,6 +530,7 @@ function AppContent() {
   const [userProfile, setUserProfile] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [tenantSettings, setTenantSettings] = useState({});
+  const [billingSummary, setBillingSummary] = useState(null);
   const [lastMenuAction, setLastMenuAction] = useState('');
   const [currentScreen, setCurrentScreen] = useState('Home');
   const [screenHistory, setScreenHistory] = useState([]);
@@ -568,6 +596,21 @@ function AppContent() {
   const allowedMenuRoutes = useMemo(() => collectAllowedMenuRoutes(rawMenuTree), [rawMenuTree]);
   const allowedMenuScreens = useMemo(() => collectAllowedMobileScreens(rawMenuTree), [rawMenuTree]);
   const menuScreenRouteHints = useMemo(() => collectMenuScreenRouteHints(rawMenuTree), [rawMenuTree]);
+  const billingAwareMenuTree = useMemo(
+    () => filterMenuTreeByBilling(billingSummary, menuTree),
+    [billingSummary, menuTree],
+  );
+
+  const buildBillingBlockedText = useCallback((screenName, access = {}) => {
+    if (access?.restriction === 'feature') {
+      const label = BILLING_FEATURE_LABELS[access.featureCode] || getMobileAppBarTitle(screenName);
+      return `Tu plan actual no incluye ${label}.`;
+    }
+    if (access?.restriction === 'sales') {
+      return 'Tu suscripción actual no permite operar ventas en este momento.';
+    }
+    return `Tu suscripción actual no permite usar ${getMobileAppBarTitle(screenName)}.`;
+  }, []);
 
   const handleMenuDisplayModeChange = useCallback((nextMode) => {
     const normalized = normalizeMenuDisplayMode(nextMode);
@@ -596,6 +639,10 @@ function AppContent() {
     return true;
   }, [allowedMenuRoutes, allowedMenuScreens, menuScreenRouteHints]);
 
+  const canAccessScreenByBilling = useCallback((screenName, routeHint = '') => {
+    return getBillingScreenAccess(billingSummary, screenName, { routeHint }).allowed;
+  }, [billingSummary]);
+
   const navigateToScreen = useCallback((nextScreen, options = {}) => {
     const { reset = false, routeHint = '', denyMessage = '' } = options;
     const target = String(nextScreen || '').trim();
@@ -606,6 +653,14 @@ function AppContent() {
         denyMessage || buildNoAccessModuleText(getMobileAppBarTitle(target)),
       );
       return false;
+    }
+
+    if (!reset) {
+      const billingAccess = getBillingScreenAccess(billingSummary, target, { routeHint });
+      if (!billingAccess.allowed) {
+        setError(buildBillingBlockedText(target, billingAccess));
+        return false;
+      }
     }
 
     if (reset) {
@@ -620,7 +675,7 @@ function AppContent() {
       return target;
     });
     return true;
-  }, [canAccessScreenByMenu]);
+  }, [billingSummary, buildBillingBlockedText, canAccessScreenByMenu]);
 
   const resetToHome = useCallback(() => {
     setScreenHistory([]);
@@ -648,6 +703,7 @@ function AppContent() {
     setTenant(null);
     resetDashboard();
     setTenantSettings({});
+    setBillingSummary(null);
     setRawMenuTree([]);
     setMenuTree([]);
     setMenuCachedAt('');
@@ -658,6 +714,26 @@ function AppContent() {
     resetToHome();
     setReportsInitialTab('sales');
   }, [resetToHome, resetDashboard, resetNotifications]);
+
+  const loadBillingSummaryForTenant = async (tenantId, { forceOffline = false } = {}) => {
+    if (!tenantId) {
+      setBillingSummary(null);
+      return null;
+    }
+
+    const result = await getTenantBillingSummary(tenantId, {
+      offlineMode: forceOffline || offlineMode,
+    });
+
+    if (result.success) {
+      const summary = result.data || null;
+      setBillingSummary(summary);
+      return summary;
+    }
+
+    setBillingSummary(null);
+    return null;
+  };
 
   const applyThemeFromLocalCache = async (cachedAuth = null) => {
     const cached = cachedAuth || (await getAuthCache());
@@ -735,6 +811,7 @@ function AppContent() {
         if (hasCachedProfile && mounted) {
           setUserProfile(cached.userProfile);
           setTenant(cached.tenant);
+          loadBillingSummaryForTenant(cached?.tenant?.tenant_id, { forceOffline: true }).catch(() => {});
           // bootingFromCache=true evita que "!session && !offlineMode" muestre Login
           // sin tocar offlineMode, así no se disparan los effects que lo escuchan.
           setBootingFromCache(true);
@@ -967,16 +1044,25 @@ function AppContent() {
 
   useEffect(() => {
     if (ALWAYS_ALLOWED_SCREENS.has(currentScreen)) return;
-    if (canAccessScreenByMenu(currentScreen)) return;
-    setError(buildNoAccessLabelText(getMobileAppBarTitle(currentScreen)));
+    if (!canAccessScreenByMenu(currentScreen)) {
+      setError(buildNoAccessLabelText(getMobileAppBarTitle(currentScreen)));
+      resetToHome();
+      setMenuOpen(false);
+      return;
+    }
+
+    const billingAccess = getBillingScreenAccess(billingSummary, currentScreen);
+    if (billingAccess.allowed) return;
+
+    setError(buildBillingBlockedText(currentScreen, billingAccess));
     resetToHome();
     setMenuOpen(false);
-  }, [currentScreen, canAccessScreenByMenu, resetToHome]);
+  }, [billingSummary, buildBillingBlockedText, currentScreen, canAccessScreenByMenu, resetToHome]);
 
   const userEmail = useMemo(() => session?.user?.email ?? '', [session]);
   const homeQuickActions = useMemo(() => {
     const flat = [];
-    (menuTree || []).forEach((section) => {
+    (billingAwareMenuTree || []).forEach((section) => {
       if (section.supportedOnMobile && section.targetScreen && section.targetScreen !== 'Home') {
         flat.push({
           code: section.code || section.targetScreen,
@@ -1005,7 +1091,7 @@ function AppContent() {
       unique.push(item);
     });
     return unique.slice(0, 12);
-  }, [menuTree]);
+  }, [billingAwareMenuTree]);
   const homePrimaryActions = useMemo(() => {
     const preferredTargets = ['Products', 'ThirdParties', 'Inventory', 'Reports'];
     const byTarget = new Map();
@@ -1476,6 +1562,7 @@ function AppContent() {
         forceOffline: false,
         userId: enriched?.user_id,
       });
+      await loadBillingSummaryForTenant(tenantData?.tenant_id, { forceOffline: false });
       await loadDashboard(tenantData?.tenant_id);
       // Fire-and-forget: el calentamiento de cache es best-effort y no debe bloquear el arranque
       warmCriticalOfflineCaches(tenantData?.tenant_id, enriched?.user_id);
@@ -1496,6 +1583,7 @@ function AppContent() {
       setTenant(null);
       resetDashboard();
       setTenantSettings({});
+      setBillingSummary(null);
       setRawMenuTree([]);
       setMenuTree([]);
       setMenuCachedAt('');
@@ -1599,6 +1687,7 @@ function AppContent() {
       setOfflineAvailable(false);
       setCachedAt('');
       setTenantSettings({});
+      setBillingSummary(null);
       setRawMenuTree([]);
       setMenuTree([]);
       setMenuCachedAt('');
@@ -1630,6 +1719,7 @@ function AppContent() {
     setOfflineAvailable(false);
     setCachedAt('');
     setTenantSettings({});
+    setBillingSummary(null);
     setRawMenuTree([]);
     resetToHome();
     setReportsInitialTab('sales');
@@ -1654,6 +1744,16 @@ function AppContent() {
     }
     setUserProfile(cached.userProfile);
     setTenant(cached.tenant);
+    const offlineBillingSummary = await loadBillingSummaryForTenant(cached?.tenant?.tenant_id, {
+      forceOffline: true,
+    });
+    if (offlineBillingSummary && !isOfflineModeAllowed(offlineBillingSummary)) {
+      setUserProfile(null);
+      setTenant(null);
+      setBillingSummary(null);
+      setError('Tu plan actual no incluye operación offline.');
+      return;
+    }
     await loadTenantConfig(cached?.tenant?.tenant_id, {
       forceOffline: true,
       userId: cached?.userProfile?.user_id,
@@ -1690,6 +1790,7 @@ function AppContent() {
     setOfflineAvailable(false);
     setCachedAt('');
     setTenantSettings({});
+    setBillingSummary(null);
     setRawMenuTree([]);
     setMenuTree([]);
     setMenuCachedAt('');
@@ -1768,7 +1869,7 @@ function AppContent() {
       <MenuDrawer
         visible={menuOpen}
         isLightTheme={isLightTheme}
-        menuTree={menuTree}
+        menuTree={billingAwareMenuTree}
         menuDisplayMode={menuDisplayMode}
         expandedSections={expandedSections}
         userProfile={userProfile}
@@ -1781,7 +1882,9 @@ function AppContent() {
         onMenuDisplayModeChange={handleMenuDisplayModeChange}
         onMenuAction={handleMenuAction}
         onToggleSection={toggleSection}
-        canAccessScreenByMenu={canAccessScreenByMenu}
+        canAccessScreenByMenu={(screenName, routeHint = '') => (
+          canAccessScreenByMenu(screenName, routeHint) && canAccessScreenByBilling(screenName, routeHint)
+        )}
         resolveMenuAccent={resolveMenuAccent}
         resolveMenuIcon={resolveMenuIcon}
       />

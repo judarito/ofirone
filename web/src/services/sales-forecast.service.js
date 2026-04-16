@@ -6,6 +6,8 @@
 
 import AICacheManager from '../utils/aiCache.js';
 import { supabase } from '@/plugins/supabase';
+import tenantBillingService from './tenantBilling.service';
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
 
 const DEEPSEEK_MODEL = 'deepseek-chat';
 const CACHE_TTL_HOURS = 24; // Caché de 24 horas para pronósticos
@@ -28,6 +30,15 @@ class SalesForecastService {
    */
   async generateForecast(tenantId, locationId, historicalData, options = {}) {
     try {
+      const billingAccess = await tenantBillingService.ensureFeatureAccess(
+        tenantId,
+        BILLING_FEATURE_CODES.AI_ASSISTANT,
+        { featureLabel: 'pronóstico IA' },
+      );
+      if (!billingAccess.success) {
+        throw new Error(billingAccess.error);
+      }
+
       // Generar clave de caché
       const cacheParams = {
         locationId,

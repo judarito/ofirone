@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.fn()
+const ensureFeatureAccessMock = vi.fn()
 
 vi.mock('@/services/supabase.service', () => ({
   default: {
@@ -12,11 +13,19 @@ vi.mock('@/services/supabase.service', () => ({
   },
 }))
 
+vi.mock('@/services/tenantBilling.service', () => ({
+  default: {
+    ensureFeatureAccess: ensureFeatureAccessMock,
+  },
+}))
+
 import { askOpsRagAgent } from '@/services/opsRagAgent.service'
 
 describe('opsRagAgent.service', () => {
   beforeEach(() => {
     invokeMock.mockReset()
+    ensureFeatureAccessMock.mockReset()
+    ensureFeatureAccessMock.mockResolvedValue({ success: true, data: null })
   })
 
   it('valida query requerida', async () => {
@@ -58,6 +67,22 @@ describe('opsRagAgent.service', () => {
       error: 'sin contexto',
       data: null,
     })
+  })
+
+  it('bloquea la consulta cuando el plan no incluye IA', async () => {
+    ensureFeatureAccessMock.mockResolvedValue({
+      success: false,
+      error: 'Tu plan actual no incluye Centro IA.',
+    })
+
+    const result = await askOpsRagAgent({ tenantId: 't1', query: 'ventas hoy' })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tu plan actual no incluye Centro IA.',
+      data: null,
+    })
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('retorna data cuando la consulta es exitosa', async () => {

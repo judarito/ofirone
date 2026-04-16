@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/FIX_CREATE_AUTH_USER_RPC_SCHEMA_CACHE.sql

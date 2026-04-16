@@ -1,5 +1,14 @@
 # Supabase Edge Functions
 
+Nota de mantenimiento:
+
+- La fuente canónica del backend compartido ahora vive en [shared/supabase/README.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/README.md:1).
+- Antes de desplegar cambios compartidos, enlaza o sincroniza:
+
+```bash
+scripts/sync-shared-supabase.sh link
+```
+
 ## Instalar Supabase CLI
 
 ```bash
@@ -29,10 +38,40 @@ supabase functions list
 ## ¿Qué hace esta Edge Function?
 
 La función `create-tenant-user`:
-- ✅ Crea usuarios en Supabase Auth con **autoconfirmación de email**
-- ✅ Usa `auth.admin.createUser({ email_confirm: true })`
+- ✅ Crea usuarios reales en `auth.users` con **autoconfirmación de email**
+- ✅ Inserta o repara el registro correspondiente en `public.users`
+- ✅ Reemplaza los roles en `user_roles`
+- ✅ Permite cambio de contraseña vía `auth.admin.updateUserById(...)`
+- ✅ Valida permisos del caller: `SUPER ADMIN`, `ADMINISTRADOR` o `GERENTE`
 - ✅ Requiere `SUPABASE_SERVICE_ROLE_KEY` (solo disponible en backend)
-- ✅ Retorna el `user_id` para guardarlo en la tabla `users`
+
+Payloads soportados:
+
+```json
+{
+  "action": "create_user",
+  "tenant_id": "uuid-del-tenant",
+  "email": "usuario@demo.com",
+  "password": "123456",
+  "full_name": "Usuario Demo",
+  "role_ids": ["uuid-rol-1"],
+  "is_active": true
+}
+```
+
+```json
+{
+  "action": "change_password",
+  "tenant_id": "uuid-del-tenant",
+  "auth_user_id": "uuid-auth-user",
+  "new_password": "123456"
+}
+```
+
+Notas:
+- El email en Supabase Auth es único a nivel proyecto, no a nivel tenant.
+- Web y mobile consumen el mismo contrato desde `shared/utils/tenantUserAdmin.js`.
+- Si existía un usuario legado en `public.users` con UUID simulado, la función intenta repararlo y vincularlo al usuario real de Auth.
 
 ## Alternativa sin Edge Function
 

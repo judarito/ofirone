@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase';
+import { ensureTenantBillingFeature } from './tenantBilling.service';
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
 
 const CHAT_ORDER_EDGE_FUNCTION =
   process.env.EXPO_PUBLIC_CHAT_ORDER_EDGE_FUNCTION || 'chat-order-parser';
@@ -38,6 +40,14 @@ async function extractInvokeError(error) {
 export async function analyzeChatOrderText({ tenantId, chatText }) {
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.' };
+  }
+
+  const billingAccess = await ensureTenantBillingFeature(tenantId, BILLING_FEATURE_CODES.AI_ASSISTANT, {
+    baseRestriction: 'sales',
+    featureLabel: 'pedido por chat con IA',
+  });
+  if (!billingAccess.success) {
+    return { success: false, error: billingAccess.error };
   }
 
   const text = String(chatText || '').trim();

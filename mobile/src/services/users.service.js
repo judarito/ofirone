@@ -1,4 +1,9 @@
 import { supabase } from '../lib/supabase';
+import { humanizeAppError } from '../../../shared/utils/appErrors';
+import {
+  changeTenantUserPasswordWithAuth,
+  createTenantUserWithAuth,
+} from '../../../shared/utils/tenantUserAdmin';
 
 const USER_SELECT = `
   user_id,
@@ -69,6 +74,7 @@ export async function listRolesForUsers(tenantId) {
 }
 
 export async function createTenantUser({
+  tenantId = null,
   email,
   password,
   full_name,
@@ -76,18 +82,20 @@ export async function createTenantUser({
   is_active = true,
 } = {}) {
   try {
-    const { data, error } = await supabase.rpc('create_auth_user', {
-      p_email: String(email || '').trim().toLowerCase(),
-      p_password: String(password || ''),
-      p_full_name: String(full_name || '').trim(),
-      p_role_ids: Array.isArray(roleIds) ? roleIds : [],
-      p_is_active: is_active !== false,
+    const data = await createTenantUserWithAuth(supabase, {
+      tenantId,
+      email,
+      password,
+      full_name,
+      roleIds,
+      is_active,
     });
-
-    if (error) throw error;
     return { success: true, data };
   } catch (error) {
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: humanizeAppError(error, { defaultMessage: 'No se pudo crear el usuario.' }),
+    };
   }
 }
 
@@ -159,16 +167,18 @@ export async function toggleTenantUserStatus(tenantId, userId, isActive) {
   }
 }
 
-export async function changeTenantUserPassword(authUserId, newPassword) {
+export async function changeTenantUserPassword(authUserId, newPassword, tenantId = null) {
   try {
-    const { data, error } = await supabase.rpc('change_user_password', {
-      p_auth_user_id: authUserId,
-      p_new_password: String(newPassword || ''),
+    const data = await changeTenantUserPasswordWithAuth(supabase, {
+      tenantId,
+      authUserId,
+      newPassword,
     });
-
-    if (error) throw error;
     return { success: true, data };
   } catch (error) {
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: humanizeAppError(error, { defaultMessage: 'No se pudo cambiar la contraseña.' }),
+    };
   }
 }

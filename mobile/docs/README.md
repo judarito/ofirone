@@ -1,5 +1,14 @@
 # Documentación del Sistema
 
+## Backend compartido
+
+- La fuente canónica del backend Supabase compartido entre `web` y `mobile` ahora vive en [shared/supabase/README.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/README.md:1).
+- Para evitar copias redundantes y mantener las rutas actuales:
+
+```bash
+scripts/sync-shared-supabase.sh link
+```
+
 Este directorio contiene la documentación del sistema POS Lite.
 
 ## 📚 Contexto Técnico Mobile

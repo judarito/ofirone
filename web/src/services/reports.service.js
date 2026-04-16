@@ -122,7 +122,7 @@ class ReportsService {
       const { data, error } = await supabaseService.client
         .from(this.saleLinesTable)
         .select(`
-          variant_id, quantity, line_total,
+          variant_id, quantity, line_total, production_cost,
           variant:variant_id(
             sku, variant_name, cost,
             product:product_id(name)
@@ -153,7 +153,9 @@ class ReportsService {
         }
         grouped[key].total_qty += parseFloat(line.quantity) || 0
         grouped[key].total_revenue += parseFloat(line.line_total) || 0
-        grouped[key].total_cost += (parseFloat(line.variant?.cost) || 0) * (parseFloat(line.quantity) || 0)
+        grouped[key].total_cost += line.production_cost != null
+          ? (parseFloat(line.production_cost) || 0)
+          : (parseFloat(line.variant?.cost) || 0) * (parseFloat(line.quantity) || 0)
       })
 
       const sorted = Object.values(grouped)

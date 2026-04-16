@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.fn()
+const ensureFeatureAccessMock = vi.fn()
 
 vi.mock('@/services/supabase.service', () => ({
   default: {
@@ -12,11 +13,19 @@ vi.mock('@/services/supabase.service', () => ({
   },
 }))
 
-import { analyzeInvoiceWithText } from '@/services/purchaseInvoiceOcr.service'
+vi.mock('@/services/tenantBilling.service', () => ({
+  default: {
+    ensureFeatureAccess: ensureFeatureAccessMock,
+  },
+}))
+
+import { analyzeInvoiceFile, analyzeInvoiceWithText } from '@/services/purchaseInvoiceOcr.service'
 
 describe('purchaseInvoiceOcr.service', () => {
   beforeEach(() => {
     invokeMock.mockReset()
+    ensureFeatureAccessMock.mockReset()
+    ensureFeatureAccessMock.mockResolvedValue({ success: true, data: null })
   })
 
   it('valida tenant y texto OCR', async () => {
@@ -78,6 +87,32 @@ describe('purchaseInvoiceOcr.service', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('deepseek-proxy')
     expect(result.error).toContain('bad gateway')
+  })
+
+  it('bloquea OCR por billing antes de invocar la edge function', async () => {
+    ensureFeatureAccessMock.mockResolvedValue({
+      success: false,
+      error: 'Tu plan actual no incluye OCR de facturas.',
+    })
+
+    await expect(analyzeInvoiceWithText({ tenantId: 't1', ocrText: 'texto ocr' })).resolves.toEqual({
+      success: false,
+      error: 'Tu plan actual no incluye OCR de facturas.',
+    })
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('bloquea OCR de archivo por billing antes de procesar la imagen', async () => {
+    ensureFeatureAccessMock.mockResolvedValue({
+      success: false,
+      error: 'Tu plan actual no incluye OCR de facturas.',
+    })
+
+    await expect(analyzeInvoiceFile({ tenantId: 't1', file: {} })).resolves.toEqual({
+      success: false,
+      error: 'Tu plan actual no incluye OCR de facturas.',
+    })
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('falla cuando la IA no devuelve JSON usable', async () => {

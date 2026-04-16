@@ -1,5 +1,7 @@
 import supabaseService from './supabase.service'
 import { normalizeInvoiceAnalysisPayload } from '@/utils/purchaseInvoiceOcr'
+import tenantBillingService from './tenantBilling.service'
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess'
 
 const OCR_EDGE_FUNCTION =
   import.meta.env.VITE_DEEPSEEK_OCR_EDGE_FUNCTION || 'deepseek-ocr-proxy'
@@ -140,6 +142,15 @@ export async function analyzeInvoiceWithText({ tenantId, ocrText } = {}) {
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.' }
   }
+
+  const billingAccess = await tenantBillingService.ensureFeatureAccess(
+    tenantId,
+    BILLING_FEATURE_CODES.OCR_IMPORT,
+    { featureLabel: 'OCR de facturas' },
+  )
+  if (!billingAccess.success) {
+    return { success: false, error: billingAccess.error }
+  }
   const extractedText = String(ocrText || '').trim()
   if (!extractedText) {
     return { success: false, error: 'No hay texto OCR para analizar.' }
@@ -219,6 +230,12 @@ Texto OCR:
 
 export async function analyzeInvoiceFile({ tenantId, file } = {}) {
   if (!tenantId) return { success: false, error: 'tenantId es requerido.' }
+  const billingAccess = await tenantBillingService.ensureFeatureAccess(
+    tenantId,
+    BILLING_FEATURE_CODES.OCR_IMPORT,
+    { featureLabel: 'OCR de facturas' },
+  )
+  if (!billingAccess.success) return { success: false, error: billingAccess.error }
   if (!(file instanceof Blob)) return { success: false, error: 'Debes seleccionar una imagen valida.' }
 
   try {

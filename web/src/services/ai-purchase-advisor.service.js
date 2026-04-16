@@ -7,6 +7,8 @@
 
 import AICacheManager from '../utils/aiCache.js';
 import { supabase } from '@/plugins/supabase';
+import tenantBillingService from './tenantBilling.service';
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
 
 const DEEPSEEK_MODEL = 'deepseek-chat';
 const CACHE_TTL_HOURS = 12; // Caché de 12 horas para sugerencias de compra
@@ -29,6 +31,15 @@ class AIPurchaseAdvisorService {
    */
   async generatePurchaseRecommendations(tenantId, rotationData, suggestions, options = {}) {
     try {
+      const billingAccess = await tenantBillingService.ensureFeatureAccess(
+        tenantId,
+        BILLING_FEATURE_CODES.AI_ASSISTANT,
+        { featureLabel: 'asistentes IA' },
+      );
+      if (!billingAccess.success) {
+        throw new Error(billingAccess.error);
+      }
+
       // Generar clave de caché
       const cacheParams = {
         suggestionCount: suggestions.length,

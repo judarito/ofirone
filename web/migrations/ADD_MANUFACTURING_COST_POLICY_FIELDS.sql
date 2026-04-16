@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_MANUFACTURING_COST_POLICY_FIELDS.sql

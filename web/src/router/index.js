@@ -588,6 +588,7 @@ router.beforeEach(async (to, from, next) => {
                 path: '/about',
                 query: {
                   billing_blocked: access.restriction,
+                  billing_feature: access.featureCode || undefined,
                 },
               })
               return

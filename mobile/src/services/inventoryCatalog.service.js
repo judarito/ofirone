@@ -1,5 +1,10 @@
 import { supabase } from '../lib/supabase';
 import { getPageCache, getLatestPageCache, savePageCache, getSimpleCache, saveSimpleCache } from './offlineCache.service';
+import {
+  getBomEstimatedCost,
+  normalizeAvailabilityResult,
+  normalizeProductionOrderStatus,
+} from '../../../shared/utils/manufacturing';
 
 const LOCATIONS_CACHE_KEY = (tenantId) => `locations:${tenantId}`;
 
@@ -33,6 +38,7 @@ export async function listLocations(tenantId, { offlineMode = false } = {}) {
 }
 
 const STOCK_BALANCES_NS = 'inventory-stock';
+const PRODUCTION_ORDERS_NS = 'inventory-production-orders';
 
 function filterByComponent(data, isComponent) {
   return (data || []).filter((item) => {
@@ -42,6 +48,52 @@ function filterByComponent(data, isComponent) {
         : item.variant?.product?.is_component || false;
     return Boolean(effectiveIsComponent) === Boolean(isComponent);
   });
+}
+
+function normalizeProductionOrder(order) {
+  if (!order) return order;
+  return {
+    ...order,
+    status: normalizeProductionOrderStatus(order.status),
+  };
+}
+
+async function fetchProductionOrderByIdInternal(tenantId, orderId) {
+  const { data, error } = await supabase
+    .from('production_orders')
+    .select(`
+      *,
+      created_at,
+      location:location_id(location_id, name),
+      bom:bom_id(
+        bom_id, bom_name,
+        product:product_id(name),
+        variant:variant_id(sku, variant_name),
+        bom_components(
+          component_variant:component_variant_id(variant_id, sku, variant_name),
+          quantity_required,
+          unit:unit_id(code),
+          waste_percentage,
+          is_optional
+        )
+      ),
+      created_by_user:created_by(user_id, full_name),
+      started_by_user:started_by(user_id, full_name),
+      completed_by_user:completed_by(user_id, full_name),
+      production_order_lines(
+        line_id,
+        component_variant:component_variant_id(variant_id, sku, variant_name),
+        quantity_required,
+        quantity_consumed,
+        unit_cost
+      )
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('production_order_id', orderId)
+    .single();
+
+  if (error) throw error;
+  return normalizeProductionOrder(data);
 }
 
 export async function listStockBalances({
@@ -347,7 +399,21 @@ export async function listProductionOrders({
   locationId = null,
   limit = 20,
   offset = 0,
-} = {}) {
+  offlineMode = false,
+  } = {}) {
+  const page = Math.floor(offset / limit) + 1;
+  const filters = { status: status || '', locationId: locationId || '' };
+
+  if (offlineMode) {
+    const cached = await getPageCache({ namespace: PRODUCTION_ORDERS_NS, tenantId, page, pageSize: limit, filters });
+    return {
+      success: true,
+      data: cached?.items || [],
+      total: cached?.total || 0,
+      source: 'cache',
+    };
+  }
+
   try {
     let query = supabase
       .from('production_orders')
@@ -381,7 +447,11 @@ export async function listProductionOrders({
       .range(offset, offset + limit - 1);
 
     if (status) {
-      query = query.eq('status', status);
+      if (normalizeProductionOrderStatus(status) === 'PENDING') {
+        query = query.in('status', ['PENDING', 'DRAFT']);
+      } else {
+        query = query.eq('status', status);
+      }
     }
     if (locationId) {
       query = query.eq('location_id', locationId);
@@ -389,8 +459,24 @@ export async function listProductionOrders({
 
     const { data, error, count } = await query;
     if (error) throw error;
-    return { success: true, data: data || [], total: Number(count || 0) };
+
+    const normalized = (data || []).map(normalizeProductionOrder);
+    await savePageCache({
+      namespace: PRODUCTION_ORDERS_NS,
+      tenantId,
+      page,
+      pageSize: limit,
+      filters,
+      items: normalized,
+      total: Number(count || 0),
+    });
+
+    return { success: true, data: normalized, total: Number(count || 0) };
   } catch (error) {
+    const cached = await getPageCache({ namespace: PRODUCTION_ORDERS_NS, tenantId, page, pageSize: limit, filters });
+    if (cached?.items?.length) {
+      return { success: true, data: cached.items, total: cached.total || 0, source: 'cache', warning: error.message };
+    }
     return { success: false, error: error.message, data: [], total: 0 };
   }
 }
@@ -474,42 +560,7 @@ export async function getBOMById(tenantId, bomId) {
 
 export async function getProductionOrderById(tenantId, orderId) {
   try {
-    const { data, error } = await supabase
-      .from('production_orders')
-      .select(`
-        production_order_id, order_number, status,
-        quantity_planned, quantity_produced,
-        scheduled_start, started_at, completed_at, notes,
-        created_at,
-        location:location_id(location_id, name),
-        bom:bom_id(
-          bom_id, bom_name,
-          product:product_id(name),
-          variant:variant_id(sku, variant_name),
-          bom_components(
-            component_variant:component_variant_id(variant_id, sku, variant_name),
-            quantity_required,
-            unit:unit_id(code),
-            waste_percentage,
-            is_optional
-          )
-        ),
-        created_by_user:created_by(user_id, full_name),
-        started_by_user:started_by(user_id, full_name),
-        completed_by_user:completed_by(user_id, full_name),
-        production_order_lines(
-          line_id,
-          component_variant:component_variant_id(variant_id, sku, variant_name),
-          quantity_required,
-          quantity_consumed,
-          unit_cost
-        )
-      `)
-      .eq('tenant_id', tenantId)
-      .eq('production_order_id', orderId)
-      .single();
-    if (error) throw error;
-    return { success: true, data };
+    return { success: true, data: await fetchProductionOrderByIdInternal(tenantId, orderId) };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -561,7 +612,10 @@ export async function validateBOMAvailability(tenantId, bomId, quantity, locatio
       };
     });
 
-    return { success: true, data: { all_available: allAvailable, components: validation } };
+    return {
+      success: true,
+      data: normalizeAvailabilityResult({ all_available: allAvailable, components: validation }),
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -569,23 +623,17 @@ export async function validateBOMAvailability(tenantId, bomId, quantity, locatio
 
 export async function createProductionOrder(tenantId, { locationId, bomId, quantity, createdBy, scheduledStart = null, notes = null }) {
   try {
-    const { data, error } = await supabase
-      .from('production_orders')
-      .insert({
-        tenant_id: tenantId,
-        location_id: locationId,
-        bom_id: bomId,
-        quantity_planned: quantity,
-        status: 'PENDING',
-        created_by: createdBy,
-        scheduled_start_date: scheduledStart,
-        notes,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('fn_create_production_order', {
+      p_tenant: tenantId,
+      p_location: locationId,
+      p_bom: bomId,
+      p_quantity: quantity,
+      p_created_by: createdBy,
+      p_scheduled_start: scheduledStart,
+      p_notes: notes,
+    });
     if (error) throw error;
-    return { success: true, data };
+    return { success: true, data: await fetchProductionOrderByIdInternal(tenantId, data) };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -593,15 +641,12 @@ export async function createProductionOrder(tenantId, { locationId, bomId, quant
 
 export async function startProductionOrder(tenantId, orderId, startedBy) {
   try {
-    const { data, error } = await supabase
-      .from('production_orders')
-      .update({ status: 'IN_PROGRESS', started_by: startedBy, started_at: new Date().toISOString() })
-      .eq('production_order_id', orderId)
-      .eq('tenant_id', tenantId)
-      .select()
-      .single();
+    const { error } = await supabase.rpc('fn_start_production', {
+      p_production_order: orderId,
+      p_started_by: startedBy,
+    });
     if (error) throw error;
-    return { success: true, data };
+    return { success: true, data: await fetchProductionOrderByIdInternal(tenantId, orderId) };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -633,7 +678,7 @@ export async function cancelProductionOrder(tenantId, orderId) {
       .select()
       .single();
     if (error) throw error;
-    return { success: true, data };
+    return { success: true, data: normalizeProductionOrder(data) };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -647,13 +692,24 @@ export async function listBomsForSelect(tenantId) {
         bom_id, bom_name, version,
         product:product_id(name),
         variant:variant_id(sku, variant_name),
-        bom_components(component_id)
+        bom_components(
+          component_id,
+          quantity_required,
+          waste_percentage,
+          component_variant:component_variant_id(cost)
+        )
       `)
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('bom_name', { ascending: true });
     if (error) throw error;
-    return { success: true, data: data || [] };
+    return {
+      success: true,
+      data: (data || []).map((bom) => ({
+        ...bom,
+        estimated_cost: getBomEstimatedCost(bom.bom_components || []),
+      })),
+    };
   } catch (error) {
     return { success: false, error: error.message, data: [] };
   }

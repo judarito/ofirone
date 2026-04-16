@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invokeMock = vi.fn()
+const ensureFeatureAccessMock = vi.fn()
 
 vi.mock('@/services/supabase.service', () => ({
   default: {
@@ -12,11 +13,19 @@ vi.mock('@/services/supabase.service', () => ({
   },
 }))
 
+vi.mock('@/services/tenantBilling.service', () => ({
+  default: {
+    ensureFeatureAccess: ensureFeatureAccessMock,
+  },
+}))
+
 import { suggestCatalogProductFromInvoiceLine } from '@/services/purchaseInvoiceAssistant.service'
 
 describe('purchaseInvoiceAssistant.service', () => {
   beforeEach(() => {
     invokeMock.mockReset()
+    ensureFeatureAccessMock.mockReset()
+    ensureFeatureAccessMock.mockResolvedValue({ success: true, data: null })
   })
 
   it('retorna error controlado cuando falta tenant', async () => {
@@ -93,5 +102,27 @@ describe('purchaseInvoiceAssistant.service', () => {
     expect(result.data.product_name).toBe('Blusa estampada')
     expect(result.data.provider).toBe('heuristic')
     expect(result.warning).toContain('deepseek-proxy')
+  })
+
+  it('bloquea la sugerencia OCR cuando el plan no tiene la feature y devuelve fallback controlado', async () => {
+    ensureFeatureAccessMock.mockResolvedValue({
+      success: false,
+      error: 'Tu plan actual no incluye importación OCR.',
+    })
+
+    const result = await suggestCatalogProductFromInvoiceLine({
+      tenantId: 't1',
+      line: { raw_name: 'Blusa estampada' },
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tu plan actual no incluye importación OCR.',
+      data: expect.objectContaining({
+        product_name: 'Blusa estampada',
+        provider: 'heuristic',
+      }),
+    })
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 })

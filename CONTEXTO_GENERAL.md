@@ -1,9 +1,65 @@
 # CONTEXTO_GENERAL — Ofirone / POSLite
 
-Fecha: 2026-04-12
+Fecha: 2026-04-16
 Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 
 ---
+
+## Actualizacion reciente (2026-04-16) — backend Supabase compartido ya no vive duplicado en web/mobile
+
+- Se ejecuto la unificacion del backend compartido entre `web` y `mobile`.
+- La fuente canonica del backend comun ahora vive en:
+  - `shared/supabase/migrations`
+  - `shared/supabase/functions`
+- Estado actual del backend compartido:
+  - `145` migraciones comunes entre `web` y `mobile` quedaron alineadas y sin divergencias entre ambas apps
+  - `2` Edge Functions compartidas quedaron canonizadas:
+    - `create-tenant-user`
+    - `chat-order-parser`
+- Las rutas historicas de despliegue no se eliminaron, pero dejaron de ser copias fisicas independientes:
+  - `web/migrations/*` y `mobile/migrations/*` para archivos compartidos ahora apuntan por symlink a `shared/supabase/migrations/*`
+  - `web/supabase/functions/create-tenant-user/index.ts`
+  - `mobile/supabase/functions/create-tenant-user/index.ts`
+  - `web/supabase/functions/chat-order-parser/index.ts`
+  - `mobile/supabase/functions/chat-order-parser/index.ts`
+  - todos esos paths compartidos ahora apuntan a `shared/supabase/functions/*`
+- Regla operativa nueva:
+  - si un archivo aparece en `shared/supabase/shared-migrations.txt` o `shared/supabase/shared-functions.txt`, se edita primero en `shared/supabase`
+  - despues se actualizan links o se usa el script:
+    - `scripts/sync-shared-supabase.sh link`
+    - `scripts/sync-shared-supabase.sh check`
+    - `scripts/sync-shared-supabase.sh sync` solo como fallback para entornos sin soporte fiable de symlink
+- Lo que sigue fuera de `shared` es backend realmente especifico de producto:
+  - `web`: `accounting-queue-worker`, `deepseek-proxy`
+  - `mobile`: `deepseek-ocr-proxy`, `ops-rag-agent`, `product-photo-analyzer`, `product-photo-parser`, `push-dispatcher`
+
+## Actualizacion reciente (2026-04-15) — mobile suma gestion avanzada de lotes y onboarding operativo
+
+- `mobile` cierra dos brechas importantes frente a `web` en `BatchManagement` y `Setup / onboarding`.
+- `mobile/src/screens/BatchesScreen.js` deja de ser una lista simple y ahora incorpora:
+  - tabs `Lotes`, `Alertas` y `Reportes`
+  - filtros por sede, nivel de alerta y numero de lote
+  - creacion y edicion de lotes desde modal
+  - generacion de numero de lote
+  - trazabilidad por lote
+  - dashboard de vencimientos y top de productos en riesgo
+- La nueva capa operativa de lotes mobile vive en:
+  - `mobile/src/services/batches.service.js`
+- `mobile/src/screens/SetupScreen.js` deja de ser solo un launcher y ahora muestra:
+  - progreso real del tenant
+  - siguiente accion recomendada
+  - checklist por proceso operativo
+  - lectura desde servidor o cache offline
+- La logica de readiness y consolidacion del onboarding mobile ahora vive en:
+  - `mobile/src/services/setupAssistant.service.js`
+- `mobile/App.js` ahora inyecta `tenant` y `offlineMode` en `SetupScreen` para evaluar el estado real del tenant.
+- Cobertura agregada para esta tanda:
+  - `mobile/src/__tests__/batches.service.test.js`
+  - `mobile/src/__tests__/setupAssistant.service.test.js`
+- Estado de producto vigente tras esta tanda:
+  - `lotes y vencimientos` ya no queda reducido a lectura basica en mobile
+  - `setup` ya no es solo navegacion rapida; ahora funciona como onboarding operativo real
+  - `contabilidad avanzada` sigue marcada como frente de paridad parcial y se comunica como `web-only` dentro del propio onboarding mobile
 
 ## Actualizacion reciente (2026-04-12) — paridad de inventario, compras y reportes entre web/mobile
 
@@ -692,6 +748,7 @@ Nunca exponer UUIDs, nombres de constraints ni mensajes crudos de BD en la UI.
 
 | Fecha      | Cambio |
 |------------|--------|
+| 2026-04-16 | Backend Supabase compartido unificado: fuente canonica en `shared/supabase`, `145` migraciones compartidas sin divergencias, `create-tenant-user` y `chat-order-parser` canonizadas, rutas `web/` y `mobile/` mantenidas via symlinks, script `scripts/sync-shared-supabase.sh` con modos `link`, `check` y `sync`. |
 | 2026-04-08 | Creacion del archivo. Incluye setup de testing (Vitest web + Jest mobile), `pricingRuleEngine.js` en shared, metro.config mobile, warmup de reglas de precio en POS, regla TDD obligatoria. |
 | 2026-04-09 | Nuevos tests: `appErrors.test.js` (web, 39 tests) y `deterministicParser.test.js` (mobile, 49 tests). Total suite: 326 tests. |
 | 2026-04-10 | Centralización en shared/: `stringUtils.js`, `cashSessionUtils.js`, `appErrors.js`, `formatters.js`, `constants/thirdParty.js`. Archivos origen reemplazados por re-exports. Sin cambios en importadores existentes. |

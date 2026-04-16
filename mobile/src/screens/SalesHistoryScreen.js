@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -156,6 +157,8 @@ export default function SalesHistoryScreen({
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
   const androidBottomInset = useAndroidBottomInset();
+  const { width: viewportWidth } = useWindowDimensions();
+  const isTabletLayout = viewportWidth >= 900;
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -992,106 +995,122 @@ export default function SalesHistoryScreen({
         activeCount={activeFilterCount}
         summary={filtersSummary}
       >
-        <View style={[styles.quickFiltersCard, isLightTheme && styles.quickFiltersCardLight, androidFilterSurfaceReset]}>
-          <Text style={[styles.quickFiltersTitle, isLightTheme && styles.quickFiltersTitleLight]}>Filtros rápidos</Text>
-          <View style={styles.quickFiltersRow}>
-            <Pressable
-              style={[
-                styles.compactFilterBtn,
-                isLightTheme && styles.compactFilterBtnLight,
-                Boolean(filters?.status) && styles.compactFilterBtnActive,
-              ]}
-              onPress={() => setSingleSelectFilter('status')}
-            >
-              <Text
-                style={[
-                  styles.compactFilterBtnText,
-                  isLightTheme && styles.compactFilterBtnTextLight,
-                  Boolean(filters?.status) && styles.compactFilterBtnTextActive,
-                ]}
-                numberOfLines={1}
-              >
-                Estado: {selectedStatusLabel}
-              </Text>
-              <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.compactFilterBtn,
-                isLightTheme && styles.compactFilterBtnLight,
-                activeDateFilterKey !== 'all' && styles.compactFilterBtnActive,
-              ]}
-              onPress={() => setSingleSelectFilter('date')}
-            >
-              <Text
-                style={[
-                  styles.compactFilterBtnText,
-                  isLightTheme && styles.compactFilterBtnTextLight,
-                  activeDateFilterKey !== 'all' && styles.compactFilterBtnTextActive,
-                ]}
-                numberOfLines={1}
-              >
-                Período: {selectedDateLabel}
-              </Text>
-              <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
-            </Pressable>
-          </View>
-
-          <Pressable
+        <View style={[styles.filtersGrid, isTabletLayout && styles.filtersGridTablet]}>
+          <View
             style={[
-              styles.compactFilterBtn,
-              styles.compactFilterBtnFull,
-              isLightTheme && styles.compactFilterBtnLight,
-              Boolean(filters?.location_id) && styles.compactFilterBtnActive,
+              styles.quickFiltersCard,
+              isLightTheme && styles.quickFiltersCardLight,
+              androidFilterSurfaceReset,
+              isTabletLayout && styles.filtersGridCardTablet,
             ]}
-            onPress={() => setSingleSelectFilter('location')}
           >
-            <Text
-              style={[
-                styles.compactFilterBtnText,
-                isLightTheme && styles.compactFilterBtnTextLight,
-                Boolean(filters?.location_id) && styles.compactFilterBtnTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              Sede: {selectedLocationLabel}
-            </Text>
-            <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
-          </Pressable>
-        </View>
+            <Text style={[styles.quickFiltersTitle, isLightTheme && styles.quickFiltersTitleLight]}>Filtros rápidos</Text>
+            <View style={styles.quickFiltersRow}>
+              <Pressable
+                style={[
+                  styles.compactFilterBtn,
+                  isLightTheme && styles.compactFilterBtnLight,
+                  Boolean(filters?.status) && styles.compactFilterBtnActive,
+                ]}
+                onPress={() => setSingleSelectFilter('status')}
+              >
+                <Text
+                  style={[
+                    styles.compactFilterBtnText,
+                    isLightTheme && styles.compactFilterBtnTextLight,
+                    Boolean(filters?.status) && styles.compactFilterBtnTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  Estado: {selectedStatusLabel}
+                </Text>
+                <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
+              </Pressable>
 
-        <View style={[styles.dateRangeCard, isLightTheme && styles.dateRangeCardLight, androidFilterSurfaceReset]}>
-          <Text style={[styles.dateRangeTitle, isLightTheme && styles.dateRangeTitleLight]}>Rango de fechas</Text>
-          <View style={[styles.dateRangeInputsRow, Platform.OS === 'android' && styles.dateRangeInputsRowAndroid]}>
-            <DatePickerField
-              label="Desde"
-              value={fromDateInput}
-              onChange={setFromDateInput}
-              maximumDate={toDateInput || undefined}
-              style={styles.dateInput}
-            />
-            <DatePickerField
-              label="Hasta"
-              value={toDateInput}
-              onChange={setToDateInput}
-              minimumDate={fromDateInput || undefined}
-              style={styles.dateInput}
-            />
+              <Pressable
+                style={[
+                  styles.compactFilterBtn,
+                  isLightTheme && styles.compactFilterBtnLight,
+                  activeDateFilterKey !== 'all' && styles.compactFilterBtnActive,
+                ]}
+                onPress={() => setSingleSelectFilter('date')}
+              >
+                <Text
+                  style={[
+                    styles.compactFilterBtnText,
+                    isLightTheme && styles.compactFilterBtnTextLight,
+                    activeDateFilterKey !== 'all' && styles.compactFilterBtnTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  Período: {selectedDateLabel}
+                </Text>
+                <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={[
+                styles.compactFilterBtn,
+                styles.compactFilterBtnFull,
+                isLightTheme && styles.compactFilterBtnLight,
+                Boolean(filters?.location_id) && styles.compactFilterBtnActive,
+              ]}
+              onPress={() => setSingleSelectFilter('location')}
+            >
+              <Text
+                style={[
+                  styles.compactFilterBtnText,
+                  isLightTheme && styles.compactFilterBtnTextLight,
+                  Boolean(filters?.location_id) && styles.compactFilterBtnTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                Sede: {selectedLocationLabel}
+              </Text>
+              <Text style={[styles.compactFilterChevron, isLightTheme && styles.compactFilterChevronLight]}>▼</Text>
+            </Pressable>
           </View>
-          <View style={styles.dateActionsRow}>
-            <Pressable style={[styles.actionBtn, styles.detailBtn]} onPress={applyCustomDateRange}>
-              <View style={styles.actionBtnContent}>
-                <Ionicons name="checkmark-done-outline" size={13} style={styles.actionBtnIcon} />
-                <Text style={styles.actionBtnText}>Aplicar</Text>
-              </View>
-            </Pressable>
-            <Pressable style={[styles.actionBtn, styles.printBtn]} onPress={clearCustomDateRange}>
-              <View style={styles.actionBtnContent}>
-                <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
-                <Text style={styles.actionBtnText}>Limpiar</Text>
-              </View>
-            </Pressable>
+
+          <View
+            style={[
+              styles.dateRangeCard,
+              isLightTheme && styles.dateRangeCardLight,
+              androidFilterSurfaceReset,
+              isTabletLayout && styles.filtersGridCardTablet,
+            ]}
+          >
+            <Text style={[styles.dateRangeTitle, isLightTheme && styles.dateRangeTitleLight]}>Rango de fechas</Text>
+            <View style={[styles.dateRangeInputsRow, Platform.OS === 'android' && styles.dateRangeInputsRowAndroid]}>
+              <DatePickerField
+                label="Desde"
+                value={fromDateInput}
+                onChange={setFromDateInput}
+                maximumDate={toDateInput || undefined}
+                style={styles.dateInput}
+              />
+              <DatePickerField
+                label="Hasta"
+                value={toDateInput}
+                onChange={setToDateInput}
+                minimumDate={fromDateInput || undefined}
+                style={styles.dateInput}
+              />
+            </View>
+            <View style={styles.dateActionsRow}>
+              <Pressable style={[styles.actionBtn, styles.detailBtn]} onPress={applyCustomDateRange}>
+                <View style={styles.actionBtnContent}>
+                  <Ionicons name="checkmark-done-outline" size={13} style={styles.actionBtnIcon} />
+                  <Text style={styles.actionBtnText}>Aplicar</Text>
+                </View>
+              </Pressable>
+              <Pressable style={[styles.actionBtn, styles.printBtn]} onPress={clearCustomDateRange}>
+                <View style={styles.actionBtnContent}>
+                  <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
+                  <Text style={styles.actionBtnText}>Limpiar</Text>
+                </View>
+              </Pressable>
+            </View>
           </View>
         </View>
       </CollapsibleFilterSection>
@@ -1167,129 +1186,163 @@ export default function SalesHistoryScreen({
         contentContainerStyle={{ paddingBottom: 16 }}
         renderItem={(sale) => (
           <View key={sale.sale_id} style={[styles.card, isLightTheme && styles.cardLight]}>
-            <View style={styles.cardTopRow}>
-              <Text style={[styles.saleNumber, isLightTheme && styles.saleNumberLight]}>{sale.sale_number || sale.sale_id?.slice(0, 8)}</Text>
-              <Text
-                style={[
-                  styles.status,
-                  sale.status === 'PENDING_SYNC' && styles.statusPending,
-                  sale.status === 'FAILED_SYNC' && styles.statusFailed,
-                ]}
-              >
-                {sale.status}
-              </Text>
-            </View>
-            <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>{new Date(sale.sold_at).toLocaleString()}</Text>
-            <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>Sede: {sale.location?.name || 'Sin sede'}</Text>
-            <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>Cliente: {sale.customer?.full_name || 'Consumidor final'}</Text>
-            <View style={styles.feMetaRow}>
-              <Text style={[styles.feInvoiceType, isLightTheme && styles.feInvoiceTypeLight]}>
-                Documento: {sale.invoice_type || 'FV'}
-              </Text>
-              {sale.dian_status ? (
-                <View
-                  style={[
-                    styles.feChip,
-                    getDianStatusTone(sale.dian_status) === 'accepted' && styles.feChipAccepted,
-                    getDianStatusTone(sale.dian_status) === 'error' && styles.feChipError,
-                    getDianStatusTone(sale.dian_status) === 'pending' && styles.feChipPending,
-                  ]}
-                >
-                  <Text style={styles.feChipText}>{sale.dian_status}</Text>
+            <View style={[styles.cardContent, isTabletLayout && styles.cardContentTablet]}>
+              <View style={[styles.cardMain, isTabletLayout && styles.cardMainTablet]}>
+                <View style={styles.cardTopRow}>
+                  <Text style={[styles.saleNumber, isLightTheme && styles.saleNumberLight]}>{sale.sale_number || sale.sale_id?.slice(0, 8)}</Text>
+                  {!isTabletLayout ? (
+                    <Text
+                      style={[
+                        styles.status,
+                        sale.status === 'PENDING_SYNC' && styles.statusPending,
+                        sale.status === 'FAILED_SYNC' && styles.statusFailed,
+                      ]}
+                    >
+                      {sale.status}
+                    </Text>
+                  ) : null}
                 </View>
-              ) : null}
-            </View>
-            {sale.cufe ? (
-              <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>
-                CUFE: {String(sale.cufe).slice(0, 18)}...
-              </Text>
-            ) : null}
-            {sale.sync_error ? <Text style={styles.syncErrorLine}>Error sync: {sale.sync_error}</Text> : null}
-            <Text style={styles.total}>{formatMoney(sale.total || 0)}</Text>
+                <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>{new Date(sale.sold_at).toLocaleString()}</Text>
+                <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>Sede: {sale.location?.name || 'Sin sede'}</Text>
+                <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>Cliente: {sale.customer?.full_name || 'Consumidor final'}</Text>
+                <View style={styles.feMetaRow}>
+                  <Text style={[styles.feInvoiceType, isLightTheme && styles.feInvoiceTypeLight]}>
+                    Documento: {sale.invoice_type || 'FV'}
+                  </Text>
+                  {sale.dian_status ? (
+                    <View
+                      style={[
+                        styles.feChip,
+                        getDianStatusTone(sale.dian_status) === 'accepted' && styles.feChipAccepted,
+                        getDianStatusTone(sale.dian_status) === 'error' && styles.feChipError,
+                        getDianStatusTone(sale.dian_status) === 'pending' && styles.feChipPending,
+                      ]}
+                    >
+                      <Text style={styles.feChipText}>{sale.dian_status}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {sale.cufe ? (
+                  <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>
+                    CUFE: {String(sale.cufe).slice(0, 18)}...
+                  </Text>
+                ) : null}
+                {sale.sync_error ? <Text style={styles.syncErrorLine}>Error sync: {sale.sync_error}</Text> : null}
+                {!isTabletLayout ? <Text style={styles.total}>{formatMoney(sale.total || 0)}</Text> : null}
+              </View>
 
-            <View style={styles.actionsRow}>
-              {!sale.is_local_pending ? (
-                <>
-                  <Pressable style={[styles.actionBtn, styles.detailBtn]} onPress={() => openDetail(sale.sale_id)}>
-                    <View style={styles.actionBtnContent}>
-                      <Ionicons name="document-text-outline" size={13} style={styles.actionBtnIcon} />
-                      <Text style={styles.actionBtnText}>Detalle</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable style={[styles.actionBtn, styles.printBtn]} onPress={() => handlePrintSale(sale)}>
-                    <View style={styles.actionBtnContent}>
-                      <Ionicons name="print-outline" size={13} style={styles.actionBtnIcon} />
-                      <Text style={styles.actionBtnText}>Imprimir</Text>
-                    </View>
-                  </Pressable>
-                </>
-              ) : null}
-              {sale.is_local_pending ? (
-                <>
-                  {sale.status === 'FAILED_SYNC' ? (
-                    <Pressable
-                      style={[styles.actionBtn, styles.retryBtn, processing && styles.pageBtnDisabled]}
-                      disabled={processing}
-                      onPress={() => retryPendingSale(sale)}
-                    >
-                      <View style={styles.actionBtnContent}>
-                        <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
-                        <Text style={styles.actionBtnText}>Reintentar</Text>
-                      </View>
-                    </Pressable>
-                  ) : null}
-                  {sale.status === 'FAILED_SYNC' ? (
-                    <Pressable
-                      style={[styles.actionBtn, styles.detailBtn, processing && styles.pageBtnDisabled]}
-                      disabled={processing}
-                      onPress={() => openEditPendingSale(sale)}
-                    >
-                      <View style={styles.actionBtnContent}>
-                        <Ionicons name="create-outline" size={13} style={styles.actionBtnIcon} />
-                        <Text style={styles.actionBtnText}>Editar</Text>
-                      </View>
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    style={[styles.actionBtn, styles.voidBtn, processing && styles.pageBtnDisabled]}
-                    disabled={processing}
-                    onPress={() => discardPendingSale(sale)}
+              <View style={[styles.cardAside, isTabletLayout && styles.cardAsideTablet]}>
+                {isTabletLayout ? (
+                  <Text
+                    style={[
+                      styles.status,
+                      styles.statusTablet,
+                      sale.status === 'PENDING_SYNC' && styles.statusPending,
+                      sale.status === 'FAILED_SYNC' && styles.statusFailed,
+                    ]}
                   >
-                    <View style={styles.actionBtnContent}>
-                      <Ionicons name="trash-outline" size={13} style={styles.actionBtnIcon} />
-                      <Text style={styles.actionBtnText}>Descartar</Text>
-                    </View>
-                  </Pressable>
-                </>
-              ) : null}
-              {sale.status === 'COMPLETED' ? (
-                <>
-                  {shouldAllowFeRetry(sale) ? (
-                    <Pressable
-                      style={[styles.actionBtn, styles.retryBtn, processing && styles.pageBtnDisabled]}
-                      onPress={() => retryFe(sale)}
-                      disabled={processing}
-                    >
-                      <View style={styles.actionBtnContent}>
-                        <Ionicons name="sync-outline" size={13} style={styles.actionBtnIcon} />
-                        <Text style={styles.actionBtnText}>Reintentar FE</Text>
-                      </View>
-                    </Pressable>
+                    {sale.status}
+                  </Text>
+                ) : null}
+                {isTabletLayout ? <Text style={[styles.total, styles.totalTablet]}>{formatMoney(sale.total || 0)}</Text> : null}
+
+                <View style={[styles.actionsRow, isTabletLayout && styles.actionsRowTablet]}>
+                  {!sale.is_local_pending ? (
+                    <>
+                      <Pressable
+                        style={[styles.actionBtn, styles.detailBtn, isTabletLayout && styles.actionBtnTablet]}
+                        onPress={() => openDetail(sale.sale_id)}
+                      >
+                        <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                          <Ionicons name="document-text-outline" size={13} style={styles.actionBtnIcon} />
+                          <Text style={styles.actionBtnText}>Detalle</Text>
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.actionBtn, styles.printBtn, isTabletLayout && styles.actionBtnTablet]}
+                        onPress={() => handlePrintSale(sale)}
+                      >
+                        <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                          <Ionicons name="print-outline" size={13} style={styles.actionBtnIcon} />
+                          <Text style={styles.actionBtnText}>Imprimir</Text>
+                        </View>
+                      </Pressable>
+                    </>
                   ) : null}
-                  <Pressable style={[styles.actionBtn, styles.returnBtn]} onPress={() => openReturnDialog(sale)}>
-                    <View style={styles.actionBtnContent}>
-                      <Ionicons name="arrow-undo-outline" size={13} style={styles.actionBtnIcon} />
-                      <Text style={styles.actionBtnText}>Devolver</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable style={[styles.actionBtn, styles.voidBtn]} onPress={() => confirmVoid(sale)}>
-                    <View style={styles.actionBtnContent}>
-                      <Ionicons name="close-circle-outline" size={13} style={styles.actionBtnIcon} />
-                      <Text style={styles.actionBtnText}>Anular</Text>
-                    </View>
-                  </Pressable>
-                </>
-              ) : null}
+                  {sale.is_local_pending ? (
+                    <>
+                      {sale.status === 'FAILED_SYNC' ? (
+                        <Pressable
+                          style={[styles.actionBtn, styles.retryBtn, isTabletLayout && styles.actionBtnTablet, processing && styles.pageBtnDisabled]}
+                          disabled={processing}
+                          onPress={() => retryPendingSale(sale)}
+                        >
+                          <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                            <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
+                            <Text style={styles.actionBtnText}>Reintentar</Text>
+                          </View>
+                        </Pressable>
+                      ) : null}
+                      {sale.status === 'FAILED_SYNC' ? (
+                        <Pressable
+                          style={[styles.actionBtn, styles.detailBtn, isTabletLayout && styles.actionBtnTablet, processing && styles.pageBtnDisabled]}
+                          disabled={processing}
+                          onPress={() => openEditPendingSale(sale)}
+                        >
+                          <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                            <Ionicons name="create-outline" size={13} style={styles.actionBtnIcon} />
+                            <Text style={styles.actionBtnText}>Editar</Text>
+                          </View>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        style={[styles.actionBtn, styles.voidBtn, isTabletLayout && styles.actionBtnTablet, processing && styles.pageBtnDisabled]}
+                        disabled={processing}
+                        onPress={() => discardPendingSale(sale)}
+                      >
+                        <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                          <Ionicons name="trash-outline" size={13} style={styles.actionBtnIcon} />
+                          <Text style={styles.actionBtnText}>Descartar</Text>
+                        </View>
+                      </Pressable>
+                    </>
+                  ) : null}
+                  {sale.status === 'COMPLETED' ? (
+                    <>
+                      {shouldAllowFeRetry(sale) ? (
+                        <Pressable
+                          style={[styles.actionBtn, styles.retryBtn, isTabletLayout && styles.actionBtnTablet, processing && styles.pageBtnDisabled]}
+                          onPress={() => retryFe(sale)}
+                          disabled={processing}
+                        >
+                          <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                            <Ionicons name="sync-outline" size={13} style={styles.actionBtnIcon} />
+                            <Text style={styles.actionBtnText}>Reintentar FE</Text>
+                          </View>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        style={[styles.actionBtn, styles.returnBtn, isTabletLayout && styles.actionBtnTablet]}
+                        onPress={() => openReturnDialog(sale)}
+                      >
+                        <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                          <Ionicons name="arrow-undo-outline" size={13} style={styles.actionBtnIcon} />
+                          <Text style={styles.actionBtnText}>Devolver</Text>
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.actionBtn, styles.voidBtn, isTabletLayout && styles.actionBtnTablet]}
+                        onPress={() => confirmVoid(sale)}
+                      >
+                        <View style={[styles.actionBtnContent, isTabletLayout && styles.actionBtnContentCentered]}>
+                          <Ionicons name="close-circle-outline" size={13} style={styles.actionBtnIcon} />
+                          <Text style={styles.actionBtnText}>Anular</Text>
+                        </View>
+                      </Pressable>
+                    </>
+                  ) : null}
+                </View>
+              </View>
             </View>
           </View>
         )}
@@ -1686,6 +1739,9 @@ const styles = StyleSheet.create({
   },
   quickFiltersTitle: { color: '#e2e8f0', fontWeight: '700', marginBottom: 8, fontSize: 12, textTransform: 'uppercase' },
   quickFiltersTitleLight: { color: '#0f172a' },
+  filtersGrid: { gap: 0 },
+  filtersGridTablet: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  filtersGridCardTablet: { flex: 1, marginBottom: 0 },
   quickFiltersRow: { flexDirection: 'row', gap: 8 },
   compactFilterBtn: {
     flex: 1,
@@ -1794,10 +1850,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
+  cardContent: { gap: 0 },
+  cardContentTablet: { flexDirection: 'row', alignItems: 'flex-start', gap: 18 },
+  cardMain: { minWidth: 0 },
+  cardMainTablet: { flex: 1, paddingRight: 4 },
+  cardAside: { minWidth: 0 },
+  cardAsideTablet: { width: 300, alignItems: 'stretch' },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   saleNumber: { color: '#f8fafc', fontWeight: '700' },
   saleNumberLight: { color: '#0f172a' },
   status: { color: '#93c5fd', fontSize: 12, fontWeight: '700' },
+  statusTablet: { textAlign: 'right', marginBottom: 8 },
   statusPending: { color: '#fbbf24' },
   statusFailed: { color: '#f87171' },
   metaLine: { color: '#cbd5e1', fontSize: 13, marginBottom: 2 },
@@ -1817,9 +1880,13 @@ const styles = StyleSheet.create({
   feChipText: { color: '#e2e8f0', fontSize: 11, fontWeight: '700' },
   syncErrorLine: { color: '#fca5a5', fontSize: 12, marginBottom: 2 },
   total: { color: '#22d3ee', fontSize: 18, fontWeight: '700', marginTop: 4 },
+  totalTablet: { marginTop: 0, marginBottom: 12, textAlign: 'right', fontSize: 22 },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  actionsRowTablet: { marginTop: 0, justifyContent: 'flex-end' },
   actionBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   actionBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  actionBtnContentCentered: { justifyContent: 'center' },
+  actionBtnTablet: { minWidth: 136, justifyContent: 'center' },
   actionBtnIcon: { color: '#e2e8f0' },
   detailBtn: { backgroundColor: '#235ea9' },
   printBtn: { backgroundColor: '#235ea9' },

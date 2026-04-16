@@ -1,8 +1,8 @@
 # CONTEXTO_ULTIMO
 
-Fecha de actualizacion: 2026-04-12
+Fecha de actualizacion: 2026-04-16
 Owner: Equipo POSLite
-Ultimo cambio registrado: mobile alinea navegacion y semantica con web; `settings`, `roles`, `tenant management` y ayuda ya no presentan paridad falsa
+Ultimo cambio registrado: backend Supabase compartido queda canonizado en `shared/supabase`; web mantiene rutas historicas mediante symlinks y ya no debe editar migraciones/functions compartidas desde `web/`
 
 ## Regla de versionado de contexto (obligatoria)
 
@@ -28,6 +28,39 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 ```
 
 ## Estado tecnico actual
+
+### Ajuste reciente de arquitectura backend (2026-04-16) — web deja de ser dueno de los artefactos Supabase compartidos
+
+- Se unifico el backend Supabase comun del monorepo.
+- La fuente canonica ahora vive en:
+  - `shared/supabase/migrations`
+  - `shared/supabase/functions`
+- Para web esto cambia una regla importante de mantenimiento:
+  - los archivos compartidos ya no deben editarse directamente desde `web/migrations` ni desde `web/supabase/functions`
+  - esos paths se conservaron para no romper despliegues, pero ahora apuntan por symlink al contenido de `shared/supabase`
+- Shared canonizado en esta fase:
+  - `145` migraciones comunes entre `web` y `mobile`
+  - `create-tenant-user`
+  - `chat-order-parser`
+- Reglas operativas nuevas del lado web:
+  - editar primero en `shared/supabase`
+  - validar alineacion con `scripts/sync-shared-supabase.sh check`
+  - usar `scripts/sync-shared-supabase.sh link` como modo recomendado
+  - usar `scripts/sync-shared-supabase.sh sync` solo como fallback si un entorno no tolera symlinks
+- Lo que sigue siendo ownership especifico de `web`:
+  - `supabase/functions/accounting-queue-worker`
+  - `supabase/functions/deepseek-proxy`
+  - migraciones/artefactos de contabilidad y superadmin que no existen en mobile
+
+### Ajuste reciente de backend compartido (2026-04-16) — `chat-order-parser` y bucket de data import quedan reconciliados
+
+- `chat-order-parser` ya no diverge entre `web` y `mobile`.
+- El contrato compartido ahora soporta `force_refresh` como parametro opcional para saltar cache server-side cuando haga falta reintentar parsing IA.
+- `SETUP_DATAIMPORT_BUCKET.sql` tambien quedo reconciliada:
+  - se conserva la variante compatible con Supabase administrado
+  - ya no se intenta `ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;`
+  - esto evita errores tipo `must be owner of table objects` en entornos reales
+  - la migracion comun tambien se promueve desde `shared/supabase/migrations`
 
 ### Ajuste reciente de paridad transversal (2026-04-12) — mobile ya no finge equivalencias con web
 

@@ -59,7 +59,7 @@ function fmtDate(isoStr) {
 // ─── AvailabilityRow ─────────────────────────────────────────────────────────
 
 function AvailabilityRow({ comp, isLight }) {
-  const ok = comp.is_available;
+  const ok = comp.is_sufficient ?? comp.is_available;
   const color = ok ? '#16a34a' : comp.is_optional ? '#f59e0b' : '#ef4444';
   return (
     <View style={[s.availRow, isLight && s.availRowLight]}>
@@ -173,6 +173,9 @@ function OrderDetailModal({ order, visible, onClose, onRefresh, tenant, isLight 
               <Row label="Estado" value={STATUS_LABELS[order.status] || order.status} color={statusColor(order.status)} isLight={isLight} />
               <Row label="Planeado" value={fmtQty(order.quantity_planned)} isLight={isLight} />
               <Row label="Producido" value={fmtQty(order.quantity_produced)} isLight={isLight} />
+              {order.estimated_cost ? <Row label="Costo teórico" value={`$${fmtQty(order.estimated_cost)}`} isLight={isLight} /> : null}
+              {order.actual_cost ? <Row label="Costo real total" value={`$${fmtQty(order.actual_cost)}`} isLight={isLight} /> : null}
+              {order.actual_unit_cost ? <Row label="Costo real unit." value={`$${fmtQty(order.actual_unit_cost)}`} isLight={isLight} /> : null}
               {order.started_at && <Row label="Iniciada" value={fmtDate(order.started_at)} isLight={isLight} />}
               {order.completed_at && <Row label="Completada" value={fmtDate(order.completed_at)} isLight={isLight} />}
               {order.notes ? <Row label="Notas" value={order.notes} isLight={isLight} /> : null}
@@ -370,7 +373,7 @@ function CreateOrderModal({ visible, onClose, onCreated, tenant, locations, isLi
 
   const bomOptions = boms.map((b) => ({
     key: b.bom_id,
-    label: `${b.bom_name} — ${b.product?.name || b.variant?.variant_name || 'Sin destino'} (${(b.bom_components || []).length} comp.)`,
+    label: `${b.bom_name} — ${b.product?.name || b.variant?.variant_name || 'Sin destino'} (${(b.bom_components || []).length} comp. · ~$${fmtQty(b.estimated_cost || 0)})`,
     searchText: b.bom_name,
     data: b,
   }));
@@ -527,6 +530,7 @@ export default function ProductionOrdersScreen({ tenant, session, offlineMode, p
         status: f?.status || null,
         limit: ps,
         offset: (nextPage - 1) * ps,
+        offlineMode,
       });
     },
   });

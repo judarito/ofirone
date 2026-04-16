@@ -73,7 +73,7 @@
           <v-icon>mdi-lifebuoy</v-icon>
         </v-btn>
 
-        <v-btn class="ofir-topbar__icon-btn" icon to="/ai-insights">
+        <v-btn v-if="canOpenAiInsights" class="ofir-topbar__icon-btn" icon to="/ai-insights">
           <v-icon>mdi-robot-outline</v-icon>
         </v-btn>
 
@@ -297,6 +297,7 @@ import { useDisplay } from 'vuetify'
 import rolesService from '@/services/roles.service'
 import { useAppAlerts } from '@/composables/useAppAlerts'
 import { useI18n } from '@/i18n'
+import { filterMenuTreeByBilling, getBillingRouteAccess } from '../../shared/utils/billingAccess'
 import {
   loadMenuDisplayMode,
   MENU_DISPLAY_MODE_GRID,
@@ -387,6 +388,8 @@ const showBillingBanner = computed(() => {
   )
 })
 
+const canOpenAiInsights = computed(() => getBillingRouteAccess(billingSummary.value, '/ai-insights').allowed)
+
 // Composable: alertas del sistema + ubicaciones
 const {
   allAlerts,
@@ -438,8 +441,10 @@ const menuSections = computed(() => {
     return []  // Aún cargando, error de red, o sin menús asignados
   }
 
+  const billingSafeTree = filterMenuTreeByBilling(billingSummary.value, dynamicMenuTree.value)
+
   // Convertir árbol de DB al formato que espera el sidebar
-  return dynamicMenuTree.value.map(root => {
+  return billingSafeTree.map(root => {
     const item = {
       title: root.label,
       icon: root.icon,

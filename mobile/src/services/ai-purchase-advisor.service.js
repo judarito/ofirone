@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase';
+import { ensureTenantBillingFeature } from './tenantBilling.service';
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
 
 const AI_EDGE_FUNCTION =
   process.env.EXPO_PUBLIC_PURCHASE_AI_EDGE_FUNCTION
@@ -15,6 +17,14 @@ class AIPurchaseAdvisorService {
   }
 
   async generatePurchaseRecommendations(tenantId, rotationData, suggestions, options = {}) {
+    const billingAccess = await ensureTenantBillingFeature(tenantId, BILLING_FEATURE_CODES.AI_ASSISTANT, {
+      offlineMode: options.offlineMode === true,
+      featureLabel: 'asistentes IA',
+    });
+    if (!billingAccess.success) {
+      throw new Error(billingAccess.error);
+    }
+
     const prompt = this._buildPrompt(rotationData || [], suggestions || [], options);
     const aiResponse = await this._invokeLlm([
       { role: 'system', content: this._getSystemPrompt() },

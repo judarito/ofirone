@@ -176,6 +176,7 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
           roleIds: form.roleIds,
         })
       : await createTenantUser({
+          tenantId: tenant?.tenant_id,
           email: form.email,
           password: form.password,
           full_name: form.full_name,
@@ -243,7 +244,11 @@ export default function UsersScreen({ tenant, offlineMode, pageSize = 20 }) {
     }
 
     setPasswordSaving(true);
-    const result = await changeTenantUserPassword(form.auth_user_id, passwordForm.newPassword);
+    const result = await changeTenantUserPassword(
+      form.auth_user_id,
+      passwordForm.newPassword,
+      tenant?.tenant_id,
+    );
 
     if (!result.success) {
       setPasswordSaving(false);

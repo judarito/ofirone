@@ -98,7 +98,7 @@ function hasApplicableAiSuggestion(media) {
   );
 }
 
-export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
+export default function ProductsScreen({ tenant, offlineMode, pageSize = 20, onOpenScreen }) {
   const themeMode = useThemeMode();
   const isLightTheme = themeMode === 'light';
   const androidBottomInset = useAndroidBottomInset();
@@ -579,6 +579,7 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
 
   const mediaLimitReached = productMedia.length >= MAX_PRODUCT_PHOTOS;
   const editingVariants = editingProduct?.product_variants || [];
+  const isManufacturedEditingProduct = editingProduct?.inventory_behavior === 'MANUFACTURED';
 
   const renderEditWizardSupplementary = () => (
     <View style={[styles.summaryCard, isLightTheme && styles.summaryCardLight]}>
@@ -588,6 +589,36 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
       </Text>
 
       <View style={styles.editSupplementaryActions}>
+        {isManufacturedEditingProduct ? (
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => {
+              setEditWizardOpen(false);
+              onOpenScreen?.('BOMs', { routeHint: '/manufacturing/boms' });
+            }}
+          >
+            <View style={styles.btnContentRow}>
+              <Ionicons name="build-outline" size={15} color="#dbeafe" />
+              <Text style={styles.secondaryBtnText}>
+                {editingProduct?.active_bom_id ? 'Ver BOM activo' : 'Configurar BOM'}
+              </Text>
+            </View>
+          </Pressable>
+        ) : null}
+        {isManufacturedEditingProduct ? (
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => {
+              setEditWizardOpen(false);
+              onOpenScreen?.('ProductionOrders', { routeHint: '/manufacturing/orders' });
+            }}
+          >
+            <View style={styles.btnContentRow}>
+              <Ionicons name="construct-outline" size={15} color="#dbeafe" />
+              <Text style={styles.secondaryBtnText}>Órdenes de producción</Text>
+            </View>
+          </Pressable>
+        ) : null}
         <Pressable style={styles.secondaryBtn} onPress={openCreateVariantForEditingProduct}>
           <View style={styles.btnContentRow}>
             <Ionicons name="add-outline" size={15} color="#dbeafe" />
@@ -601,6 +632,18 @@ export default function ProductsScreen({ tenant, offlineMode, pageSize = 20 }) {
           </View>
         </Pressable>
       </View>
+
+      {isManufacturedEditingProduct ? (
+        <View style={[styles.variantRow, isLightTheme && styles.variantRowLight]}>
+          <Text style={[styles.variantName, isLightTheme && styles.variantNameLight]}>Manufactura</Text>
+          <Text style={[styles.variantMeta, isLightTheme && styles.variantMetaLight]}>
+            Tipo: {editingProduct?.production_type || 'ON_DEMAND'} · BOM activo: {editingProduct?.active_bom_id ? 'Sí' : 'Pendiente'}
+          </Text>
+          <Text style={[styles.variantMeta, isLightTheme && styles.variantMetaLight]}>
+            Usa BOMs para costo teórico y órdenes para costo real TO_STOCK.
+          </Text>
+        </View>
+      ) : null}
 
       {editingVariants.length ? (
         <View style={styles.editSupplementaryList}>

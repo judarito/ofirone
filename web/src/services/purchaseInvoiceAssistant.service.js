@@ -1,4 +1,6 @@
 import supabaseService from './supabase.service'
+import tenantBillingService from './tenantBilling.service'
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess'
 
 const PRIMARY_TEXT_EDGE_FUNCTION =
   import.meta.env.VITE_PURCHASE_INVOICE_TEXT_EDGE_FUNCTION
@@ -168,6 +170,15 @@ line_total: ${line?.line_total == null ? 'null' : Number(line.line_total || 0)}`
 export async function suggestCatalogProductFromInvoiceLine({ tenantId, line }) {
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.', data: buildHeuristicSuggestion(line) }
+  }
+
+  const billingAccess = await tenantBillingService.ensureFeatureAccess(
+    tenantId,
+    BILLING_FEATURE_CODES.OCR_IMPORT,
+    { featureLabel: 'importación OCR' },
+  )
+  if (!billingAccess.success) {
+    return { success: false, error: billingAccess.error, data: buildHeuristicSuggestion(line) }
   }
 
   const primary = await invokeLineNormalizer({

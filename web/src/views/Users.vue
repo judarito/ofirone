@@ -358,6 +358,7 @@ async function saveUser() {
       showMessage(t('users.updatedSuccessfully'), 'success')
     } else {
       await createUser({
+        tenantId: tenantId.value,
         email: form.value.email,
         password: form.value.password,
         full_name: form.value.full_name,
@@ -399,7 +400,8 @@ async function changePassword() {
   try {
     await changeUserPassword(
       selectedUser.value.auth_user_id,
-      passwordForm.value.newPassword
+      passwordForm.value.newPassword,
+      tenantId.value,
     )
     showMessage(t('users.passwordUpdatedSuccessfully'), 'success')
     closePasswordDialog()

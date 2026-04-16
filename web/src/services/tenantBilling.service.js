@@ -1,5 +1,13 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import {
+  BILLING_FEATURE_CODES,
+  evaluateBillingLimit,
+  getBillingAccessForRequirement,
+  getBillingRouteAccess as resolveBillingRouteAccess,
+  hasBillingFeature,
+  isOfflineModeAllowed,
+} from '../../../shared/utils/billingAccess'
 
 const STATUS_LABELS = {
   trialing: 'En prueba',
@@ -11,9 +19,6 @@ const STATUS_LABELS = {
   canceled: 'Cancelado',
   expired: 'Expirado',
 }
-
-const BILLING_ALWAYS_ALLOWED_PATHS = ['/', '/about', '/help', '/tenant-config']
-const BILLING_SALES_ALLOWED_PATHS = ['/pos', '/sales', '/cash-sessions']
 
 function normalizeJsonObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -52,30 +57,8 @@ export function normalizeTenantBillingSummary(data) {
   }
 }
 
-function matchBillingPath(path, routes) {
-  return routes.some((route) => path === route || path.startsWith(`${route}/`))
-}
-
 export function getBillingRouteAccess(summary, path) {
-  if (!summary || !path) {
-    return { allowed: true, restriction: null }
-  }
-
-  if (matchBillingPath(path, BILLING_ALWAYS_ALLOWED_PATHS)) {
-    return { allowed: true, restriction: null }
-  }
-
-  if (matchBillingPath(path, BILLING_SALES_ALLOWED_PATHS)) {
-    return {
-      allowed: summary.can_operate_sales !== false,
-      restriction: 'sales',
-    }
-  }
-
-  return {
-    allowed: summary.can_operate_admin !== false,
-    restriction: 'admin',
-  }
+  return resolveBillingRouteAccess(summary, path)
 }
 
 function sortPlanChildren(items, key) {
@@ -98,6 +81,7 @@ class TenantBillingService {
     if (tenantId) {
       queryCache.invalidateByTags(['tenant-billing'], { tenantId })
       queryCache.invalidate('tenant-billing-summary', { tenantId })
+      queryCache.invalidate('tenant-billing-limit-usage', { tenantId })
     }
 
     queryCache.invalidateByTags(['billing-plans', 'superadmin-billing'], { tenantId: 'global' })
@@ -351,6 +335,125 @@ class TenantBillingService {
       return { success: Boolean(data?.success !== false), data }
     } catch (error) {
       return { success: false, error: error.message }
+    }
+  }
+
+  async getTenantPlanLimitUsage(tenantId, options = {}) {
+    if (!tenantId) {
+      return { success: false, data: {}, error: 'tenantId es requerido' }
+    }
+
+    try {
+      const data = await queryCache.getOrLoad(
+        'tenant-billing-limit-usage',
+        async () => {
+          const { data, error } = await supabaseService.client.rpc('fn_get_tenant_billing_limit_usage', {
+            p_tenant_id: tenantId,
+          })
+          if (error) throw error
+          return data || {}
+        },
+        {
+          tenantId,
+          ttlMs: 45 * 1000,
+          swrMs: 2 * 60 * 1000,
+          storage: 'session',
+          forceRefresh: options.forceRefresh === true,
+          tags: ['tenant-billing'],
+        }
+      )
+
+      const normalized = Object.entries(data || {}).reduce((acc, [key, value]) => {
+        const numericValue = Number(value)
+        acc[key] = Number.isFinite(numericValue) ? numericValue : 0
+        return acc
+      }, {})
+
+      return { success: true, data: normalized }
+    } catch (error) {
+      return { success: false, data: {}, error: error.message }
+    }
+  }
+
+  getFeatureAccess(summary, featureCode, options = {}) {
+    return getBillingAccessForRequirement(summary, {
+      baseRestriction: options.baseRestriction || 'admin',
+      featureCode,
+    })
+  }
+
+  hasFeature(summary, featureCode, options = {}) {
+    return hasBillingFeature(summary, featureCode, options)
+  }
+
+  async ensureFeatureAccess(tenantId, featureCode, options = {}) {
+    const summaryResult = await this.getTenantBillingSummary(tenantId)
+    if (!summaryResult.success) {
+      return { success: true, data: null }
+    }
+
+    const access = this.getFeatureAccess(summaryResult.data, featureCode, options)
+    if (access.allowed) {
+      return { success: true, data: summaryResult.data }
+    }
+
+    const featureLabel = options.featureLabel || featureCode
+    return {
+      success: false,
+      error: options.errorMessage || `Tu plan actual no incluye ${featureLabel}.`,
+      code: access.restriction,
+      featureCode: access.featureCode || featureCode,
+    }
+  }
+
+  async ensureOfflineModeAccess(tenantId, options = {}) {
+    const summaryResult = await this.getTenantBillingSummary(tenantId)
+    if (!summaryResult.success) {
+      return { success: true, data: null }
+    }
+
+    if (isOfflineModeAllowed(summaryResult.data)) {
+      return { success: true, data: summaryResult.data }
+    }
+
+    return {
+      success: false,
+      error: options.errorMessage || 'Tu plan actual no incluye operación offline.',
+      featureCode: BILLING_FEATURE_CODES.OFFLINE_MODE,
+    }
+  }
+
+  async ensurePlanLimit(tenantId, limitCode, options = {}) {
+    const [summaryResult, usageResult] = await Promise.all([
+      this.getTenantBillingSummary(tenantId),
+      this.getTenantPlanLimitUsage(tenantId),
+    ])
+
+    if (!summaryResult.success || !usageResult.success) {
+      return { success: true, data: null }
+    }
+
+    const evaluation = evaluateBillingLimit(
+      summaryResult.data,
+      usageResult.data,
+      limitCode,
+      options.requestedUnits || 1
+    )
+
+    if (evaluation.allowed) {
+      return {
+        success: true,
+        data: evaluation,
+      }
+    }
+
+    const limitLabel = options.limitLabel || limitCode
+    const planName = summaryResult.data?.plan_name || summaryResult.data?.plan_code || 'actual'
+
+    return {
+      success: false,
+      error: options.errorMessage || `Tu plan ${planName} ya alcanzó el límite de ${limitLabel}.`,
+      data: evaluation,
     }
   }
 }

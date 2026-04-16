@@ -1,4 +1,6 @@
 import supabaseService from './supabase.service'
+import tenantBillingService from './tenantBilling.service'
+import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess'
 
 const OPS_RAG_EDGE_FUNCTION =
   import.meta.env.VITE_OPS_RAG_EDGE_FUNCTION || 'ops-rag-agent'
@@ -48,6 +50,15 @@ export async function askOpsRagAgent({
   const text = String(query || '').trim()
   if (!text) {
     return { success: false, error: 'query es requerido', data: null }
+  }
+
+  const billingAccess = await tenantBillingService.ensureFeatureAccess(
+    tenantId,
+    BILLING_FEATURE_CODES.AI_ASSISTANT,
+    { featureLabel: 'Centro IA' },
+  )
+  if (!billingAccess.success) {
+    return { success: false, error: billingAccess.error, data: null }
   }
 
   const body = {

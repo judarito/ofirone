@@ -1,4 +1,9 @@
 import supabaseService from './supabase.service'
+import {
+  getBomEstimatedCost,
+  normalizeAvailabilityResult,
+  normalizeProductionOrderStatus,
+} from '../../../shared/utils/manufacturing'
 
 class ManufacturingService {
   constructor() {
@@ -7,6 +12,43 @@ class ManufacturingService {
     this.productionOrdersTable = 'production_orders'
     this.productionLinesTable = 'production_order_lines'
     this.bundlesTable = 'bundle_compositions'
+  }
+
+  normalizeProductionOrder(order) {
+    if (!order) return order
+    return {
+      ...order,
+      status: normalizeProductionOrderStatus(order.status),
+    }
+  }
+
+  async fetchProductionOrder(tenantId, orderId) {
+    const { data, error } = await supabaseService.client
+      .from(this.productionOrdersTable)
+      .select(`
+        *,
+        location:location_id(location_id, name),
+        bom:bom_id(
+          bom_id,
+          bom_name,
+          product:product_id(name),
+          variant:variant_id(sku, variant_name)
+        ),
+        created_by_user:created_by(user_id, full_name),
+        production_order_lines(
+          line_id,
+          component_variant:component_variant_id(variant_id, sku, variant_name),
+          quantity_planned,
+          quantity_consumed,
+          unit_cost
+        )
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('production_order_id', orderId)
+      .single()
+
+    if (error) throw error
+    return this.normalizeProductionOrder(data)
   }
 
   // ==================== BOMs ====================
@@ -317,7 +359,6 @@ class ManufacturingService {
       if (error) throw error
 
       // Calcular costo total
-      let totalCost = 0
       const componentDetails = []
 
       for (const comp of components || []) {
@@ -326,7 +367,6 @@ class ManufacturingService {
         const unitCost = comp.component_variant?.cost || 0
         const lineCost = unitCost * adjustedQty
 
-        totalCost += lineCost
         componentDetails.push({
           variant_id: comp.component_variant_id,
           sku: comp.component_variant?.sku,
@@ -339,7 +379,7 @@ class ManufacturingService {
       return { 
         success: true, 
         data: { 
-          total_cost: totalCost, 
+          total_cost: getBomEstimatedCost(components || [], quantity),
           components: componentDetails 
         } 
       }
@@ -406,12 +446,12 @@ class ManufacturingService {
         })
       }
 
-      return { 
-        success: true, 
-        data: { 
-          all_available: allAvailable, 
-          components: validation 
-        } 
+      return {
+        success: true,
+        data: normalizeAvailabilityResult({
+          all_available: allAvailable,
+          components: validation,
+        }),
       }
     } catch (error) {
       return { success: false, error: error.message }
@@ -454,7 +494,11 @@ class ManufacturingService {
         .range(from, to)
 
       if (filters.status) {
-        query = query.eq('status', filters.status)
+        if (normalizeProductionOrderStatus(filters.status) === 'PENDING') {
+          query = query.in('status', ['PENDING', 'DRAFT'])
+        } else {
+          query = query.eq('status', filters.status)
+        }
       }
       if (filters.location_id) {
         query = query.eq('location_id', filters.location_id)
@@ -462,7 +506,11 @@ class ManufacturingService {
 
       const { data, error, count } = await query
       if (error) throw error
-      return { success: true, data: data || [], total: count || 0 }
+      return {
+        success: true,
+        data: (data || []).map(order => this.normalizeProductionOrder(order)),
+        total: count || 0,
+      }
     } catch (error) {
       return { success: false, error: error.message, data: [], total: 0 }
     }
@@ -502,7 +550,7 @@ class ManufacturingService {
         .single()
 
       if (error) throw error
-      return { success: true, data }
+      return { success: true, data: this.normalizeProductionOrder(data) }
     } catch (error) {
       return { success: false, error: error.message }
     }
@@ -510,26 +558,22 @@ class ManufacturingService {
 
   async createProductionOrder(tenantId, locationId, bomId, quantity, createdBy, scheduledStart = null, notes = null) {
     try {
-      const orderData = {
-        tenant_id: tenantId,
-        location_id: locationId,
-        bom_id: bomId,
-        quantity_planned: quantity,
-        status: 'PENDING',
-        created_by: createdBy,
-        scheduled_start_date: scheduledStart,
-        notes: notes,
-        created_at: new Date().toISOString()
-      }
-
       const { data, error } = await supabaseService.client
-        .from(this.productionOrdersTable)
-        .insert(orderData)
-        .select()
-        .single()
+        .rpc('fn_create_production_order', {
+          p_tenant: tenantId,
+          p_location: locationId,
+          p_bom: bomId,
+          p_quantity: quantity,
+          p_created_by: createdBy,
+          p_scheduled_start: scheduledStart,
+          p_notes: notes
+        })
 
       if (error) throw error
-      return { success: true, data }
+      return {
+        success: true,
+        data: await this.fetchProductionOrder(tenantId, data),
+      }
     } catch (error) {
       return { success: false, error: error.message }
     }
@@ -537,20 +581,17 @@ class ManufacturingService {
 
   async startProduction(tenantId, orderId, startedBy) {
     try {
-      const { data, error } = await supabaseService.client
-        .from(this.productionOrdersTable)
-        .update({
-          status: 'IN_PROGRESS',
-          started_by: startedBy,
-          started_at: new Date().toISOString()
+      const { error } = await supabaseService.client
+        .rpc('fn_start_production', {
+          p_production_order: orderId,
+          p_started_by: startedBy
         })
-        .eq('production_order_id', orderId)
-        .eq('tenant_id', tenantId)
-        .select()
-        .single()
 
       if (error) throw error
-      return { success: true, data }
+      return {
+        success: true,
+        data: await this.fetchProductionOrder(tenantId, orderId),
+      }
     } catch (error) {
       return { success: false, error: error.message }
     }
@@ -587,7 +628,11 @@ class ManufacturingService {
 
       if (orderError) throw orderError
 
-      return { success: true, data: orderData, batchId }
+      return {
+        success: true,
+        data: this.normalizeProductionOrder(orderData),
+        batchId,
+      }
     } catch (error) {
       console.error('Error completing production:', error)
       return { success: false, error: error.message }
@@ -602,7 +647,7 @@ class ManufacturingService {
         { status: 'CANCELLED', cancelled_at: new Date().toISOString() }
       )
       if (error) throw error
-      return { success: true, data: data[0] }
+      return { success: true, data: this.normalizeProductionOrder(data[0]) }
     } catch (error) {
       return { success: false, error: error.message }
     }
