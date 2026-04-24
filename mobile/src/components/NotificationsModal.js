@@ -98,6 +98,14 @@ function inferTopic({ title, message, eventType, payload }) {
   if (haystack.includes('cash') || haystack.includes('caja')) {
     return 'cash';
   }
+  if (
+    haystack.includes('online_order') ||
+    haystack.includes('online order') ||
+    haystack.includes('pedido online') ||
+    haystack.includes('storefront')
+  ) {
+    return 'sale';
+  }
   if (haystack.includes('sale') || haystack.includes('venta')) {
     return 'sale';
   }
@@ -218,6 +226,27 @@ function formatNotificationCopy(item) {
   }
 
   if (topic === 'sale') {
+    const orderNumber = payload?.order_number ? `#${payload.order_number}` : '';
+    const isOnlineOrder =
+      haystack.includes('online_order') ||
+      haystack.includes('online order') ||
+      haystack.includes('pedido online') ||
+      haystack.includes('storefront');
+
+    if (isOnlineOrder) {
+      return {
+        severityLabel,
+        title: orderNumber ? `Nuevo pedido online ${orderNumber}` : 'Nuevo pedido online',
+        message: buildFallbackMessage(
+          rawMessage,
+          entityLabel
+            ? `${entityLabel} dejo un pedido online pendiente de validacion.`
+            : 'Llego un pedido online pendiente de validacion y gestion comercial.',
+          entityLabel,
+        ),
+      };
+    }
+
     return {
       severityLabel,
       title: entityLabel ? `Venta por revisar: ${entityLabel}` : 'Venta por revisar',

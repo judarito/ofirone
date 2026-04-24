@@ -18,7 +18,7 @@ const loadingAlerts = ref(false)
 const locations = ref([])
 let alertsChannel = null
 
-const ALERT_TYPES = ['STOCK', 'EXPIRATION', 'LAYAWAY', 'PAYABLE', 'RECEIVABLE']
+const ALERT_TYPES = ['STOCK', 'EXPIRATION', 'LAYAWAY', 'PAYABLE', 'RECEIVABLE', 'ONLINE_ORDER']
 const ALERTS_PER_TYPE_LIMIT = 80
 const MAX_ALERTS_IN_MEMORY = ALERT_TYPES.length * ALERTS_PER_TYPE_LIMIT
 
@@ -37,6 +37,7 @@ const expirationFilters = ref({ alert_level: null, location_id: null, search: ''
 const layawayFilters = ref({ alert_level: null, search: '' })
 const payableFilters = ref({ alert_level: null, search: '' })
 const receivableFilters = ref({ alert_level: null, search: '' })
+const onlineOrderFilters = ref({ search: '' })
 
 const stockAlertLevels = [
   { title: 'Sin stock', value: 'OUT_OF_STOCK' },
@@ -154,18 +155,36 @@ export function useAppAlerts() {
     return alerts
   })
 
+  const onlineOrderAlerts = computed(() => {
+    let alerts = allAlerts.value.filter(a => a.alert_type === 'ONLINE_ORDER')
+    if (onlineOrderFilters.value.search) {
+      const q = onlineOrderFilters.value.search.toLowerCase()
+      alerts = alerts.filter(a =>
+        String(a.data.order_number || '').toLowerCase().includes(q) ||
+        a.data.customer_name?.toLowerCase().includes(q) ||
+        a.data.customer_phone?.toLowerCase().includes(q) ||
+        a.data.customer_email?.toLowerCase().includes(q) ||
+        a.data.payment_reference?.toLowerCase().includes(q) ||
+        a.data.store_name?.toLowerCase().includes(q)
+      )
+    }
+    return alerts
+  })
+
   const stockAlertsCount = computed(() => stockAlerts.value.length)
   const expirationAlertsCount = computed(() => expirationAlerts.value.length)
   const layawayAlertsCount = computed(() => layawayAlerts.value.length)
   const payableAlertsCount = computed(() => payableAlerts.value.length)
   const receivableAlertsCount = computed(() => receivableAlerts.value.length)
+  const onlineOrderAlertsCount = computed(() => onlineOrderAlerts.value.length)
   const totalAlertsCount = computed(
     () => (
       stockAlertsCount.value +
       expirationAlertsCount.value +
       layawayAlertsCount.value +
       payableAlertsCount.value +
-      receivableAlertsCount.value
+      receivableAlertsCount.value +
+      onlineOrderAlertsCount.value
     )
   )
 
@@ -306,6 +325,10 @@ export function useAppAlerts() {
     { OVER_LIMIT: 'Cupo excedido', WITH_DEBT: 'Con saldo' }[level] || level
   )
 
+  const getOnlineOrderAlertColor = () => 'primary'
+  const getOnlineOrderAlertIcon = () => 'mdi-cart-arrow-down'
+  const getOnlineOrderAlertLabel = () => 'Pendiente'
+
   return {
     // Estado
     allAlerts,
@@ -317,6 +340,7 @@ export function useAppAlerts() {
     layawayFilters,
     payableFilters,
     receivableFilters,
+    onlineOrderFilters,
     // Niveles
     stockAlertLevels,
     expirationAlertLevels,
@@ -329,11 +353,13 @@ export function useAppAlerts() {
     layawayAlerts,
     payableAlerts,
     receivableAlerts,
+    onlineOrderAlerts,
     stockAlertsCount,
     expirationAlertsCount,
     layawayAlertsCount,
     payableAlertsCount,
     receivableAlertsCount,
+    onlineOrderAlertsCount,
     totalAlertsCount,
     filteredLayawayAlerts,
     payableOverdueAlerts,
@@ -364,6 +390,9 @@ export function useAppAlerts() {
     getPayableAlertLabel,
     getReceivableAlertColor,
     getReceivableAlertIcon,
-    getReceivableAlertLabel
+    getReceivableAlertLabel,
+    getOnlineOrderAlertColor,
+    getOnlineOrderAlertIcon,
+    getOnlineOrderAlertLabel
   }
 }

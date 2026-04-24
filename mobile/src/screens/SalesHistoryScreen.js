@@ -5,6 +5,7 @@ import {
   useWindowDimensions,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -26,6 +27,14 @@ import { useThemeMode } from '../lib/themeMode';
 import { getLatestPageCache, getPageCache } from '../services/offlineCache.service';
 import { listLocations } from '../services/inventoryCatalog.service';
 import { getPaymentMethodsForDropdown } from '../services/pos.service';
+import {
+  confirmManualOrder,
+  getManualOrders,
+  rejectManualOrder,
+  subscribeToOnlineOrderAlerts,
+  unsubscribeFromOnlineOrderAlerts,
+} from '../services/onlineOrders.service';
+import { useOnlineOrderAlerts } from '../hooks/useOnlineOrderAlerts';
 import {
   createReturn,
   discardPendingOfflineSale,
@@ -60,6 +69,62 @@ const STATUS_FILTER_LABELS = {
   PENDING_SYNC: 'Pendiente sync',
   FAILED_SYNC: 'Error sync',
 };
+
+const ONLINE_STATUS_OPTIONS = [
+  { key: 'ALL', label: 'Todos' },
+  { key: 'PENDING', label: 'Pendientes de pago' },
+  { key: 'COMPLETED', label: 'Confirmados' },
+  { key: 'CANCELLED', label: 'Cancelados' },
+];
+
+function onlineOrderStatusLabel(order) {
+  if (order.status === 'COMPLETED') return 'Venta creada';
+  if (order.status === 'CANCELLED') return 'Cancelado';
+  if (order.status === 'PROCESSING') return 'En revision';
+  return 'Pendiente';
+}
+
+function onlinePaymentStatusLabel(s) {
+  return { PAID: 'Pagado', FAILED: 'Rechazado', REFUNDED: 'Reembolsado', PENDING: 'Pago pendiente' }[s] || 'Pago pendiente';
+}
+
+function canReviewOnlineOrder(order) {
+  return (
+    order?.payment_mode === 'MANUAL' &&
+    order?.payment_status === 'PENDING' &&
+    ['PENDING', 'PROCESSING'].includes(order?.status) &&
+    !order?.sale_id
+  );
+}
+
+function filterOnlineOrders(orders = [], { statusKey = 'ALL', search = '' } = {}) {
+  const q = String(search || '').trim().toLowerCase();
+  return orders.filter((order) => {
+    const matchStatus =
+      statusKey === 'ALL' ||
+      (statusKey === 'PENDING' && canReviewOnlineOrder(order)) ||
+      (statusKey === 'COMPLETED' && order.status === 'COMPLETED' && order.payment_status === 'PAID') ||
+      (statusKey === 'CANCELLED' && ['CANCELLED', 'FAILED'].includes(order.status));
+
+    if (!matchStatus) return false;
+    if (!q) return true;
+
+    const haystack = [
+      order.order_number,
+      order.customer_name,
+      order.customer_email,
+      order.customer_phone,
+      order.payment_reference,
+    ].join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+function activeReservedQty(order) {
+  return (order?.reservations || [])
+    .filter((r) => r.status === 'ACTIVE')
+    .reduce((sum, r) => sum + Number(r.reserved_qty || 0), 0);
+}
 
 function toStartOfDayIso(date) {
   const d = new Date(date);
@@ -179,6 +244,26 @@ export default function SalesHistoryScreen({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editSale, setEditSale] = useState(null);
   const [editLines, setEditLines] = useState([]);
+
+  // ── Tab de pedidos online ────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('history');
+  const [onlineOrders, setOnlineOrders] = useState([]);
+  const [loadingOnlineOrders, setLoadingOnlineOrders] = useState(false);
+  const [onlineStatusFilter, setOnlineStatusFilter] = useState('ALL');
+  const [onlineSearch, setOnlineSearch] = useState('');
+  const [onlineActionOrder, setOnlineActionOrder] = useState(null);
+  const [onlineActionMode, setOnlineActionMode] = useState('confirm');
+  const [onlineActionRef, setOnlineActionRef] = useState('');
+  const [onlineActionNote, setOnlineActionNote] = useState('');
+  const [onlineActionLoading, setOnlineActionLoading] = useState(false);
+  const [onlineActionDialogOpen, setOnlineActionDialogOpen] = useState(false);
+  const [onlineDetailOrder, setOnlineDetailOrder] = useState(null);
+  const [onlineDetailOpen, setOnlineDetailOpen] = useState(false);
+
+  const { pendingCount: onlinePendingCount } = useOnlineOrderAlerts({
+    tenantId: tenant?.tenant_id,
+    offlineMode,
+  });
 
   const {
     items: sales,
@@ -910,6 +995,54 @@ export default function SalesHistoryScreen({
     setProcessing(false);
   };
 
+  // ── Handlers de pedidos online ───────────────────────────────────────────
+  const loadOnlineOrders = async () => {
+    if (!tenant?.tenant_id || offlineMode) return;
+    setLoadingOnlineOrders(true);
+    const result = await getManualOrders(tenant.tenant_id, { limit: 60 });
+    if (result.success) setOnlineOrders(result.data || []);
+    setLoadingOnlineOrders(false);
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'online' || !tenant?.tenant_id || offlineMode) return undefined;
+    loadOnlineOrders();
+    const channel = subscribeToOnlineOrderAlerts(tenant.tenant_id, () => loadOnlineOrders());
+    return () => { unsubscribeFromOnlineOrderAlerts(channel); };
+  }, [activeTab, tenant?.tenant_id, offlineMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openOnlineAction = (order, mode) => {
+    setOnlineActionOrder(order);
+    setOnlineActionMode(mode);
+    setOnlineActionRef('');
+    setOnlineActionNote('');
+    setOnlineActionDialogOpen(true);
+  };
+
+  const doOnlineAction = async () => {
+    if (!onlineActionOrder) return;
+    setOnlineActionLoading(true);
+    let result;
+    if (onlineActionMode === 'confirm') {
+      result = await confirmManualOrder(onlineActionOrder.online_order_id, {
+        payment_reference: onlineActionRef.trim() || null,
+        payment_note: onlineActionNote.trim() || null,
+      });
+    } else {
+      result = await rejectManualOrder(onlineActionOrder.online_order_id, {
+        reason: onlineActionNote.trim() || null,
+      });
+    }
+    setOnlineActionLoading(false);
+    if (!result.success) {
+      setError(result.error || 'No fue posible completar la accion');
+      return;
+    }
+    setOnlineActionDialogOpen(false);
+    setOnlineActionOrder(null);
+    await loadOnlineOrders();
+  };
+
   const parseYmdToDate = (value) => {
     if (!value) return null;
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -986,8 +1119,213 @@ export default function SalesHistoryScreen({
   if (filters?.from_date || filters?.to_date) filtersSummaryParts.push('Rango personalizado');
   const filtersSummary = filtersSummaryParts.length ? filtersSummaryParts.join(' · ') : 'Mostrar filtros';
 
+  const filteredOnlineOrders = filterOnlineOrders(onlineOrders, {
+    statusKey: onlineStatusFilter,
+    search: onlineSearch,
+  });
+  const onlinePendingLocalCount = onlineOrders.filter(canReviewOnlineOrder).length;
+
   return (
     <View style={[styles.container, isLightTheme && styles.containerLight]}>
+      {/* ── Tab bar ─────────────────────────────────────────────────── */}
+      <View style={[styles.tabBar, isLightTheme && styles.tabBarLight]}>
+        <Pressable
+          style={[styles.tabItem, activeTab === 'history' && styles.tabItemActive]}
+          onPress={() => setActiveTab('history')}
+        >
+          <Text style={[styles.tabText, isLightTheme && styles.tabTextLight, activeTab === 'history' && styles.tabTextActive]}>
+            Historial
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabItem, activeTab === 'online' && styles.tabItemActive]}
+          onPress={() => setActiveTab('online')}
+        >
+          <View style={styles.tabBadgeRow}>
+            <Text style={[styles.tabText, isLightTheme && styles.tabTextLight, activeTab === 'online' && styles.tabTextActive]}>
+              Pedidos online
+            </Text>
+            {onlinePendingCount > 0 ? (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{onlinePendingCount}</Text>
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+      </View>
+
+      {activeTab === 'online' ? (
+        /* ── Pestaña de pedidos online ──────────────────────────────── */
+        <View style={{ flex: 1 }}>
+          <View style={[styles.onlineHeader, isLightTheme && styles.onlineHeaderLight]}>
+            <View style={styles.onlineHeaderTop}>
+              <Text style={[styles.onlineTitle, isLightTheme && styles.onlineTitleLight]}>
+                Pedidos online manuales
+              </Text>
+              <Pressable
+                style={[styles.actionBtn, styles.detailBtn, { marginLeft: 'auto' }]}
+                onPress={loadOnlineOrders}
+                disabled={loadingOnlineOrders || offlineMode}
+              >
+                <View style={styles.actionBtnContent}>
+                  <Ionicons name="refresh-outline" size={13} style={styles.actionBtnIcon} />
+                  <Text style={styles.actionBtnText}>{loadingOnlineOrders ? 'Cargando...' : 'Actualizar'}</Text>
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Filtro de estado en chips */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.onlineStatusRow}>
+              {ONLINE_STATUS_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.key}
+                  style={[
+                    styles.onlineChip,
+                    isLightTheme && styles.onlineChipLight,
+                    onlineStatusFilter === opt.key && styles.onlineChipActive,
+                  ]}
+                  onPress={() => setOnlineStatusFilter(opt.key)}
+                >
+                  <Text
+                    style={[
+                      styles.onlineChipText,
+                      isLightTheme && styles.onlineChipTextLight,
+                      onlineStatusFilter === opt.key && styles.onlineChipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {/* Buscador */}
+            <TextInput
+              value={onlineSearch}
+              onChangeText={setOnlineSearch}
+              placeholder="Buscar por pedido, cliente o referencia..."
+              placeholderTextColor={isLightTheme ? '#94a3b8' : '#475569'}
+              style={[styles.onlineSearchInput, isLightTheme && styles.onlineSearchInputLight]}
+            />
+
+            {/* Resumen */}
+            {onlinePendingLocalCount > 0 ? (
+              <Text style={[styles.onlineSummary, isLightTheme && styles.onlineSummaryLight]}>
+                {onlinePendingLocalCount} pendiente{onlinePendingLocalCount !== 1 ? 's' : ''} de confirmacion
+              </Text>
+            ) : null}
+          </View>
+
+          {offlineMode ? (
+            <View style={[styles.onlineEmptyBox, isLightTheme && styles.onlineEmptyBoxLight]}>
+              <Text style={[styles.onlineEmptyText, isLightTheme && styles.onlineEmptyTextLight]}>
+                Pedidos online no disponibles en modo offline.
+              </Text>
+            </View>
+          ) : loadingOnlineOrders && filteredOnlineOrders.length === 0 ? (
+            <View style={[styles.onlineEmptyBox, isLightTheme && styles.onlineEmptyBoxLight]}>
+              <Text style={[styles.onlineEmptyText, isLightTheme && styles.onlineEmptyTextLight]}>Cargando pedidos...</Text>
+            </View>
+          ) : filteredOnlineOrders.length === 0 ? (
+            <View style={[styles.onlineEmptyBox, isLightTheme && styles.onlineEmptyBoxLight]}>
+              <Text style={[styles.onlineEmptyText, isLightTheme && styles.onlineEmptyTextLight]}>
+                No hay pedidos que coincidan con los filtros.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ paddingBottom: 24 + androidBottomInset }}>
+              {filteredOnlineOrders.map((order) => {
+                const canReview = canReviewOnlineOrder(order);
+                const reservedQty = activeReservedQty(order);
+                return (
+                  <View
+                    key={order.online_order_id}
+                    style={[styles.onlineCard, isLightTheme && styles.onlineCardLight, canReview && styles.onlineCardPending]}
+                  >
+                    <View style={styles.onlineCardHeader}>
+                      <Text style={[styles.onlineOrderNum, isLightTheme && styles.onlineOrderNumLight]}>
+                        #{order.order_number}
+                      </Text>
+                      <View style={styles.onlineStatusBadges}>
+                        <View style={[styles.onlineBadge, order.status === 'COMPLETED' ? styles.onlineBadgeSuccess : canReview ? styles.onlineBadgeWarning : styles.onlineBadgeNeutral]}>
+                          <Text style={styles.onlineBadgeText}>{onlineOrderStatusLabel(order)}</Text>
+                        </View>
+                        <View style={[styles.onlineBadge, order.payment_status === 'PAID' ? styles.onlineBadgeSuccess : order.payment_status === 'FAILED' ? styles.onlineBadgeError : styles.onlineBadgeWarning]}>
+                          <Text style={styles.onlineBadgeText}>{onlinePaymentStatusLabel(order.payment_status)}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={[styles.onlineCustomer, isLightTheme && styles.onlineCustomerLight]}>
+                      {order.customer_name || 'Cliente no informado'}
+                    </Text>
+                    {order.customer_phone ? (
+                      <Text style={[styles.onlineMeta, isLightTheme && styles.onlineMetaLight]}>{order.customer_phone}</Text>
+                    ) : null}
+                    {order.payment_reference ? (
+                      <Text style={[styles.onlineMeta, isLightTheme && styles.onlineMetaLight]}>
+                        Ref: {order.payment_reference}
+                      </Text>
+                    ) : null}
+
+                    <View style={styles.onlineCardFooter}>
+                      <View>
+                        <Text style={[styles.onlineTotal, isLightTheme && styles.onlineTotalLight]}>
+                          {formatMoney(order.total)}
+                        </Text>
+                        <Text style={[styles.onlineMeta, isLightTheme && styles.onlineMetaLight]}>
+                          {(order.lines || []).length} producto{(order.lines || []).length !== 1 ? 's' : ''}
+                          {reservedQty > 0 ? ` · ${reservedQty} uds reservadas` : ''}
+                        </Text>
+                        <Text style={[styles.onlineMeta, isLightTheme && styles.onlineMetaLight]}>
+                          {new Date(order.created_at).toLocaleString()}
+                        </Text>
+                      </View>
+                      {canReview ? (
+                        <View style={styles.onlineCardActions}>
+                          <Pressable
+                            style={[styles.actionBtn, styles.detailBtn, onlineActionLoading && styles.pageBtnDisabled]}
+                            onPress={() => openOnlineAction(order, 'confirm')}
+                            disabled={onlineActionLoading}
+                          >
+                            <View style={styles.actionBtnContent}>
+                              <Ionicons name="checkmark-circle-outline" size={13} style={styles.actionBtnIcon} />
+                              <Text style={styles.actionBtnText}>Confirmar</Text>
+                            </View>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.actionBtn, styles.voidBtn, onlineActionLoading && styles.pageBtnDisabled]}
+                            onPress={() => openOnlineAction(order, 'reject')}
+                            disabled={onlineActionLoading}
+                          >
+                            <View style={styles.actionBtnContent}>
+                              <Ionicons name="close-circle-outline" size={13} style={styles.actionBtnIcon} />
+                              <Text style={styles.actionBtnText}>Rechazar</Text>
+                            </View>
+                          </Pressable>
+                        </View>
+                      ) : order.sale_id ? (
+                        <View style={[styles.onlineBadge, styles.onlineBadgeSuccess, { alignSelf: 'center' }]}>
+                          <Text style={styles.onlineBadgeText}>Venta creada</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      style={styles.onlineDetailLink}
+                      onPress={() => { setOnlineDetailOrder(order); setOnlineDetailOpen(true); }}
+                    >
+                      <Ionicons name="receipt-outline" size={13} color="#60a5fa" style={{ marginRight: 4 }} />
+                      <Text style={styles.onlineDetailLinkText}>Ver detalle del checkout</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      ) : (
+        /* ── Pestaña de historial ───────────────────────────────────── */
+        <>
       <CollapsibleFilterSection
         title="Filtros de ventas"
         themeMode={themeMode}
@@ -1347,6 +1685,80 @@ export default function SalesHistoryScreen({
           </View>
         )}
       />
+        </>
+      )}
+
+      {/* ── Modal confirmar / rechazar pedido online ─────────────────── */}
+      <Modal
+        visible={onlineActionDialogOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOnlineActionDialogOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView style={styles.modalAvoider} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.modalBody, isLightTheme && styles.modalBodyLight]}>
+              <ScrollView contentContainerStyle={{ paddingBottom: 12 + androidBottomInset }} keyboardShouldPersistTaps="handled">
+                <Text style={[styles.modalTitle, isLightTheme && styles.modalTitleLight]}>
+                  {onlineActionMode === 'confirm' ? 'Confirmar pago online' : 'Rechazar pedido online'}
+                </Text>
+                {onlineActionOrder ? (
+                  <Text style={[styles.metaLine, isLightTheme && styles.metaLineLight]}>
+                    Pedido #{onlineActionOrder.order_number} — {formatMoney(onlineActionOrder.total)}
+                  </Text>
+                ) : null}
+                {onlineActionMode === 'confirm' ? (
+                  <TextInput
+                    value={onlineActionRef}
+                    onChangeText={setOnlineActionRef}
+                    placeholder="Referencia de pago (opcional)"
+                    placeholderTextColor="#64748b"
+                    style={[styles.input, isLightTheme && styles.inputLight]}
+                  />
+                ) : null}
+                <TextInput
+                  value={onlineActionNote}
+                  onChangeText={setOnlineActionNote}
+                  placeholder={onlineActionMode === 'confirm' ? 'Nota de validacion (opcional)' : 'Motivo del rechazo (opcional)'}
+                  placeholderTextColor="#64748b"
+                  style={[styles.input, isLightTheme && styles.inputLight, { minHeight: 56 }]}
+                  multiline
+                />
+                <View style={[styles.formFooter, { marginTop: 12 }]}>
+                  <Pressable
+                    style={[
+                      styles.actionBtn,
+                      onlineActionMode === 'confirm' ? styles.detailBtn : styles.voidBtn,
+                      styles.formFooterBtn,
+                      onlineActionLoading && styles.pageBtnDisabled,
+                    ]}
+                    onPress={doOnlineAction}
+                    disabled={onlineActionLoading}
+                  >
+                    <View style={styles.actionBtnContent}>
+                      <Ionicons
+                        name={onlineActionLoading ? 'hourglass-outline' : onlineActionMode === 'confirm' ? 'checkmark-circle-outline' : 'close-circle-outline'}
+                        size={13}
+                        style={styles.actionBtnIcon}
+                      />
+                      <Text style={styles.actionBtnText}>
+                        {onlineActionLoading ? 'Procesando...' : onlineActionMode === 'confirm' ? 'Confirmar pago' : 'Rechazar pedido'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionBtn, styles.printBtn, styles.formFooterBtn]}
+                    onPress={() => setOnlineActionDialogOpen(false)}
+                    disabled={onlineActionLoading}
+                  >
+                    <Text style={styles.actionBtnText}>Cancelar</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       <BottomSheetModal
         visible={Boolean(detail) || loadingDetail}
@@ -1713,6 +2125,96 @@ export default function SalesHistoryScreen({
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <BottomSheetModal
+        visible={onlineDetailOpen}
+        onClose={() => { setOnlineDetailOpen(false); setOnlineDetailOrder(null); }}
+        themeMode={themeMode}
+        footer={(
+          <Pressable
+            onPress={() => { setOnlineDetailOpen(false); setOnlineDetailOrder(null); }}
+            style={closeBtnStyles}
+          >
+            <Text style={styles.closeBtnText}>Cerrar</Text>
+          </Pressable>
+        )}
+      >
+        {onlineDetailOrder ? (
+          <>
+            <Text style={modalTitleStyles}>Detalle del pedido online</Text>
+            <Text style={modalMetaLineStyles}>
+              Pedido #{onlineDetailOrder.order_number} · {new Date(onlineDetailOrder.created_at).toLocaleString()}
+            </Text>
+            <Text style={modalMetaLineStyles}>
+              {onlineDetailOrder.customer_name || 'Cliente no informado'}
+              {onlineDetailOrder.customer_phone ? ` · ${onlineDetailOrder.customer_phone}` : ''}
+              {onlineDetailOrder.customer_email ? ` · ${onlineDetailOrder.customer_email}` : ''}
+            </Text>
+            <Text style={modalMetaLineStyles}>
+              Total: {formatMoney(onlineDetailOrder.total)}
+            </Text>
+            {onlineDetailOrder.payment_reference ? (
+              <Text style={modalMetaLineStyles}>Ref. pago: {onlineDetailOrder.payment_reference}</Text>
+            ) : null}
+
+            {onlineDetailOrder.delivery_address ? (
+              <>
+                <Text style={groupTitleStyles}>Dirección de entrega</Text>
+                <Text style={modalMetaLineStyles}>{onlineDetailOrder.delivery_address}</Text>
+              </>
+            ) : null}
+
+            {onlineDetailOrder.customer_note ? (
+              <>
+                <Text style={groupTitleStyles}>Nota del cliente</Text>
+                <Text style={modalMetaLineStyles}>{onlineDetailOrder.customer_note}</Text>
+              </>
+            ) : null}
+
+            {onlineDetailOrder.payment_proof_url ? (
+              <>
+                <Text style={groupTitleStyles}>Comprobante de pago</Text>
+                <Pressable
+                  style={[styles.actionBtn, styles.printBtn, { marginTop: 4 }]}
+                  onPress={() => Linking.openURL(onlineDetailOrder.payment_proof_url)}
+                >
+                  <View style={styles.actionBtnContent}>
+                    <Ionicons name="open-outline" size={13} style={styles.actionBtnIcon} />
+                    <Text style={styles.actionBtnText}>Ver comprobante adjunto</Text>
+                  </View>
+                </Pressable>
+              </>
+            ) : null}
+
+            <Text style={groupTitleStyles}>Productos</Text>
+            {(onlineDetailOrder.lines || []).map((line, idx) => (
+              <View key={idx} style={detailRowStyles}>
+                <View style={{ flex: 1 }}>
+                  <Text style={modalMetaLineStyles}>
+                    {line.product_name}{line.variant_name ? ` — ${line.variant_name}` : ''}
+                  </Text>
+                  {line.sku ? <Text style={[modalMetaLineStyles, { fontSize: 11, opacity: 0.6 }]}>SKU: {line.sku}</Text> : null}
+                  <Text style={[modalMetaLineStyles, { fontSize: 11, opacity: 0.7 }]}>
+                    {line.quantity} × {formatMoney(line.unit_price)}
+                  </Text>
+                </View>
+                <Text style={[modalMetaLineStyles, styles.detailAmountText]}>{formatMoney(line.line_total)}</Text>
+              </View>
+            ))}
+
+            {(onlineDetailOrder.reservations || []).some((r) => r.status === 'ACTIVE') ? (
+              <>
+                <Text style={groupTitleStyles}>Reservas activas</Text>
+                {onlineDetailOrder.reservations.filter((r) => r.status === 'ACTIVE').map((r, idx) => (
+                  <Text key={idx} style={modalMetaLineStyles}>
+                    {r.reserved_qty} uds · variante {r.variant_id?.slice(0, 8)}...
+                  </Text>
+                ))}
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </BottomSheetModal>
     </View>
   );
 }
@@ -2077,4 +2579,133 @@ const styles = StyleSheet.create({
   },
   closeBtnLight: { backgroundColor: '#235ea9' },
   closeBtnText: { color: '#fff', fontWeight: '700' },
+  // ── Tabs ───────────────────────────────────────────────────────────
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+    marginBottom: 10,
+  },
+  tabBarLight: { borderBottomColor: '#dbe4ef' },
+  tabItem: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  tabItemActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#2563eb',
+  },
+  tabText: { color: '#94a3b8', fontWeight: '600', fontSize: 13 },
+  tabTextLight: { color: '#64748b' },
+  tabTextActive: { color: '#93c5fd' },
+  tabBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tabBadge: {
+    backgroundColor: '#dc2626',
+    borderRadius: 999,
+    minWidth: 18,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    alignItems: 'center',
+  },
+  tabBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  // ── Pedidos online ─────────────────────────────────────────────────
+  onlineHeader: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  onlineHeaderLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
+  onlineHeaderTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  onlineTitle: { color: '#e2e8f0', fontWeight: '700', fontSize: 14 },
+  onlineTitleLight: { color: '#0f172a' },
+  onlineStatusRow: { marginBottom: 8 },
+  onlineChip: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 6,
+  },
+  onlineChipLight: { borderColor: '#cbd5e1' },
+  onlineChipActive: { backgroundColor: '#1d4ed8', borderColor: '#1d4ed8' },
+  onlineChipText: { color: '#94a3b8', fontSize: 12, fontWeight: '600' },
+  onlineChipTextLight: { color: '#64748b' },
+  onlineChipTextActive: { color: '#fff' },
+  onlineSearchInput: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#111827',
+    color: '#f8fafc',
+    paddingHorizontal: 10,
+    fontSize: 13,
+  },
+  onlineSearchInputLight: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
+  },
+  onlineSummary: {
+    color: '#fbbf24',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  onlineSummaryLight: { color: '#b45309' },
+  onlineEmptyBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#0f172a',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  onlineEmptyBoxLight: { backgroundColor: '#ffffff', borderColor: '#dbe4ef' },
+  onlineEmptyText: { color: '#94a3b8', textAlign: 'center' },
+  onlineEmptyTextLight: { color: '#64748b' },
+  onlineCard: {
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
+    padding: 12,
+    marginBottom: 10,
+  },
+  onlineCardLight: { borderColor: '#dbe4ef', backgroundColor: '#ffffff' },
+  onlineCardPending: { borderColor: '#2563eb' },
+  onlineCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 },
+  onlineOrderNum: { color: '#e2e8f0', fontWeight: '700', fontSize: 14 },
+  onlineOrderNumLight: { color: '#0f172a' },
+  onlineStatusBadges: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' },
+  onlineBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#334155',
+  },
+  onlineBadgeSuccess: { backgroundColor: '#166534' },
+  onlineBadgeWarning: { backgroundColor: '#854d0e' },
+  onlineBadgeError: { backgroundColor: '#7f1d1d' },
+  onlineBadgeNeutral: { backgroundColor: '#334155' },
+  onlineBadgeText: { color: '#f8fafc', fontSize: 10, fontWeight: '700' },
+  onlineCustomer: { color: '#e2e8f0', fontWeight: '600', marginTop: 4 },
+  onlineCustomerLight: { color: '#0f172a' },
+  onlineMeta: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
+  onlineMetaLight: { color: '#64748b' },
+  onlineCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
+  onlineTotal: { color: '#57d65a', fontWeight: '700', fontSize: 15 },
+  onlineTotalLight: { color: '#16a34a' },
+  onlineCardActions: { flexDirection: 'column', gap: 6 },
+  onlineDetailLink: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(148,163,184,0.15)' },
+  onlineDetailLinkText: { color: '#60a5fa', fontSize: 12, fontWeight: '600' },
+  formFooter: { flexDirection: 'row', gap: 8 },
+  formFooterBtn: { flex: 1 },
 });

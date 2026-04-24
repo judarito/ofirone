@@ -1,8 +1,8 @@
 # CONTEXTO_ULTIMO
 
-Fecha de actualizacion: 2026-04-16
+Fecha de actualizacion: 2026-04-22
 Owner: Equipo POSLite
-Ultimo cambio registrado: backend Supabase compartido queda canonizado en `shared/supabase`; web mantiene rutas historicas mediante symlinks y ya no debe editar migraciones/functions compartidas desde `web/`
+Ultimo cambio registrado: tienda online queda operativa con storefront publico, reservas por pago manual, tab `Ventas online` y comprobante adjunto con pasarela preparada como siguiente paso
 
 ## Regla de versionado de contexto (obligatoria)
 
@@ -28,6 +28,69 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 ```
 
 ## Estado tecnico actual
+
+### Ajuste reciente de ventas online (2026-04-22) — storefront publico + reserva de stock + operacion desde ventas
+
+- Web ya tiene un flujo funcional de tienda online por tenant.
+- La administracion principal vive en:
+  - `src/components/OnlineStoreSettingsCard.vue`
+  - `src/services/onlineStore.service.js`
+  - `src/views/TenantConfig.vue`
+- Capacidades de configuracion activas:
+  - slug publico
+  - branding con logo/header/colores
+  - inferencia local de paleta desde imagenes
+  - publicacion de variantes con regla de stock online
+  - buffer operativo por tienda
+  - sede y vendedor responsable
+  - metodo de pago manual para confirmacion posterior
+- La tienda publica vive en:
+  - `src/views/PublicStorefront.vue`
+  - rutas `/s/:slug`, `/s/:slug/cart`, `/s/:slug/checkout`
+- Capacidades publicas activas:
+  - hero branded
+  - categorias y buscador
+  - imagen de producto con fallback
+  - carrito persistente en `localStorage`
+  - checkout manual con pedido pendiente
+  - boton de regreso a landing
+- Regla operativa vigente del checkout:
+  - el pedido manual crea `online_orders` pendiente
+  - no crea la venta POS de inmediato
+  - reserva stock via `online_order_reservations`
+  - la disponibilidad online se calcula con `fn_online_store_available_qty(...)` descontando reservas
+  - la confirmacion real del pago se hace despues desde backoffice
+- Backoffice operativo:
+  - `src/views/Sales.vue` ahora tiene tab `Ventas online`
+  - desde ahi se puede:
+    - ver pedidos online manuales
+    - revisar reservas activas
+    - ver comprobante adjunto
+    - confirmar pago y crear venta POS
+    - rechazar pedido y liberar stock
+- Regla de centralizacion vigente:
+  - `TenantConfig > Tienda online` queda para setup, branding y catalogo
+  - `Ventas > Ventas online` queda para operacion diaria
+  - `Historial de Ventas` sigue concentrando ventas POS y ventas online ya confirmadas
+
+### Ajuste reciente de pagos online (2026-04-22) — comprobante adjunto + camino a pasarela
+
+- El checkout publico ya muestra selector de metodo de pago:
+  - `Pago manual`
+  - `Pasarela` como `Proximamente`
+- El cliente puede adjuntar comprobante de pago manual desde el storefront.
+- Soporte tecnico:
+  - `src/services/onlineStore.service.js` ahora sube comprobantes al bucket `storefront` en `public-proofs/...`
+  - `src/views/PublicStorefront.vue` adjunta imagen/PDF y envia `payment_proof_url`
+  - `src/views/Sales.vue` muestra enlace `Ver comprobante`
+- Backend compartido relevante:
+  - `../shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql`
+  - `../shared/supabase/migrations/ONLINE_STORE_PAYMENT_PROOF_AND_GATEWAY_READY.sql`
+- Preparacion para futuro gateway:
+  - `online_stores` ya contempla `allow_manual_payment`, `allow_gateway_payment` y `gateway_status`
+  - `fn_get_public_online_store(...)` expone esos flags
+  - `fn_create_online_manual_order(...)` ya recibe `p_payment_mode` y `p_payment_proof_url`
+  - por ahora `GATEWAY` responde como no disponible para no abrir un flujo incompleto
 
 ### Ajuste reciente de plan separe (2026-04-16) — reglas operativas y UI quedan alineadas entre web/mobile/backend
 
@@ -1017,3 +1080,20 @@ Nota: este resumen historico se debe mantener y actualizar en cada nuevo `CONTEX
 Si se crea una nueva version de este contexto:
 - El archivo actual deja de ser `_ULTIMO` y se guarda con fecha.
 - El nuevo archivo actualizado toma el nombre `CONTEXTO_ULTIMO.md`.
+
+## Actualizacion 2026-04-22 — alertas de ventas online
+
+- Se agrego la migracion `shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql`.
+- Cuando entra un pedido online manual pendiente:
+  - se crea/actualiza una alerta `ONLINE_ORDER` en `system_alerts`;
+  - web la consume en el centro de alertas (`useAppAlerts` + `AppAlertsDialog.vue`);
+  - mobile la hereda via integracion existente `system_alerts -> notifications`.
+- Cuando el pedido se confirma o rechaza desde backoffice:
+  - la alerta `ONLINE_ORDER` se elimina;
+  - el badge de alertas deja de contar ese pedido.
+- Web:
+  - nuevo tab `Ventas online` en `src/components/AppAlertsDialog.vue`;
+  - acceso directo a `/sales?tab=online`;
+  - `src/views/Sales.vue` ya respeta `route.query.tab`.
+- Mobile:
+  - `src/components/NotificationsModal.js` ahora reconoce mejor `pedido online` / `online_order` y muestra copy comercial de “Nuevo pedido online”.

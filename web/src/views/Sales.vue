@@ -3,6 +3,7 @@
     <!-- Tabs -->
     <v-tabs v-model="tab" color="primary" class="mb-4">
       <v-tab value="sales">Historial de Ventas</v-tab>
+      <v-tab value="online">Ventas online</v-tab>
       <v-tab value="returns">Devoluciones</v-tab>
     </v-tabs>
 
@@ -148,6 +149,191 @@
             </div>
           </template>
         </ListView>
+      </v-window-item>
+
+      <v-window-item value="online">
+        <v-card class="mb-4 sales-filter-card" elevation="1">
+          <v-card-text>
+            <div class="d-flex flex-wrap align-center ga-3">
+              <div>
+                <div class="text-subtitle-1 font-weight-bold">Pedidos online manuales</div>
+                <div class="text-body-2 text-medium-emphasis">
+                  Centraliza pedidos pendientes, confirma pagos y convierte a venta real del POS desde aquí.
+                </div>
+              </div>
+              <v-spacer />
+              <v-btn
+                color="primary"
+                variant="tonal"
+                prepend-icon="mdi-refresh"
+                :loading="loadingOnlineOrders"
+                @click="refreshOnlineOrders"
+              >
+                Actualizar
+              </v-btn>
+            </div>
+
+            <v-row dense class="mt-3">
+              <v-col cols="12" sm="6" md="4">
+                <v-select
+                  v-model="onlineStatusFilter"
+                  :items="onlineStatusOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="Estado online"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  v-model="onlineSearch"
+                  label="Buscar pedido, cliente o referencia"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  prepend-inner-icon="mdi-magnify"
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <div class="d-flex flex-wrap ga-2">
+                  <v-chip size="small" color="warning" variant="tonal">
+                    Pendientes: {{ pendingOnlineOrdersCount }}
+                  </v-chip>
+                  <v-chip size="small" color="info" variant="tonal">
+                    Reservadas: {{ reservedOnlineUnitsLabel }}
+                  </v-chip>
+                </div>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+
+        <v-alert v-if="loadingOnlineOrders" type="info" variant="tonal">
+          Cargando pedidos online...
+        </v-alert>
+
+        <v-alert v-else-if="!filteredOnlineOrders.length" type="info" variant="tonal">
+          No hay pedidos online que coincidan con los filtros actuales.
+        </v-alert>
+
+        <v-table v-else density="comfortable" class="sales-online-table">
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Estado</th>
+              <th>Total</th>
+              <th>Reserva</th>
+              <th>Creado</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="order in filteredOnlineOrders" :key="order.online_order_id">
+              <td>
+                <div class="font-weight-medium">#{{ order.order_number }}</div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ order.payment_reference || 'Sin referencia' }}
+                </div>
+                <div v-if="order.payment_proof_url" class="text-caption mt-1">
+                  <v-tooltip
+                    location="top"
+                    max-width="360"
+                    content-class="online-proof-tooltip"
+                    transition="fade-transition"
+                  >
+                    <template #activator="{ props: tooltipProps }">
+                      <a
+                        v-bind="tooltipProps"
+                        :href="order.payment_proof_url"
+                        target="_blank"
+                        rel="noreferrer"
+                        @click.prevent="openPaymentProofPreview(order.payment_proof_url)"
+                      >
+                        Ver comprobante
+                      </a>
+                    </template>
+                    <div style="width: 320px; padding: 4px;">
+                      <v-img
+                        :src="order.payment_proof_url"
+                        height="280"
+                        cover
+                        class="rounded"
+                        @error="(e) => { e.target.style.display = 'none' }"
+                      />
+                    </div>
+                  </v-tooltip>
+                </div>
+                <div class="text-caption mt-1">
+                  <router-link :to="`/pedido/${order.online_order_id}`" class="text-primary">Estado público</router-link>
+                </div>
+              </td>
+              <td>
+                <div>{{ order.customer_name || 'Cliente no informado' }}</div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ order.customer_phone || order.customer_email || 'Sin contacto' }}
+                </div>
+                <div v-if="order.delivery_address" class="text-caption text-medium-emphasis mt-1">
+                  {{ order.delivery_address }}
+                </div>
+              </td>
+              <td>
+                <div class="d-flex flex-wrap ga-2">
+                  <v-chip size="small" variant="tonal" :color="onlineOrderStatusColor(order)">
+                    {{ onlineOrderStatusLabel(order) }}
+                  </v-chip>
+                  <v-chip size="small" variant="tonal" :color="onlinePaymentStatusColor(order.payment_status)">
+                    {{ onlinePaymentStatusLabel(order.payment_status) }}
+                  </v-chip>
+                </div>
+              </td>
+              <td>{{ formatMoney(order.total) }}</td>
+              <td>{{ formatOnlineReservationSummary(order) }}</td>
+              <td>
+                <div>{{ formatDate(order.created_at) }}</div>
+                <div class="text-caption text-medium-emphasis">{{ order.lines?.length || 0 }} líneas</div>
+              </td>
+              <td class="text-right">
+                <div class="d-flex justify-end flex-wrap ga-2">
+                  <v-btn
+                    size="small"
+                    color="info"
+                    variant="text"
+                    prepend-icon="mdi-eye"
+                    @click="viewOnlineOrderDetail(order)"
+                  >
+                    Detalle
+                  </v-btn>
+                  <v-btn
+                    v-if="canReviewOnlineOrder(order)"
+                    size="small"
+                    color="success"
+                    variant="tonal"
+                    :loading="onlineOrderActionLoading && selectedOnlineOrder?.online_order_id === order.online_order_id && onlineOrderActionMode === 'confirm'"
+                    @click="openOnlineOrderDialog(order, 'confirm')"
+                  >
+                    Confirmar pago
+                  </v-btn>
+                  <v-btn
+                    v-if="canReviewOnlineOrder(order)"
+                    size="small"
+                    color="error"
+                    variant="tonal"
+                    :loading="onlineOrderActionLoading && selectedOnlineOrder?.online_order_id === order.online_order_id && onlineOrderActionMode === 'reject'"
+                    @click="openOnlineOrderDialog(order, 'reject')"
+                  >
+                    Rechazar
+                  </v-btn>
+                  <v-chip v-if="order.sale_id" size="small" variant="outlined" color="success">
+                    Venta creada
+                  </v-chip>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </v-table>
       </v-window-item>
 
       <!-- DEVOLUCIONES -->
@@ -507,12 +693,291 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="onlineOrderDialog" max-width="620">
+      <v-card>
+        <v-card-title>
+          {{ onlineOrderActionMode === 'confirm' ? 'Confirmar pago online' : 'Rechazar pago online' }}
+        </v-card-title>
+        <v-card-text v-if="selectedOnlineOrder">
+          <div class="text-body-2 text-medium-emphasis mb-4">
+            Pedido #{{ selectedOnlineOrder.order_number }} · {{ selectedOnlineOrder.customer_name || 'Cliente no informado' }}
+          </div>
+
+          <v-alert
+            :type="onlineOrderActionMode === 'confirm' ? 'info' : 'warning'"
+            variant="tonal"
+            class="mb-4"
+          >
+            <template v-if="onlineOrderActionMode === 'confirm'">
+              Al confirmar se crea la venta real en el POS y la reserva de stock pasa a consumida.
+            </template>
+            <template v-else>
+              Al rechazar se cancela el pedido y se libera la reserva del stock online.
+            </template>
+          </v-alert>
+
+          <div class="text-body-2 mb-4">
+            Total: <strong>{{ formatMoney(selectedOnlineOrder.total) }}</strong> · Reserva: <strong>{{ formatOnlineReservationSummary(selectedOnlineOrder) }}</strong>
+          </div>
+
+          <div v-if="selectedOnlineOrder.payment_proof_url" class="mb-4">
+            <v-btn
+              size="small"
+              variant="tonal"
+              color="primary"
+              prepend-icon="mdi-file-document-outline"
+              :href="selectedOnlineOrder.payment_proof_url"
+              target="_blank"
+            >
+              Ver comprobante adjunto
+            </v-btn>
+          </div>
+
+          <v-text-field
+            v-if="onlineOrderActionMode === 'confirm'"
+            v-model="onlineOrderReference"
+            label="Referencia confirmada"
+            variant="outlined"
+            hint="Puedes ajustar la referencia final del pago antes de crear la venta."
+            persistent-hint
+            class="mb-3"
+          />
+
+          <v-textarea
+            v-model="onlineOrderNote"
+            :label="onlineOrderActionMode === 'confirm' ? 'Nota de validación' : 'Motivo del rechazo'"
+            variant="outlined"
+            rows="4"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn @click="closeOnlineOrderDialog">Cancelar</v-btn>
+          <v-btn
+            :color="onlineOrderActionMode === 'confirm' ? 'success' : 'error'"
+            :loading="onlineOrderActionLoading"
+            @click="submitOnlineOrderAction"
+          >
+            {{ onlineOrderActionMode === 'confirm' ? 'Confirmar pago' : 'Rechazar pedido' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Dialog Detalle Pedido Online -->
+    <v-dialog v-model="onlineOrderDetailDialog" max-width="750" scrollable>
+      <v-card v-if="onlineOrderDetail">
+        <v-card-title class="d-flex align-center ga-2">
+          <v-icon color="info">mdi-cart-outline</v-icon>
+          Pedido online #{{ onlineOrderDetail.order_number }}
+        </v-card-title>
+        <v-card-text>
+          <!-- Info general -->
+          <v-row dense class="mb-3">
+            <v-col cols="12" sm="6">
+              <div class="text-caption text-medium-emphasis">Estado</div>
+              <div class="d-flex flex-wrap ga-2 mt-1">
+                <v-chip size="small" variant="tonal" :color="onlineOrderStatusColor(onlineOrderDetail)">
+                  {{ onlineOrderStatusLabel(onlineOrderDetail) }}
+                </v-chip>
+                <v-chip size="small" variant="tonal" :color="onlinePaymentStatusColor(onlineOrderDetail.payment_status)">
+                  {{ onlinePaymentStatusLabel(onlineOrderDetail.payment_status) }}
+                </v-chip>
+              </div>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <div class="text-caption text-medium-emphasis">Modo de pago</div>
+              <div class="text-body-2 font-weight-medium">{{ onlineOrderDetail.payment_mode === 'MANUAL' ? 'Manual' : 'Pasarela' }}</div>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-3" />
+
+          <!-- Datos del cliente / checkout -->
+          <div class="text-subtitle-2 mb-2">Datos del checkout</div>
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <div class="text-caption text-medium-emphasis">Cliente</div>
+              <div class="text-body-2">{{ onlineOrderDetail.customer_name || 'No informado' }}</div>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <div class="text-caption text-medium-emphasis">Email</div>
+              <div class="text-body-2">{{ onlineOrderDetail.customer_email || 'No informado' }}</div>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <div class="text-caption text-medium-emphasis">Teléfono</div>
+              <div class="text-body-2">{{ onlineOrderDetail.customer_phone || 'No informado' }}</div>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <div class="text-caption text-medium-emphasis">Referencia de pago</div>
+              <div class="text-body-2">{{ onlineOrderDetail.payment_reference || 'No informada' }}</div>
+            </v-col>
+            <v-col cols="12" v-if="onlineOrderDetail.delivery_address">
+              <div class="text-caption text-medium-emphasis">Dirección de entrega</div>
+              <div class="text-body-2">{{ onlineOrderDetail.delivery_address }}</div>
+            </v-col>
+            <v-col cols="12" v-if="onlineOrderDetail.customer_note">
+              <div class="text-caption text-medium-emphasis">Nota del cliente</div>
+              <div class="text-body-2">{{ onlineOrderDetail.customer_note }}</div>
+            </v-col>
+            <v-col cols="12" v-if="onlineOrderDetail.landing_return_url">
+              <div class="text-caption text-medium-emphasis">URL de retorno</div>
+              <div class="text-body-2 text-truncate">
+                <a :href="onlineOrderDetail.landing_return_url" target="_blank" rel="noreferrer">{{ onlineOrderDetail.landing_return_url }}</a>
+              </div>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-3" />
+
+          <!-- Líneas del pedido -->
+          <div class="text-subtitle-2 mb-2">Productos ({{ onlineOrderDetail.lines?.length || 0 }})</div>
+          <v-table density="compact">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-right">Precio</th>
+                <th class="text-right">Impuesto</th>
+                <th class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="line in onlineOrderDetail.lines" :key="line.online_order_line_id || line.variant_id">
+                <td>
+                  <div class="text-body-2">{{ line.product_name }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ line.variant_name || '' }} {{ line.sku ? '· SKU ' + line.sku : '' }}</div>
+                </td>
+                <td class="text-center">{{ line.quantity }}</td>
+                <td class="text-right">{{ formatMoney(line.unit_price) }}</td>
+                <td class="text-right">{{ formatMoney(line.tax_amount) }}</td>
+                <td class="text-right">{{ formatMoney(line.line_total) }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+
+          <div class="mt-3 text-right">
+            <div>Subtotal: {{ formatMoney(onlineOrderDetail.subtotal) }}</div>
+            <div v-if="onlineOrderDetail.discount_total > 0">Descuento: -{{ formatMoney(onlineOrderDetail.discount_total) }}</div>
+            <div>Impuestos: {{ formatMoney(onlineOrderDetail.tax_total) }}</div>
+            <div class="text-h6 font-weight-bold">Total: {{ formatMoney(onlineOrderDetail.total) }}</div>
+          </div>
+
+          <v-divider class="my-3" />
+
+          <!-- Reservas -->
+          <div class="text-subtitle-2 mb-2">Reservas de stock</div>
+          <div v-if="!onlineOrderDetail.reservations?.length" class="text-body-2 text-medium-emphasis">Sin reservas registradas.</div>
+          <v-table v-else density="compact">
+            <thead>
+              <tr>
+                <th>Variante</th>
+                <th class="text-center">Cant.</th>
+                <th>Estado</th>
+                <th>Creada</th>
+                <th>Consumida/Liberada</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="res in onlineOrderDetail.reservations" :key="res.reservation_id || res.variant_id">
+                <td class="text-body-2">{{ res.variant_id?.slice(0, 8) || '—' }}</td>
+                <td class="text-center">{{ res.reserved_qty }}</td>
+                <td>
+                  <v-chip size="x-small" variant="tonal" :color="res.status === 'ACTIVE' ? 'warning' : res.status === 'CONSUMED' ? 'success' : 'grey'">
+                    {{ res.status === 'ACTIVE' ? 'Activa' : res.status === 'CONSUMED' ? 'Consumida' : 'Liberada' }}
+                  </v-chip>
+                </td>
+                <td class="text-caption">{{ formatDate(res.created_at) }}</td>
+                <td class="text-caption">{{ res.consumed_at ? formatDate(res.consumed_at) : res.released_at ? formatDate(res.released_at) : '—' }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+
+          <!-- Comprobante de pago -->
+          <template v-if="onlineOrderDetail.payment_proof_url">
+            <v-divider class="my-3" />
+            <div class="text-subtitle-2 mb-2">Comprobante de pago</div>
+            <v-img
+              :src="onlineOrderDetail.payment_proof_url"
+              max-height="400"
+              contain
+              class="rounded mb-2"
+              @error="paymentProofError = true"
+            />
+            <div v-if="paymentProofError" class="text-body-2 text-medium-emphasis">
+              No se pudo previsualizar el comprobante.
+              <a :href="onlineOrderDetail.payment_proof_url" target="_blank" rel="noreferrer">Abrir en nueva pestaña</a>
+            </div>
+          </template>
+
+          <!-- Venta asociada -->
+          <template v-if="onlineOrderDetail.sale_id">
+            <v-divider class="my-3" />
+            <div class="text-subtitle-2 mb-2">Venta POS asociada</div>
+            <div class="d-flex align-center ga-2">
+              <v-chip size="small" color="success" variant="tonal" prepend-icon="mdi-receipt">
+                {{ onlineOrderDetail.sale_id }}
+              </v-chip>
+              <v-btn
+                size="small"
+                variant="text"
+                color="primary"
+                prepend-icon="mdi-eye"
+                @click="viewSaleFromOnlineDetail"
+              >
+                Ver detalle de venta
+              </v-btn>
+            </div>
+          </template>
+
+          <!-- Payload completo -->
+          <template v-if="onlineOrderDetail.payment_payload && Object.keys(onlineOrderDetail.payment_payload).length > 0">
+            <v-divider class="my-3" />
+            <div class="text-subtitle-2 mb-2">Payload del pago</div>
+            <pre class="text-caption bg-grey-lighten-3 pa-3 rounded" style="overflow-x: auto; white-space: pre-wrap;">{{ JSON.stringify(onlineOrderDetail.payment_payload, null, 2) }}</pre>
+          </template>
+
+          <!-- Historial de cambios -->
+          <template v-if="onlineOrderDetail.status_history?.length">
+            <v-divider class="my-3" />
+            <div class="text-subtitle-2 mb-2">Historial de cambios</div>
+            <v-timeline density="compact" side="end" class="online-order-timeline">
+              <v-timeline-item
+                v-for="(entry, i) in onlineOrderDetail.status_history"
+                :key="i"
+                :dot-color="entry.status === 'COMPLETED' ? 'success' : entry.status === 'CANCELLED' || entry.status === 'FAILED' ? 'error' : entry.status === 'PROCESSING' ? 'info' : 'warning'"
+                size="x-small"
+              >
+                <div class="d-flex align-center ga-2 mb-1">
+                  <v-chip size="x-small" variant="flat" :color="entry.status === 'COMPLETED' ? 'success' : entry.status === 'CANCELLED' || entry.status === 'FAILED' ? 'error' : entry.status === 'PROCESSING' ? 'info' : 'warning'">
+                    {{ entry.status === 'COMPLETED' ? 'Venta creada' : entry.status === 'CANCELLED' ? 'Cancelado' : entry.status === 'FAILED' ? 'Falló' : entry.status === 'PROCESSING' ? 'En revisión' : 'Pendiente' }}
+                  </v-chip>
+                  <span class="text-caption text-medium-emphasis">{{ formatDate(entry.timestamp) }}</span>
+                </div>
+                <div v-if="entry.changed_by" class="text-caption">
+                  Por: <strong>{{ entry.changed_by }}</strong>
+                </div>
+                <div v-if="entry.note" class="text-caption text-medium-emphasis mt-1">
+                  {{ entry.note }}
+                </div>
+              </v-timeline-item>
+            </v-timeline>
+          </template>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn @click="onlineOrderDetailDialog = false">{{ t('common.close') }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">{{ snackbarMessage }}</v-snackbar>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useTenant } from '@/composables/useTenant'
 import { useAuth } from '@/composables/useAuth'
 import { usePrint } from '@/composables/usePrint'
@@ -523,10 +988,13 @@ import locationsService from '@/services/locations.service'
 import paymentMethodsService from '@/services/paymentMethods.service'
 import supabaseService from '@/services/supabase.service'
 import electronicInvoicingService from '@/services/electronicInvoicing.service'
+import onlineStoreService from '@/services/onlineStore.service'
 import { formatMoney, formatDateTimeFull as formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const { tenantId } = useTenant()
 const { userProfile } = useAuth()
@@ -537,9 +1005,61 @@ const tab = ref('sales')
 const sales = ref([])
 const totalSales = ref(0)
 const loadingSales = ref(false)
+const onlineOrders = ref([])
+const loadingOnlineOrders = ref(false)
 const returns = ref([])
 const totalReturns = ref(0)
 const loadingReturns = ref(false)
+const onlineStatusFilter = ref('ALL')
+const onlineSearch = ref('')
+const onlineOrderDialog = ref(false)
+const selectedOnlineOrder = ref(null)
+const onlineOrderActionMode = ref('confirm')
+const onlineOrderActionLoading = ref(false)
+const onlineOrderReference = ref('')
+const onlineOrderNote = ref('')
+const onlineOrderDetailDialog = ref(false)
+const onlineOrderDetail = ref(null)
+const paymentProofError = ref(false)
+
+const openPaymentProofPreview = (url) => {
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+const viewOnlineOrderDetail = async (order) => {
+  // Forzar recarga fresca desde la BD para obtener status_history
+  try {
+    const result = await onlineStoreService.getManualOrders(tenantId.value, null, { forceRefresh: true, limit: 100 })
+    if (result.success) {
+      onlineOrders.value = result.data || []
+      const fresh = (result.data || []).find(o => o.online_order_id === order.online_order_id)
+      if (fresh) {
+        onlineOrderDetail.value = fresh
+        paymentProofError.value = false
+        onlineOrderDetailDialog.value = true
+        return
+      }
+    }
+  } catch (_e) {
+    // fallback: usar el objeto original
+  }
+  onlineOrderDetail.value = order
+  paymentProofError.value = false
+  onlineOrderDetailDialog.value = true
+}
+
+const viewSaleFromOnlineDetail = () => {
+  if (!onlineOrderDetail.value?.sale_id) return
+  onlineOrderDetailDialog.value = false
+  // Buscar la venta en la lista de ventas y abrir su detalle
+  const sale = sales.value.find((s) => s.sale_id === onlineOrderDetail.value.sale_id)
+  if (sale) {
+    viewSale(sale)
+  } else {
+    // Si no está en la lista actual, cargarla directamente
+    viewSale({ sale_id: onlineOrderDetail.value.sale_id })
+  }
+}
 
 // Calcular últimos 7 días (desde hace 7 días hasta hoy)
 const getLastWeekDates = () => {
@@ -561,6 +1081,12 @@ const filters = ref({
   location_id: null
 })
 const locations = ref([])
+const onlineStatusOptions = [
+  { title: 'Todos', value: 'ALL' },
+  { title: 'Pendientes de pago', value: 'PENDING' },
+  { title: 'Confirmados', value: 'COMPLETED' },
+  { title: 'Cancelados', value: 'CANCELLED' },
+]
 
 const detailDialog = ref(false)
 const returnDialog = ref(false)
@@ -582,12 +1108,75 @@ const rules = { required: v => !!v || 'Campo requerido' }
 
 const statusColor = (s) => ({ COMPLETED: 'success', VOIDED: 'error', RETURNED: 'warning', PARTIAL_RETURN: 'orange' }[s] || 'grey')
 const statusLabel = (s) => ({ COMPLETED: 'Completada', VOIDED: 'Anulada', RETURNED: 'Devuelta', PARTIAL_RETURN: 'Dev. Parcial' }[s] || s)
+const onlinePaymentStatusLabel = (s) => ({ PAID: 'Pago confirmado', FAILED: 'Pago rechazado', REFUNDED: 'Reembolsado', PENDING: 'Pago pendiente' }[s] || s || 'Pago pendiente')
+const onlinePaymentStatusColor = (s) => ({ PAID: 'success', FAILED: 'error', REFUNDED: 'info', PENDING: 'warning' }[s] || 'grey')
+const onlineOrderStatusLabel = (order) => {
+  if (order.status === 'COMPLETED') return 'Venta creada'
+  if (order.status === 'CANCELLED') return 'Cancelado'
+  if (order.status === 'FAILED') return 'Falló'
+  if (order.status === 'PROCESSING') return 'En revisión'
+  return 'Pendiente'
+}
+const onlineOrderStatusColor = (order) => {
+  if (order.status === 'COMPLETED') return 'success'
+  if (order.status === 'CANCELLED' || order.status === 'FAILED') return 'error'
+  if (order.status === 'PROCESSING') return 'info'
+  return 'warning'
+}
+const canReviewOnlineOrder = (order) => order?.payment_mode === 'MANUAL'
+  && order?.payment_status === 'PENDING'
+  && ['PENDING', 'PROCESSING'].includes(order?.status)
+  && !order?.sale_id
+
+const filteredOnlineOrders = computed(() => {
+  const search = String(onlineSearch.value || '').trim().toLowerCase()
+  return onlineOrders.value.filter((order) => {
+    const matchesStatus = onlineStatusFilter.value === 'ALL'
+      || (onlineStatusFilter.value === 'PENDING' && canReviewOnlineOrder(order))
+      || (onlineStatusFilter.value === 'COMPLETED' && order.status === 'COMPLETED' && order.payment_status === 'PAID')
+      || (onlineStatusFilter.value === 'CANCELLED' && ['CANCELLED', 'FAILED'].includes(order.status))
+
+    const haystack = [
+      order.order_number,
+      order.customer_name,
+      order.customer_email,
+      order.customer_phone,
+      order.payment_reference,
+    ].join(' ').toLowerCase()
+
+    const matchesSearch = !search || haystack.includes(search)
+    return matchesStatus && matchesSearch
+  })
+})
+
+const pendingOnlineOrdersCount = computed(() => onlineOrders.value.filter((order) => canReviewOnlineOrder(order)).length)
+const reservedOnlineUnitsLabel = computed(() => {
+  const total = onlineOrders.value
+    .filter((order) => canReviewOnlineOrder(order))
+    .reduce((sum, order) => sum + (order.reservations || [])
+      .filter((reservation) => reservation.status === 'ACTIVE')
+      .reduce((orderSum, reservation) => orderSum + Number(reservation.reserved_qty || 0), 0), 0)
+
+  return Number.isInteger(total) ? String(total) : total.toFixed(3)
+})
 
 const feStatusColor = (s) => ({ ACCEPTED: 'success', PROCESSING: 'blue', PENDING: 'grey', REJECTED: 'error', ERROR: 'orange' }[s] || 'grey')
 const feStatusLabel = (s) => ({ ACCEPTED: 'Aceptada DIAN', PROCESSING: 'Procesando', PENDING: 'Pendiente', REJECTED: 'Rechazada', ERROR: 'Error envío' }[s] || (s ? s : 'Sin enviar'))
 
 const retrying = ref(false)
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100
+const formatOnlineReservationSummary = (order) => {
+  const activeQty = (order?.reservations || [])
+    .filter((reservation) => reservation.status === 'ACTIVE')
+    .reduce((sum, reservation) => sum + Number(reservation.reserved_qty || 0), 0)
+
+  if (activeQty > 0) {
+    return Number.isInteger(activeQty) ? `${activeQty} uds reservadas` : `${activeQty.toFixed(3)} uds reservadas`
+  }
+  if (order?.status === 'COMPLETED') return 'Consumida'
+  if (order?.status === 'CANCELLED') return 'Liberada'
+  return 'Sin reserva'
+}
 
 const getLineMaxReturnQty = (line) => {
   const soldQty = Number(line.quantity) || 0
@@ -694,6 +1283,86 @@ const loadReturns = async ({ page, pageSize, search, tenantId: tid }) => {
     if (r.success) { returns.value = r.data; totalReturns.value = r.total }
   } finally { loadingReturns.value = false }
 }
+
+const refreshOnlineOrders = async () => {
+  if (!tenantId.value) return
+  loadingOnlineOrders.value = true
+  try {
+    const result = await onlineStoreService.getManualOrders(tenantId.value, null, { forceRefresh: true, limit: 100 })
+    if (result.success) {
+      onlineOrders.value = result.data || []
+    } else {
+      showMsg(result.error || 'No se pudieron cargar los pedidos online.', 'error')
+    }
+  } finally {
+    loadingOnlineOrders.value = false
+  }
+}
+
+const openOnlineOrderDialog = (order, mode) => {
+  selectedOnlineOrder.value = order
+  onlineOrderActionMode.value = mode
+  onlineOrderReference.value = order?.payment_reference || ''
+  onlineOrderNote.value = ''
+  onlineOrderDialog.value = true
+}
+
+const closeOnlineOrderDialog = () => {
+  onlineOrderDialog.value = false
+  selectedOnlineOrder.value = null
+  onlineOrderActionMode.value = 'confirm'
+  onlineOrderReference.value = ''
+  onlineOrderNote.value = ''
+}
+
+const submitOnlineOrderAction = async () => {
+  if (!selectedOnlineOrder.value?.online_order_id) return
+  onlineOrderActionLoading.value = true
+  try {
+    const result = onlineOrderActionMode.value === 'confirm'
+      ? await onlineStoreService.confirmManualOrder(selectedOnlineOrder.value.online_order_id, {
+        payment_reference: onlineOrderReference.value,
+        payment_note: onlineOrderNote.value,
+      })
+      : await onlineStoreService.rejectManualOrder(selectedOnlineOrder.value.online_order_id, {
+        reason: onlineOrderNote.value,
+      })
+
+    if (!result.success) {
+      showMsg(result.error || 'No se pudo procesar el pedido online.', 'error')
+      return
+    }
+
+    showMsg(onlineOrderActionMode.value === 'confirm' ? 'Pago confirmado y venta creada.' : 'Pedido rechazado y stock liberado.')
+    closeOnlineOrderDialog()
+    await refreshOnlineOrders()
+    await loadSales({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value })
+  } finally {
+    onlineOrderActionLoading.value = false
+  }
+}
+
+watch(
+  () => route.query.tab,
+  (value) => {
+    if (value === 'online' || value === 'sales' || value === 'returns') {
+      tab.value = value
+      return
+    }
+    tab.value = 'sales'
+  },
+  { immediate: true }
+)
+
+watch(tab, (value) => {
+  const nextQuery = { ...route.query }
+  if (value === 'sales') {
+    delete nextQuery.tab
+  } else {
+    nextQuery.tab = value
+  }
+  router.replace({ query: nextQuery })
+})
 
 const viewSale = async (item) => {
   const r = await salesService.getSaleById(tenantId.value, item.sale_id)
@@ -883,6 +1552,7 @@ const getLocationName = (locationId) => {
 onMounted(async () => {
   await loadSettings()
   await loadLocations()
+  await refreshOnlineOrders()
 })
 
 
@@ -896,5 +1566,11 @@ const showMsg = (msg, color = 'success') => { snackbarMessage.value = msg; snack
 
 .sales-page :deep(.v-field) {
   border-radius: 12px;
+}
+
+.sales-online-table {
+  border: 1px solid rgba(95, 131, 236, 0.2);
+  border-radius: 16px;
+  overflow: hidden;
 }
 </style>

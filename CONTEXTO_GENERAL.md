@@ -1,9 +1,88 @@
 # CONTEXTO_GENERAL — Ofirone / POSLite
 
-Fecha: 2026-04-16
+Fecha: 2026-04-22
 Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 
 ---
+
+## Actualizacion reciente (2026-04-22) — alertas de pedidos online llegan a mobile (push + tab de gestion)
+
+- Se cerro la brecha entre web y mobile para alertas operativas de tienda online.
+- Arquitectura de canales:
+  - `system_alerts` (tabla operativa) sigue siendo la fuente canonica para AMBAS apps
+  - `notifications` (tabla por usuario) es el canal de push/in-app personal — ahora tambien recibe pedidos online
+- Cambios backend:
+  - nueva migracion `shared/supabase/migrations/ONLINE_ORDER_MOBILE_NOTIFICATIONS.sql`
+  - reemplaza `fn_upsert_online_order_alert` para que, ademas de escribir en `system_alerts`, emita a `notifications` via `fn_emit_notification_event` con dedupe de 30 min
+  - el emit esta envuelto en `BEGIN/EXCEPTION` para que un fallo en la notificacion no aborte la alerta operativa
+- Cambios mobile (nuevos archivos):
+  - `mobile/src/services/onlineOrders.service.js` — fetch de ordenes manuales con lineas y reservas, confirmar y rechazar via RPC, suscripcion a `system_alerts` para refresh en tiempo real
+  - `mobile/src/services/alerts.service.js` — lectura de `system_alerts` por tipo con realtime subscription
+  - `mobile/src/hooks/useOnlineOrderAlerts.js` — hook que mantiene el conteo de alertas ONLINE_ORDER en tiempo real (para badge del tab)
+- Cambios mobile (modificados):
+  - `mobile/src/screens/SalesHistoryScreen.js` ahora tiene tabs `Historial` y `Pedidos online`
+    - badge rojo en el tab muestra pendientes en tiempo real via `useOnlineOrderAlerts`
+    - tab `Pedidos online` lista ordenes con filtros de estado y buscador
+    - botones `Confirmar` y `Rechazar` abren modal de accion con campo de referencia/nota
+    - confirmar llama `fn_confirm_online_manual_order` y crea la venta POS real
+    - rechazar llama `fn_reject_online_manual_order` y libera las reservas de stock
+    - la lista se refresca en tiempo real via subscription a `system_alerts`
+- Regla operativa:
+  - cuando llega un pedido online, mobile recibe TANTO una notificacion en el bell (via `notifications`) COMO el tab de pedidos online actualiza en tiempo real
+  - el bell muestra la notificacion con topic `online_order` (ya formateado por `NotificationsModal.inferTopic`)
+  - el tab permite gestionar (confirmar/rechazar) sin salir de la app mobile
+- Suite de tests: 200 pasando, 5 fallando preexistentes — sin regresiones
+
+## Actualizacion reciente (2026-04-22) — tienda online operativa con branding, carrito, reservas y gestion desde ventas
+
+- Se implemento un MVP funcional de tienda online por tenant sin romper el flujo actual del POS.
+- La configuracion base de tienda vive en:
+  - `web/src/components/OnlineStoreSettingsCard.vue`
+  - `web/src/services/onlineStore.service.js`
+  - `web/src/views/TenantConfig.vue`
+- La tienda publica ahora vive en:
+  - `web/src/views/PublicStorefront.vue`
+  - `web/src/router/index.js`
+  - `web/src/App.vue`
+- Capacidades ya activas del storefront:
+  - una tienda por tenant
+  - slug publico `/s/:slug`
+  - branding por marca con logo, header, colores y link de retorno a landing
+  - catalogo publicable por variante
+  - categorias y buscador
+  - imagen de producto con fallback visual si no existe portada
+  - carrito y checkout publico
+- Backend compartido nuevo y/o actualizado en `shared/supabase/migrations`:
+  - `ADD_ONLINE_STORE_MVP.sql`
+  - `ADD_ONLINE_STORE_PUBLIC_CATEGORIES.sql`
+  - `ADD_ONLINE_STORE_PUBLIC_IMAGES.sql`
+  - `FIX_ONLINE_STORE_CHECKOUT_STOCK_LOCK.sql`
+  - `FIX_ONLINE_STORE_SP_CREATE_SALE_SIGNATURE.sql`
+  - `ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql`
+  - `ONLINE_STORE_PAYMENT_PROOF_AND_GATEWAY_READY.sql`
+- Regla operativa vigente del checkout online:
+  - si el pago es manual, el pedido NO crea la venta inmediatamente
+  - primero se crea `online_orders` en estado pendiente
+  - se generan `online_order_lines`
+  - se crean reservas en `online_order_reservations`
+  - `fn_online_store_available_qty(...)` descuenta reservas activas para bloquear stock online mientras el pago esta pendiente
+  - la venta POS real se crea solo al confirmar el pago desde backoffice
+- Operacion de ventas online centralizada:
+  - `web/src/views/Sales.vue` ahora tiene tab `Ventas online`
+  - desde ahi se pueden ver pedidos pendientes, confirmar pago o rechazar y liberar stock
+  - una vez confirmado, la venta entra al flujo normal del POS
+- Checkout online preparado para evolucion de pagos:
+  - `MANUAL` activo
+  - `GATEWAY` visible como camino futuro
+  - el cliente ya puede adjuntar comprobante manual
+  - el soporte se guarda en `payment_payload.payment_proof_url`
+- Storage relevante:
+  - bucket `storefront` se usa para branding y comprobantes publicos de pago
+  - bucket `productmedia` se usa para imagenes de producto en la tienda publica
+- Decision de producto vigente:
+  - configuracion de tienda sigue en `TenantConfig > Tienda online`
+  - operacion diaria de pedidos online vive en `Ventas > Ventas online`
+  - `Ventas > Historial de Ventas` sigue siendo la bandeja de ventas POS y ventas online ya confirmadas
 
 ## Actualizacion reciente (2026-04-16) — backend Supabase compartido ya no vive duplicado en web/mobile
 
@@ -781,6 +860,8 @@ Nunca exponer UUIDs, nombres de constraints ni mensajes crudos de BD en la UI.
 | Archivo | Descripcion | Estado |
 |---------|-------------|--------|
 | `web/migrations/FIX_SALE_COUNTERS_RLS.sql` | Redefine `fn_next_sale_number` como SECURITY DEFINER para evitar error RLS en `sale_counters` | Pendiente ejecucion manual |
+| `shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql` | Emite alerta `ONLINE_ORDER` al llegar un pedido online pendiente y la limpia al confirmar/rechazar; alimenta web y mobile via `system_alerts` | Pendiente ejecucion manual |
+| `shared/supabase/migrations/ONLINE_ORDER_MOBILE_NOTIFICATIONS.sql` | Reemplaza `fn_upsert_online_order_alert` para que ademas emita a `notifications` (canal push/in-app mobile) con dedupe de 30 min. Ejecutar DESPUES de `ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql` | Pendiente ejecucion manual |
 
 ---
 

@@ -399,8 +399,8 @@ const {
   unsubscribeFromAlerts,
 } = useAppAlerts()
 
-// Verificar si estamos en una ruta de autenticación
-const isAuthRoute = computed(() => route.path === '/login')
+// Rutas que usan layout aislado (login + storefront público)
+const isAuthRoute = computed(() => route.path === '/login' || route.meta?.publicShell === true)
 
 // Menú específico para Super Admin (usuarios sin tenant)
 const superAdminMenuItems = computed(() => [

@@ -7,7 +7,9 @@
       "Bash(ls -1 /home/juan/Documentos/Dev/Proyectos/ofirone/web/src/views/*.vue)",
       "Bash(ls -1 /home/juan/Documentos/Dev/Proyectos/ofirone/mobile/src/screens/*.js)",
       "Bash(grep -l \"HelpCenter\\\\|Customers\\\\|Suppliers\" /home/juan/Documentos/Dev/Proyectos/ofirone/web/src/views/*.vue)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "Bash(node -e ' *)",
+      "Bash(node --input-type=module)"
     ]
   }
 }

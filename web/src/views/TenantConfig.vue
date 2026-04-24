@@ -48,6 +48,7 @@
         <v-tab value="general">General</v-tab>
         <v-tab value="billing">Suscripción</v-tab>
         <v-tab value="ui">Interfaz</v-tab>
+        <v-tab value="online-store">Tienda online</v-tab>
         <v-tab value="ai">Inteligencia IA</v-tab>
         <v-tab value="accounting">Contabilidad</v-tab>
         <v-tab value="inventory">Inventario</v-tab>
@@ -266,6 +267,14 @@
                   ></v-text-field>
                 </v-col>
               </v-row>
+            </v-window-item>
+
+            <!-- TIENDA ONLINE -->
+            <v-window-item value="online-store">
+              <OnlineStoreSettingsCard
+                :tenant-id="tenantId"
+                :save-blocked="billingSaveBlocked"
+              />
             </v-window-item>
 
             <!-- IA -->
@@ -865,19 +874,21 @@
             </v-window-item>
           </v-window>
 
-          <v-divider class="my-4"></v-divider>
+          <template v-if="tab !== 'online-store'">
+            <v-divider class="my-4"></v-divider>
 
-          <v-btn
-            type="submit"
-            color="primary"
-            block
-            size="large"
-            :loading="saving"
-            :disabled="billingSaveBlocked"
-            prepend-icon="mdi-content-save"
-          >
-            Guardar Configuración
-          </v-btn>
+            <v-btn
+              type="submit"
+              color="primary"
+              block
+              size="large"
+              :loading="saving"
+              :disabled="billingSaveBlocked"
+              prepend-icon="mdi-content-save"
+            >
+              Guardar Configuración
+            </v-btn>
+          </template>
         </v-form>
       </v-card-text>
     </v-card>
@@ -895,6 +906,7 @@ import { useAICache } from '@/composables/useAICache'
 import { useTheme } from '@/composables/useTheme'
 import { useSetupAssistant } from '@/composables/useSetupAssistant'
 import { useTenantBilling } from '@/composables/useTenantBilling'
+import OnlineStoreSettingsCard from '@/components/OnlineStoreSettingsCard.vue'
 import tenantSettingsService from '@/services/tenantSettings.service'
 import electronicInvoicingService from '@/services/electronicInvoicing.service'
 import { useI18n } from '@/i18n'
@@ -1075,7 +1087,7 @@ const accountingModeDescription = computed(() => {
   return 'El POS envía eventos a una cola y contabilidad los procesa sin bloquear operación.'
 })
 
-const allowedTabs = ['general', 'billing', 'ui', 'ai', 'accounting', 'inventory', 'sales', 'invoicing', 'notifications']
+const allowedTabs = ['general', 'billing', 'ui', 'online-store', 'ai', 'accounting', 'inventory', 'sales', 'invoicing', 'notifications']
 const setupHintKey = computed(() => String(route.query.onboarding || '').trim())
 const accountingProcess = computed(() => processMap.value.accounting || null)
 const setupHintVisible = computed(() => setupHintKey.value.length > 0)

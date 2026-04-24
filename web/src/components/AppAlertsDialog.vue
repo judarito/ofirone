@@ -63,6 +63,16 @@
             {{ t('app.receivable') }}
           </v-badge>
         </v-tab>
+        <v-tab value="online-orders">
+          <v-badge
+            :content="onlineOrderAlertsCount"
+            :color="onlineOrderAlertsCount > 0 ? 'primary' : 'grey'"
+            :model-value="onlineOrderAlertsCount > 0"
+            inline
+          >
+            Ventas online
+          </v-badge>
+        </v-tab>
       </v-tabs>
 
       <v-window v-model="alertsTab" class="alerts-modal__window">
@@ -789,6 +799,152 @@
             </v-btn>
           </v-card-actions>
         </v-window-item>
+
+        <v-window-item value="online-orders">
+          <v-card-text class="pa-4 alerts-modal__filters">
+            <v-row dense>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="onlineOrderFilters.search"
+                  label="Buscar pedido, cliente o referencia"
+                  prepend-inner-icon="mdi-magnify"
+                  clearable
+                  density="compact"
+                  variant="outlined"
+                ></v-text-field>
+              </v-col>
+            </v-row>
+          </v-card-text>
+
+          <v-divider></v-divider>
+
+          <v-card-text v-if="isMobile" class="pa-2 alerts-mobile-wrap">
+            <v-progress-linear v-if="loadingAlerts" indeterminate color="primary"></v-progress-linear>
+            <div v-else-if="onlineOrderAlertsCount === 0" class="text-center pa-8 text-grey alerts-empty-state">
+              <v-icon size="64" color="grey-lighten-1">mdi-check-circle</v-icon>
+              <p class="mt-4">No hay pedidos online pendientes.</p>
+            </div>
+            <v-card
+              v-else
+              v-for="alert in onlineOrderAlertsPageItems"
+              :key="alert.alert_id"
+              class="mb-2 alerts-mobile-item"
+              variant="outlined"
+            >
+              <v-card-text class="pa-3">
+                <div class="d-flex align-center mb-2">
+                  <v-chip :color="getOnlineOrderAlertColor()" size="small" label>
+                    <v-icon start size="small">{{ getOnlineOrderAlertIcon() }}</v-icon>
+                    {{ getOnlineOrderAlertLabel() }}
+                  </v-chip>
+                  <v-spacer></v-spacer>
+                  <span class="text-caption text-grey">{{ alert.data.store_name || 'Tienda online' }}</span>
+                </div>
+                <div class="mb-1"><strong>Pedido #{{ alert.data.order_number }}</strong></div>
+                <div class="text-caption text-grey mb-2">
+                  {{ alert.data.customer_name || 'Cliente no informado' }}
+                  <span v-if="alert.data.customer_phone || alert.data.customer_email">
+                    · {{ alert.data.customer_phone || alert.data.customer_email }}
+                  </span>
+                </div>
+                <v-row dense class="text-caption">
+                  <v-col cols="6">
+                    <div class="text-grey">Total:</div>
+                    <div class="font-weight-bold">{{ formatMoney(alert.data.total) }}</div>
+                  </v-col>
+                  <v-col cols="6">
+                    <div class="text-grey">Reserva:</div>
+                    <div class="font-weight-bold">{{ alert.data.reserved_qty || 0 }}</div>
+                  </v-col>
+                </v-row>
+                <div class="mt-3">
+                  <v-btn size="small" color="primary" variant="tonal" @click="goToSalesOnline">
+                    Revisar en ventas online
+                  </v-btn>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-card-text>
+
+          <v-card-text v-else class="pa-0 alerts-table-wrap">
+            <v-progress-linear v-if="loadingAlerts" indeterminate color="primary"></v-progress-linear>
+            <div v-else-if="onlineOrderAlertsCount === 0" class="text-center pa-8 text-grey alerts-empty-state">
+              <v-icon size="64" color="grey-lighten-1">mdi-check-circle</v-icon>
+              <p class="mt-4">No hay pedidos online pendientes.</p>
+            </div>
+            <v-table v-else class="alerts-table" density="compact" fixed-header height="500">
+              <thead>
+                <tr>
+                  <th>Estado</th>
+                  <th>Pedido</th>
+                  <th>Cliente</th>
+                  <th>Tienda</th>
+                  <th class="text-right">Items</th>
+                  <th class="text-right">Reserva</th>
+                  <th class="text-right">Total</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="alert in onlineOrderAlertsPageItems" :key="alert.alert_id">
+                  <td>
+                    <v-chip :color="getOnlineOrderAlertColor()" size="small" label>
+                      <v-icon start size="small">{{ getOnlineOrderAlertIcon() }}</v-icon>
+                      {{ getOnlineOrderAlertLabel() }}
+                    </v-chip>
+                  </td>
+                  <td>
+                    <div>#{{ alert.data.order_number }}</div>
+                    <div class="text-caption text-grey">
+                      {{ alert.data.payment_reference || 'Sin referencia' }}
+                    </div>
+                  </td>
+                  <td>
+                    <div>{{ alert.data.customer_name || 'Cliente no informado' }}</div>
+                    <div class="text-caption text-grey">
+                      {{ alert.data.customer_phone || alert.data.customer_email || 'Sin contacto' }}
+                    </div>
+                  </td>
+                  <td>
+                    <div>{{ alert.data.store_name || 'Tienda online' }}</div>
+                    <div class="text-caption text-grey">{{ alert.data.location_name || 'Sin sede' }}</div>
+                  </td>
+                  <td class="text-right">{{ alert.data.items_count || 0 }}</td>
+                  <td class="text-right">{{ alert.data.reserved_qty || 0 }}</td>
+                  <td class="text-right">{{ formatMoney(alert.data.total) }}</td>
+                  <td>
+                    <v-btn size="small" color="primary" variant="text" @click="goToSalesOnline">
+                      Abrir
+                    </v-btn>
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </v-card-text>
+
+          <v-card-actions v-if="onlineOrderAlertsCount > ALERTS_PAGE_SIZE" class="alerts-modal__pager">
+            <v-pagination
+              v-model="onlineOrderPage"
+              :length="onlineOrderTotalPages"
+              :total-visible="5"
+              density="comfortable"
+            ></v-pagination>
+          </v-card-actions>
+
+          <v-divider></v-divider>
+
+          <v-card-actions class="pa-4 alerts-modal__actions">
+            <v-btn color="primary" variant="text" @click="goToSalesOnline">
+              <v-icon start>mdi-refresh</v-icon>
+              Ir a ventas online
+            </v-btn>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" variant="tonal" @click="goToSalesOnline">
+              <v-icon start>mdi-cart-arrow-down</v-icon>
+              Gestionar pedidos
+            </v-btn>
+          </v-card-actions>
+        </v-window-item>
       </v-window>
     </v-card>
   </v-dialog>
@@ -826,6 +982,7 @@ const {
   layawayFilters,
   payableFilters,
   receivableFilters,
+  onlineOrderFilters,
   stockAlertLevels,
   expirationAlertLevels,
   layawayAlertLevels,
@@ -836,11 +993,13 @@ const {
   layawayAlerts,
   payableAlerts,
   receivableAlerts,
+  onlineOrderAlerts,
   stockAlertsCount,
   expirationAlertsCount,
   layawayAlertsCount,
   payableAlertsCount,
   receivableAlertsCount,
+  onlineOrderAlertsCount,
   filteredLayawayAlerts,
   loadLocations,
   loadStockAlerts,
@@ -862,7 +1021,10 @@ const {
   getPayableAlertLabel,
   getReceivableAlertColor,
   getReceivableAlertIcon,
-  getReceivableAlertLabel
+  getReceivableAlertLabel,
+  getOnlineOrderAlertColor,
+  getOnlineOrderAlertIcon,
+  getOnlineOrderAlertLabel
 } = useAppAlerts()
 
 const dialogModel = computed({
@@ -875,6 +1037,7 @@ const expirationPage = ref(1)
 const layawayPage = ref(1)
 const payablePage = ref(1)
 const receivablePage = ref(1)
+const onlineOrderPage = ref(1)
 
 const paginateAlerts = (itemsRef, pageRef) => computed(() => {
   const start = (pageRef.value - 1) * ALERTS_PAGE_SIZE
@@ -890,28 +1053,37 @@ const expirationAlertsPageItems = paginateAlerts(expirationAlerts, expirationPag
 const layawayAlertsPageItems = paginateAlerts(filteredLayawayAlerts, layawayPage)
 const payableAlertsPageItems = paginateAlerts(payableAlerts, payablePage)
 const receivableAlertsPageItems = paginateAlerts(receivableAlerts, receivablePage)
+const onlineOrderAlertsPageItems = paginateAlerts(onlineOrderAlerts, onlineOrderPage)
 
 const stockTotalPages = getTotalPages(stockAlerts)
 const expirationTotalPages = getTotalPages(expirationAlerts)
 const layawayTotalPages = getTotalPages(filteredLayawayAlerts)
 const payableTotalPages = getTotalPages(payableAlerts)
 const receivableTotalPages = getTotalPages(receivableAlerts)
+const onlineOrderTotalPages = getTotalPages(onlineOrderAlerts)
 
 watch(() => stockAlerts.value.length, () => { stockPage.value = 1 })
 watch(() => expirationAlerts.value.length, () => { expirationPage.value = 1 })
 watch(() => filteredLayawayAlerts.value.length, () => { layawayPage.value = 1 })
 watch(() => payableAlerts.value.length, () => { payablePage.value = 1 })
 watch(() => receivableAlerts.value.length, () => { receivablePage.value = 1 })
+watch(() => onlineOrderAlerts.value.length, () => { onlineOrderPage.value = 1 })
 
 watch(stockTotalPages, (total) => { if (stockPage.value > total) stockPage.value = total })
 watch(expirationTotalPages, (total) => { if (expirationPage.value > total) expirationPage.value = total })
 watch(layawayTotalPages, (total) => { if (layawayPage.value > total) layawayPage.value = total })
 watch(payableTotalPages, (total) => { if (payablePage.value > total) payablePage.value = total })
 watch(receivableTotalPages, (total) => { if (receivablePage.value > total) receivablePage.value = total })
+watch(onlineOrderTotalPages, (total) => { if (onlineOrderPage.value > total) onlineOrderPage.value = total })
 
 const goTo = (path) => {
   dialogModel.value = false
   router.push(path)
+}
+
+const goToSalesOnline = () => {
+  dialogModel.value = false
+  router.push({ path: '/sales', query: { tab: 'online' } })
 }
 
 onMounted(() => {

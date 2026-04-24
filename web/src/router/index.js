@@ -60,6 +60,8 @@ const SetupWizard = () => import('@/components/SetupWizard.vue')
 const HelpCenter = () => import('@/views/HelpCenter.vue')
 const AIInsights = () => import('@/views/AIInsights.vue')
 const SuperAdminBilling = () => import('@/views/SuperAdminBilling.vue')
+const PublicOrderStatus = () => import('@/views/PublicOrderStatus.vue')
+const PublicStorefront = () => import('@/views/PublicStorefront.vue')
 
 function isRouteAlwaysAllowed(path) {
   return path === '/' || path === '/about' || path === '/setup' || path === '/help' || path === '/ai-insights'
@@ -148,6 +150,30 @@ async function getCurrentUserTenantId(authUserId) {
 }
 
 const routes = [
+  {
+    path: '/s/:slug',
+    name: 'PublicStoreCatalog',
+    component: PublicStorefront,
+    meta: { publicShell: true }
+  },
+  {
+    path: '/s/:slug/cart',
+    name: 'PublicStoreCart',
+    component: PublicStorefront,
+    meta: { publicShell: true }
+  },
+  {
+    path: '/s/:slug/checkout',
+    name: 'PublicStoreCheckout',
+    component: PublicStorefront,
+    meta: { publicShell: true }
+  },
+  {
+    path: '/pedido/:orderId',
+    name: 'PublicOrderStatus',
+    component: PublicOrderStatus,
+    meta: { publicShell: true }
+  },
   {
     path: '/login',
     name: 'Login',
