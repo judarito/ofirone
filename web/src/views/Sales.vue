@@ -1141,8 +1141,7 @@ const canReviewOnlineOrder = (order) => order?.payment_mode === 'MANUAL'
   && ['PENDING', 'PROCESSING'].includes(order?.status)
   && !order?.sale_id
 const canResyncGatewayOrder = (order) => order?.payment_mode === 'GATEWAY'
-  && order?.payment_status === 'PENDING'
-  && ['PENDING', 'PROCESSING'].includes(order?.status)
+  && order?.payment_status !== 'PAID'
   && !order?.sale_id
 
 const filteredOnlineOrders = computed(() => {

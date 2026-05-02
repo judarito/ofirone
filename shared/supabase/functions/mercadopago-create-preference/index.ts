@@ -117,7 +117,7 @@ serve(async (req) => {
         .maybeSingle(),
       supabase
         .from('online_order_lines')
-        .select('product_name, variant_name, quantity, unit_price')
+        .select('product_name, variant_name, quantity, unit_price, line_total')
         .eq('online_order_id', orderId)
         .order('created_at', { ascending: true }),
       supabase
@@ -153,7 +153,9 @@ serve(async (req) => {
         id: `${orderId}:${String(line.product_name || 'producto').slice(0, 24)}`,
         title: [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto',
         quantity: Number(line.quantity || 0),
-        unit_price: Number(line.unit_price || 0),
+        unit_price: Number(line.quantity || 0) > 0
+          ? Number((Number(line.line_total || 0) / Number(line.quantity || 1)).toFixed(2))
+          : Number(line.unit_price || 0),
         description: [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto',
         category_id: 'retail',
         currency_id: 'COP',

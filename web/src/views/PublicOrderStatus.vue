@@ -125,12 +125,14 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabase } from '@/plugins/supabase'
+import onlineStoreService from '@/services/onlineStore.service'
 
 const route = useRoute()
 
 const loading = ref(true)
 const order = ref(null)
 const errorMessage = ref('')
+const syncingGateway = ref(false)
 
 const STATUS_LABELS = {
   PENDING: 'Pendiente',
@@ -271,7 +273,26 @@ async function loadOrder() {
   }
 }
 
-onMounted(loadOrder)
+async function revalidateGatewayOrderIfNeeded() {
+  const orderId = String(route.params.orderId || '').trim()
+  const queryStatus = String(route.query.mp_status || '').trim().toLowerCase()
+  if (!orderId || !['success', 'pending'].includes(queryStatus)) return
+
+  syncingGateway.value = true
+  try {
+    await onlineStoreService.syncGatewayOrder(orderId)
+  } catch (_error) {
+    // silencioso: la vista seguirá mostrando el estado actual y podrá reintentarse desde admin
+  } finally {
+    syncingGateway.value = false
+  }
+}
+
+onMounted(async () => {
+  await loadOrder()
+  await revalidateGatewayOrderIfNeeded()
+  await loadOrder()
+})
 </script>
 
 <style scoped>
