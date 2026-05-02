@@ -310,6 +310,16 @@
                     Detalle
                   </v-btn>
                   <v-btn
+                    v-if="canResyncGatewayOrder(order)"
+                    size="small"
+                    color="secondary"
+                    variant="tonal"
+                    :loading="onlineOrderActionLoading && selectedOnlineOrder?.online_order_id === order.online_order_id && onlineOrderActionMode === 'sync'"
+                    @click="resyncGatewayOrder(order)"
+                  >
+                    Revalidar pago
+                  </v-btn>
+                  <v-btn
                     v-if="canReviewOnlineOrder(order)"
                     size="small"
                     color="success"
@@ -1130,6 +1140,10 @@ const canReviewOnlineOrder = (order) => order?.payment_mode === 'MANUAL'
   && order?.payment_status === 'PENDING'
   && ['PENDING', 'PROCESSING'].includes(order?.status)
   && !order?.sale_id
+const canResyncGatewayOrder = (order) => order?.payment_mode === 'GATEWAY'
+  && order?.payment_status === 'PENDING'
+  && ['PENDING', 'PROCESSING'].includes(order?.status)
+  && !order?.sale_id
 
 const filteredOnlineOrders = computed(() => {
   const search = String(onlineSearch.value || '').trim().toLowerCase()
@@ -1342,6 +1356,35 @@ const submitOnlineOrderAction = async () => {
     await loadSales({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value })
   } finally {
     onlineOrderActionLoading.value = false
+  }
+}
+
+const resyncGatewayOrder = async (order) => {
+  if (!order?.online_order_id) return
+  selectedOnlineOrder.value = order
+  onlineOrderActionMode.value = 'sync'
+  onlineOrderActionLoading.value = true
+  try {
+    const result = await onlineStoreService.syncGatewayOrder(order.online_order_id)
+    if (!result.success) {
+      showMsg(result.error || 'No se pudo revalidar el pago en Mercado Pago.', 'error')
+      return
+    }
+
+    showMsg('Revalidamos el pago con Mercado Pago. La bandeja se actualizará enseguida.')
+    await refreshOnlineOrders()
+    await loadSales({ page: 1, pageSize: defaultPageSize.value, search: '', tenantId: tenantId.value })
+
+    if (onlineOrderDetail.value?.online_order_id === order.online_order_id) {
+      const fresh = onlineOrders.value.find((item) => item.online_order_id === order.online_order_id)
+      if (fresh) onlineOrderDetail.value = fresh
+    }
+  } finally {
+    onlineOrderActionLoading.value = false
+    if (selectedOnlineOrder.value?.online_order_id === order.online_order_id) {
+      selectedOnlineOrder.value = null
+    }
+    onlineOrderActionMode.value = 'confirm'
   }
 }
 

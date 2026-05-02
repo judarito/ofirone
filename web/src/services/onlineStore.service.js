@@ -7,6 +7,7 @@ const STOREFRONT_BUCKET = 'storefront'
 const ADMIN_CACHE_TTL_MS = 60 * 1000
 const MERCADO_PAGO_PREFERENCE_EDGE_FUNCTION = import.meta.env.VITE_MP_CREATE_PREFERENCE_EDGE_FUNCTION || 'mercadopago-create-preference'
 const TENANT_MERCADOPAGO_CONFIG_EDGE_FUNCTION = import.meta.env.VITE_TENANT_MP_CONFIG_EDGE_FUNCTION || 'tenant-mercadopago-config'
+const MERCADO_PAGO_WEBHOOK_EDGE_FUNCTION = import.meta.env.VITE_MP_WEBHOOK_EDGE_FUNCTION || 'mercadopago-webhook'
 
 function slugify(value) {
   return String(value || '')
@@ -837,6 +838,26 @@ class OnlineStoreService {
       }
     } catch (error) {
       return serviceErrorResult(error)
+    }
+  }
+
+  async syncGatewayOrder(orderId) {
+    if (!orderId) return { success: false, error: 'No encontramos el pedido a revalidar.' }
+
+    try {
+      const { data, error } = await supabase.functions.invoke(MERCADO_PAGO_WEBHOOK_EDGE_FUNCTION, {
+        body: {
+          external_reference: orderId,
+          type: 'payment',
+        },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      queryCache.invalidateByTags(['online-store-orders', 'online-store'])
+      return { success: true, data }
+    } catch (error) {
+      const extractedError = await extractFunctionInvokeError(error)
+      return serviceErrorResult(extractedError)
     }
   }
 }
