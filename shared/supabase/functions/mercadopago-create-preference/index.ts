@@ -25,6 +25,28 @@ function normalizeAbsoluteUrl(value: unknown) {
   }
 }
 
+function splitFullName(value: unknown) {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!normalized) return { name: '', surname: '' }
+  const parts = normalized.split(' ')
+  if (parts.length === 1) return { name: parts[0], surname: '' }
+  return {
+    name: parts.slice(0, -1).join(' ') || parts[0],
+    surname: parts.slice(-1).join(' '),
+  }
+}
+
+function onlyDigits(value: unknown) {
+  return String(value || '').replace(/\D+/g, '').trim()
+}
+
+function buildStatementDescriptor(value: unknown) {
+  return String(value || 'OFIRONE')
+    .trim()
+    .replace(/[^a-zA-Z0-9 ]+/g, '')
+    .slice(0, 13)
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -124,22 +146,34 @@ serve(async (req) => {
     }
 
     const statusUrl = `${origin.replace(/\/+$/, '')}/pedido/${orderId}`
+    const { name: payerName, surname: payerSurname } = splitFullName(orderRow.customer_name)
+    const payerPhone = onlyDigits(orderRow.customer_phone)
     const preferenceBody = {
       items: (lineRows || []).map((line) => ({
+        id: `${orderId}:${String(line.product_name || 'producto').slice(0, 24)}`,
         title: [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto',
         quantity: Number(line.quantity || 0),
         unit_price: Number(line.unit_price || 0),
+        description: [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto',
+        category_id: 'retail',
         currency_id: 'COP',
       })),
       payer: {
-        name: String(orderRow.customer_name || '').trim() || undefined,
+        name: payerName || undefined,
+        surname: payerSurname || undefined,
         email: String(orderRow.customer_email || '').trim() || undefined,
-        phone: String(orderRow.customer_phone || '').trim()
-          ? { number: String(orderRow.customer_phone || '').trim() }
+        phone: payerPhone
+          ? { number: payerPhone }
           : undefined,
       },
+      binary_mode: false,
       external_reference: orderId,
-      statement_descriptor: String(storeRow?.brand_name || 'OFIRONE').trim().slice(0, 13) || undefined,
+      statement_descriptor: buildStatementDescriptor(storeRow?.brand_name) || undefined,
+      payment_methods: {
+        excluded_payment_types: [],
+        excluded_payment_methods: [],
+        installments: 12,
+      },
       notification_url: `${supabaseUrl}/functions/v1/mercadopago-webhook`,
       back_urls: {
         success: `${statusUrl}?mp_status=success`,
@@ -148,6 +182,7 @@ serve(async (req) => {
       },
       auto_return: 'approved',
       expires: true,
+      expiration_date_from: new Date().toISOString(),
       expiration_date_to: orderRow.expires_at || undefined,
       metadata: {
         online_order_id: orderId,
@@ -174,7 +209,7 @@ serve(async (req) => {
       }, mpResponse.status)
     }
 
-    const paymentUrl = String(mpData?.sandbox_init_point || mpData?.init_point || '').trim()
+    const paymentUrl = String(mpData?.init_point || mpData?.sandbox_init_point || '').trim()
     if (!paymentUrl) {
       throw new Error('Mercado Pago respondió sin URL de pago.')
     }
