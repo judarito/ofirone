@@ -38,6 +38,22 @@ function normalizeAbsoluteUrl(value) {
   }
 }
 
+async function extractFunctionInvokeError(error) {
+  const rawMessage = String(error?.message || error || '').trim()
+  const context = error?.context
+  if (!context || typeof context?.json !== 'function') {
+    return rawMessage
+  }
+
+  try {
+    const payload = await context.json()
+    const nestedMessage = String(payload?.error || payload?.message || '').trim()
+    return nestedMessage || rawMessage
+  } catch (_contextError) {
+    return rawMessage
+  }
+}
+
 function buildPublicStorageUrl(bucket, path) {
   const normalizedPath = String(path || '').replace(/^\/+/, '')
   const baseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '')
@@ -577,7 +593,8 @@ class OnlineStoreService {
       if (data?.error) throw new Error(data.error)
       return { success: true, data }
     } catch (error) {
-      return serviceErrorResult(error)
+      const extractedError = await extractFunctionInvokeError(error)
+      return serviceErrorResult(extractedError)
     }
   }
 

@@ -672,6 +672,13 @@ function getFriendlyCheckoutError(error) {
     return 'La tienda no tiene un método de pago online correctamente configurado todavía.'
   }
 
+  if (
+    normalized.includes('credenciales activas de mercado pago') ||
+    normalized.includes('credenciales de mercado pago')
+  ) {
+    return 'Esta tienda todavía no tiene Mercado Pago configurado para cobrar. Pídele al negocio que revise Tienda online > Credenciales Mercado Pago.'
+  }
+
   if (normalized.includes('variant not found') || normalized.includes('ya no está disponible para venta')) {
     return 'Uno de los productos cambió o dejó de estar disponible. Actualiza la tienda y vuelve a intentarlo.'
   }
