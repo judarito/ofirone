@@ -1,0 +1,1 @@
+../../../../shared/supabase/functions/tenant-mercadopago-config/index.ts

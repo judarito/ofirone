@@ -5,6 +5,8 @@ import { serviceErrorResult } from '@/utils/appErrors'
 
 const STOREFRONT_BUCKET = 'storefront'
 const ADMIN_CACHE_TTL_MS = 60 * 1000
+const MERCADO_PAGO_PREFERENCE_EDGE_FUNCTION = import.meta.env.VITE_MP_CREATE_PREFERENCE_EDGE_FUNCTION || 'mercadopago-create-preference'
+const TENANT_MERCADOPAGO_CONFIG_EDGE_FUNCTION = import.meta.env.VITE_TENANT_MP_CONFIG_EDGE_FUNCTION || 'tenant-mercadopago-config'
 
 function slugify(value) {
   return String(value || '')
@@ -207,6 +209,20 @@ class OnlineStoreService {
       allow_manual_payment: true,
       allow_gateway_payment: false,
       gateway_status: 'COMING_SOON',
+    }
+  }
+
+  getEmptyMercadoPagoConfig() {
+    return {
+      environment: 'sandbox',
+      public_key: '',
+      access_token: '',
+      access_token_hint: '',
+      has_access_token: false,
+      account_email: '',
+      is_enabled: false,
+      clear_access_token: false,
+      updated_at: null,
     }
   }
 
@@ -541,6 +557,86 @@ class OnlineStoreService {
     }
   }
 
+  async createGatewayPreference(slug, payload = {}) {
+    try {
+      const { data, error } = await supabase.functions.invoke(MERCADO_PAGO_PREFERENCE_EDGE_FUNCTION, {
+        body: {
+          slug,
+          customer_name: String(payload.customer_name || '').trim() || null,
+          customer_email: String(payload.customer_email || '').trim() || null,
+          customer_phone: String(payload.customer_phone || '').trim() || null,
+          customer_note: String(payload.customer_note || '').trim() || null,
+          delivery_address: String(payload.delivery_address || '').trim() || null,
+          landing_return_url: normalizeAbsoluteUrl(payload.landing_return_url) || null,
+          origin: normalizeAbsoluteUrl(payload.origin) || null,
+          lines: Array.isArray(payload.lines) ? payload.lines : [],
+        },
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return { success: true, data }
+    } catch (error) {
+      return serviceErrorResult(error)
+    }
+  }
+
+  async getMercadoPagoConfig(tenantId) {
+    if (!tenantId) return { success: true, data: this.getEmptyMercadoPagoConfig() }
+    try {
+      const { data, error } = await supabase.functions.invoke(TENANT_MERCADOPAGO_CONFIG_EDGE_FUNCTION, {
+        body: {
+          action: 'get',
+          tenant_id: tenantId,
+        },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return {
+        success: true,
+        data: {
+          ...this.getEmptyMercadoPagoConfig(),
+          ...(data?.data || {}),
+          access_token: '',
+          clear_access_token: false,
+        },
+      }
+    } catch (error) {
+      return serviceErrorResult(error, { data: this.getEmptyMercadoPagoConfig() })
+    }
+  }
+
+  async saveMercadoPagoConfig(tenantId, payload = {}) {
+    if (!tenantId) return { success: false, error: 'tenantId es requerido.' }
+    try {
+      const { data, error } = await supabase.functions.invoke(TENANT_MERCADOPAGO_CONFIG_EDGE_FUNCTION, {
+        body: {
+          action: 'save',
+          tenant_id: tenantId,
+          environment: String(payload.environment || 'sandbox').trim().toLowerCase(),
+          public_key: String(payload.public_key || '').trim(),
+          access_token: String(payload.access_token || '').trim(),
+          account_email: String(payload.account_email || '').trim(),
+          is_enabled: payload.is_enabled === true,
+          clear_access_token: payload.clear_access_token === true,
+        },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return {
+        success: true,
+        data: {
+          ...this.getEmptyMercadoPagoConfig(),
+          ...(data?.data || {}),
+          access_token: '',
+          clear_access_token: false,
+        },
+      }
+    } catch (error) {
+      return serviceErrorResult(error, { data: this.getEmptyMercadoPagoConfig() })
+    }
+  }
+
   async getManualOrders(tenantId, storeId = null, options = {}) {
     if (!tenantId) return { success: true, data: [] }
 
@@ -705,6 +801,11 @@ class OnlineStoreService {
         data: {
           ...data,
           lines: Array.isArray(data.lines) ? data.lines : [],
+          payment_link: data?.payment_link || '',
+          payment_status_detail: data?.payment_status_detail || '',
+          mercado_pago_status: data?.mercado_pago_status || '',
+          payment_reference: data?.payment_reference || '',
+          expires_at: data?.expires_at || null,
         },
       }
     } catch (error) {

@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_TENANT_MERCADOPAGO_CREDENTIALS.sql

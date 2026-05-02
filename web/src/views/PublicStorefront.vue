@@ -326,7 +326,7 @@
             <div>
               <div class="storefront__section-title">Checkout</div>
               <div class="storefront__section-copy">
-                Elige cómo quieres pagar. Por ahora el pago manual está disponible y la pasarela quedará habilitada pronto.
+                Elige cómo quieres pagar y termina tu compra sin salir del flujo de la tienda.
               </div>
             </div>
             <div class="storefront__section-actions">
@@ -367,6 +367,7 @@
                     label="Referencia del pago manual"
                     variant="outlined"
                     class="mb-3"
+                    :disabled="checkoutForm.payment_mode !== 'MANUAL'"
                     hint="Ej: número de transferencia, comprobante o referencia interna."
                     persistent-hint
                   />
@@ -374,6 +375,7 @@
                     <div class="text-subtitle-2 mb-2">Método de pago</div>
                     <div class="storefront__payment-modes">
                       <button
+                        v-if="manualPaymentEnabled"
                         type="button"
                         class="storefront__payment-mode"
                         :class="{ 'storefront__payment-mode--active': checkoutForm.payment_mode === 'MANUAL' }"
@@ -383,12 +385,18 @@
                         <span>Transferencia, consignación o soporte manual.</span>
                       </button>
                       <button
+                        v-if="gatewayPaymentVisible"
                         type="button"
-                        class="storefront__payment-mode storefront__payment-mode--disabled"
-                        disabled
+                        class="storefront__payment-mode"
+                        :class="{
+                          'storefront__payment-mode--active': checkoutForm.payment_mode === 'GATEWAY',
+                          'storefront__payment-mode--disabled': !gatewayPaymentEnabled,
+                        }"
+                        :disabled="!gatewayPaymentEnabled"
+                        @click="gatewayPaymentEnabled ? checkoutForm.payment_mode = 'GATEWAY' : null"
                       >
-                        <strong>Pasarela</strong>
-                        <span>Próximamente</span>
+                        <strong>Mercado Pago</strong>
+                        <span>{{ gatewayPaymentEnabled ? 'Tarjeta, PSE y medios compatibles en Checkout Pro.' : 'Próximamente' }}</span>
                       </button>
                     </div>
                   </div>
@@ -468,7 +476,7 @@
                     :disabled="cart.length === 0"
                     @click="submitCheckout"
                   >
-                    Confirmar compra
+                    {{ checkoutSubmitLabel }}
                   </v-btn>
                 </v-card-text>
               </v-card>
@@ -606,6 +614,10 @@ const cart = computed(() => {
 
 const cartItemsCount = computed(() => cart.value.reduce((sum, item) => sum + Number(item.qty || 0), 0))
 const cartTotal = computed(() => cart.value.reduce((sum, item) => sum + (Number(item.final_price || 0) * Number(item.qty || 0)), 0))
+const manualPaymentEnabled = computed(() => store.value?.allow_manual_payment !== false)
+const gatewayPaymentVisible = computed(() => store.value?.allow_gateway_payment === true || store.value?.gateway_status === 'ENABLED')
+const gatewayPaymentEnabled = computed(() => store.value?.allow_gateway_payment === true && store.value?.gateway_status === 'ENABLED')
+const checkoutSubmitLabel = computed(() => checkoutForm.value.payment_mode === 'GATEWAY' ? 'Pagar con Mercado Pago' : 'Confirmar compra')
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('es-CO', {
@@ -775,6 +787,12 @@ async function loadStorefront() {
 
     store.value = storeRes.data
     products.value = productsRes.data || []
+    if (checkoutForm.value.payment_mode === 'GATEWAY' && !gatewayPaymentEnabled.value) {
+      checkoutForm.value.payment_mode = manualPaymentEnabled.value ? 'MANUAL' : 'GATEWAY'
+    }
+    if (checkoutForm.value.payment_mode === 'MANUAL' && !manualPaymentEnabled.value && gatewayPaymentEnabled.value) {
+      checkoutForm.value.payment_mode = 'GATEWAY'
+    }
     saveCart(cartState.value)
   } catch (error) {
     errorMessage.value = error.message || 'No se pudo cargar la tienda.'
@@ -790,10 +808,6 @@ async function submitCheckout() {
   }
   if (!checkoutForm.value.customer_phone.trim()) {
     errorMessage.value = 'Escribe un teléfono o WhatsApp para continuar.'
-    return
-  }
-  if (checkoutForm.value.payment_mode !== 'MANUAL') {
-    errorMessage.value = 'La pasarela todavía no está disponible. Por ahora usa pago manual.'
     return
   }
   if (cart.value.length === 0) {
@@ -812,6 +826,33 @@ async function submitCheckout() {
         variant_id: item.variant_id,
         qty: item.qty,
       })),
+    }
+
+    if (checkoutForm.value.payment_mode === 'GATEWAY') {
+      if (!gatewayPaymentEnabled.value) {
+        throw new Error('La pasarela todavía no está disponible en esta tienda.')
+      }
+
+      const result = await onlineStoreService.createGatewayPreference(String(route.params.slug || ''), {
+        ...payload,
+        origin: window.location.origin,
+      })
+      if (!result.success) throw new Error(result.error || 'No se pudo iniciar el checkout con Mercado Pago.')
+
+      saveCart([])
+      paymentProofFileName.value = ''
+      checkoutForm.value.payment_reference = ''
+      checkoutForm.value.payment_proof_url = ''
+      checkoutForm.value.customer_note = ''
+      checkoutForm.value.delivery_address = ''
+
+      const paymentUrl = String(result.data?.preference?.payment_url || '').trim()
+      if (!paymentUrl) {
+        throw new Error('Mercado Pago no devolvió una URL de pago válida.')
+      }
+
+      window.location.href = paymentUrl
+      return
     }
 
     const result = await onlineStoreService.createManualOrder(String(route.params.slug || ''), payload)

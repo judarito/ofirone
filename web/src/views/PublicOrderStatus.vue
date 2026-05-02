@@ -22,6 +22,33 @@
           </v-chip>
         </div>
 
+        <v-alert
+          v-if="route.query.mp_status === 'success'"
+          type="success"
+          variant="tonal"
+          class="mt-4"
+        >
+          Mercado Pago devolvió tu compra como aprobada. Estamos validando el pago y actualizando el pedido.
+        </v-alert>
+
+        <v-alert
+          v-else-if="route.query.mp_status === 'pending'"
+          type="info"
+          variant="tonal"
+          class="mt-4"
+        >
+          El pago sigue pendiente. Puedes revisar este estado en unos segundos o continuar el checkout si aún está abierto.
+        </v-alert>
+
+        <v-alert
+          v-else-if="route.query.mp_status === 'failure'"
+          type="warning"
+          variant="tonal"
+          class="mt-4"
+        >
+          El pago no quedó aprobado. Si el link sigue activo puedes intentarlo otra vez desde este pedido.
+        </v-alert>
+
         <v-card variant="outlined" class="order-status__card mt-6">
           <v-card-title class="text-body-1 font-weight-bold px-4 pt-4">Productos</v-card-title>
           <v-list density="compact">
@@ -69,10 +96,18 @@
 
         <div class="mt-6 d-flex flex-wrap ga-3">
           <v-btn
-            v-if="order.store_slug"
-            :to="`/s/${order.store_slug}`"
+            v-if="showContinuePayment"
+            :href="order.payment_link"
             color="primary"
             variant="flat"
+          >
+            Continuar pago
+          </v-btn>
+          <v-btn
+            v-if="order.store_slug"
+            :to="`/s/${order.store_slug}`"
+            :color="showContinuePayment ? undefined : 'primary'"
+            :variant="showContinuePayment ? 'outlined' : 'flat'"
           >
             Ir a la tienda
           </v-btn>
@@ -87,7 +122,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabase } from '@/plugins/supabase'
 
@@ -124,6 +159,22 @@ const PAYMENT_COLORS = {
   FAILED: 'error',
   REFUNDED: 'info',
 }
+
+function isOrderExpired(value) {
+  if (!value) return false
+  const timestamp = new Date(value).getTime()
+  if (Number.isNaN(timestamp)) return false
+  return timestamp <= Date.now()
+}
+
+const showContinuePayment = computed(() => {
+  return Boolean(
+    order.value?.payment_mode === 'GATEWAY'
+    && order.value?.payment_status === 'PENDING'
+    && order.value?.payment_link
+    && !isOrderExpired(order.value?.expires_at),
+  )
+})
 
 function orderStatusLabel(status) {
   return STATUS_LABELS[status] || status

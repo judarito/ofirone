@@ -142,9 +142,9 @@
               :items="paymentMethodOptions"
               item-title="name"
               item-value="payment_method_id"
-              label="Método de pago manual"
+              label="Método contable del checkout"
               variant="outlined"
-              hint="Se usará cuando el equipo confirme el pago pendiente desde backoffice."
+              hint="Se usará al confirmar pagos manuales y al registrar ventas aprobadas por Mercado Pago."
               persistent-hint
             />
           </v-col>
@@ -155,6 +155,106 @@
               variant="outlined"
               hint="Botón Volver a la landing desde tienda, carrito y checkout."
               persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-switch
+              v-model="storeForm.allow_manual_payment"
+              color="primary"
+              label="Aceptar pago manual"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-switch
+              v-model="storeForm.allow_gateway_payment"
+              color="secondary"
+              label="Activar Mercado Pago"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-select
+              v-model="storeForm.gateway_status"
+              :items="gatewayStatusOptions"
+              item-title="title"
+              item-value="value"
+              label="Estado de pasarela"
+              variant="outlined"
+              hint="Usa ENABLED cuando las Edge Functions y secretos de Mercado Pago ya estén desplegados."
+              persistent-hint
+            />
+          </v-col>
+        </v-row>
+
+        <v-divider class="my-6" />
+
+        <div class="text-subtitle-1 font-weight-bold mb-3">Credenciales Mercado Pago</div>
+        <v-alert type="info" variant="tonal" class="mb-4">
+          Cada tenant guarda sus propias credenciales de Mercado Pago. El access token se almacena en backend y no vuelve a mostrarse en texto plano.
+        </v-alert>
+        <v-row>
+          <v-col cols="12" md="4">
+            <v-select
+              v-model="mercadoPagoForm.environment"
+              :items="mercadoPagoEnvironmentOptions"
+              item-title="title"
+              item-value="value"
+              label="Entorno Mercado Pago"
+              variant="outlined"
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-switch
+              v-model="mercadoPagoForm.is_enabled"
+              color="primary"
+              label="Credenciales listas para cobrar"
+              hide-details
+            />
+          </v-col>
+          <v-col cols="12" md="4" class="d-flex align-center">
+            <v-chip
+              :color="mercadoPagoForm.has_access_token ? 'success' : 'warning'"
+              variant="tonal"
+            >
+              {{ mercadoPagoForm.has_access_token ? `Token guardado ${mercadoPagoForm.access_token_hint || ''}` : 'Sin token guardado' }}
+            </v-chip>
+          </v-col>
+          <v-col cols="12" md="6">
+            <v-text-field
+              v-model="mercadoPagoForm.public_key"
+              label="Public key"
+              variant="outlined"
+              hint="Ejemplo: TEST-... o APP_USR-... según la documentación de Mercado Pago."
+              persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" md="6">
+            <v-text-field
+              v-model="mercadoPagoForm.account_email"
+              label="Cuenta / email de Mercado Pago"
+              variant="outlined"
+              hint="Solo informativo para identificar a qué cuenta pertenece este tenant."
+              persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" md="8">
+            <v-text-field
+              v-model="mercadoPagoForm.access_token"
+              label="Access token"
+              variant="outlined"
+              type="password"
+              autocomplete="new-password"
+              hint="Déjalo vacío para conservar el token actual. Si pegas uno nuevo, reemplaza el anterior."
+              persistent-hint
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-switch
+              v-model="mercadoPagoForm.clear_access_token"
+              color="error"
+              label="Eliminar token guardado"
+              hide-details
             />
           </v-col>
         </v-row>
@@ -606,6 +706,7 @@ const catalogRows = ref([])
 const locationOptions = ref([])
 const userOptions = ref([])
 const paymentMethodOptions = ref([])
+const mercadoPagoForm = ref(onlineStoreService.getEmptyMercadoPagoConfig())
 const catalogSearch = ref('')
 const logoInput = ref(null)
 const headerInput = ref(null)
@@ -632,6 +733,17 @@ const stockModeOptions = [
   { title: 'Todo disponible', value: 'ALL' },
   { title: 'Cantidad fija', value: 'FIXED' },
   { title: 'Porcentaje', value: 'PERCENT' },
+]
+
+const gatewayStatusOptions = [
+  { title: 'Deshabilitada', value: 'DISABLED' },
+  { title: 'Próximamente', value: 'COMING_SOON' },
+  { title: 'Habilitada', value: 'ENABLED' },
+]
+
+const mercadoPagoEnvironmentOptions = [
+  { title: 'Pruebas / Sandbox', value: 'sandbox' },
+  { title: 'Producción', value: 'production' },
 ]
 
 const onlineEnabledLabel = computed(() => {
@@ -799,8 +911,9 @@ async function loadData() {
   notice.value = ''
 
   try {
-    const [storeRes, locationsRes, usersRes, paymentMethodsRes, variantsRes] = await Promise.all([
+    const [storeRes, mpConfigRes, locationsRes, usersRes, paymentMethodsRes, variantsRes] = await Promise.all([
       onlineStoreService.getStoreConfig(props.tenantId, { forceRefresh: true }),
+      onlineStoreService.getMercadoPagoConfig(props.tenantId),
       locationsService.getActiveLocations(props.tenantId),
       getAllUsers(props.tenantId),
       paymentMethodsService.getPaymentMethodsForDropdown(props.tenantId),
@@ -812,6 +925,12 @@ async function loadData() {
     storeForm.value = {
       ...onlineStoreService.getEmptyStoreConfig(),
       ...storeRes.data,
+    }
+    mercadoPagoForm.value = {
+      ...onlineStoreService.getEmptyMercadoPagoConfig(),
+      ...(mpConfigRes.success ? (mpConfigRes.data || {}) : {}),
+      access_token: '',
+      clear_access_token: false,
     }
 
     locationOptions.value = locationsRes.success ? (locationsRes.data || []) : []
@@ -878,6 +997,15 @@ async function saveAll() {
       catalogRows.value,
     )
     if (!catalogRes.success) throw new Error(catalogRes.error || 'No se pudo guardar el catálogo online.')
+
+    const mpRes = await onlineStoreService.saveMercadoPagoConfig(props.tenantId, mercadoPagoForm.value)
+    if (!mpRes.success) throw new Error(mpRes.error || 'No se pudieron guardar las credenciales de Mercado Pago.')
+    mercadoPagoForm.value = {
+      ...onlineStoreService.getEmptyMercadoPagoConfig(),
+      ...(mpRes.data || {}),
+      access_token: '',
+      clear_access_token: false,
+    }
 
     noticeType.value = 'success'
     notice.value = 'La tienda online quedó guardada.'

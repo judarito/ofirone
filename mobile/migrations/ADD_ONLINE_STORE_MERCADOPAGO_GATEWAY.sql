@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql

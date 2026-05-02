@@ -1,0 +1,1 @@
+../../../../shared/supabase/functions/mercadopago-create-preference/index.ts
