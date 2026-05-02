@@ -174,16 +174,17 @@
             />
           </v-col>
           <v-col cols="12" md="4">
-            <v-select
-              v-model="storeForm.gateway_status"
-              :items="gatewayStatusOptions"
-              item-title="title"
-              item-value="value"
-              label="Estado de pasarela"
-              variant="outlined"
-              hint="Usa ENABLED cuando las Edge Functions y secretos de Mercado Pago ya estén desplegados."
-              persistent-hint
-            />
+            <div class="d-flex flex-column justify-center h-100">
+              <div class="text-caption text-medium-emphasis mb-2">Estado de cobro</div>
+              <div class="d-flex flex-wrap align-center ga-2">
+                <v-chip :color="mercadoPagoStatusUi.color" variant="tonal">
+                  {{ mercadoPagoStatusUi.label }}
+                </v-chip>
+                <span class="text-body-2 text-medium-emphasis">
+                  {{ mercadoPagoStatusUi.shortMessage }}
+                </span>
+              </div>
+            </div>
           </v-col>
         </v-row>
 
@@ -204,21 +205,21 @@
               variant="outlined"
             />
           </v-col>
-          <v-col cols="12" md="4">
-            <v-switch
-              v-model="mercadoPagoForm.is_enabled"
-              color="primary"
-              label="Credenciales listas para cobrar"
-              hide-details
-            />
-          </v-col>
-          <v-col cols="12" md="4" class="d-flex align-center">
+          <v-col cols="12" md="8" class="d-flex flex-wrap align-center ga-3">
             <v-chip
               :color="mercadoPagoForm.has_access_token ? 'success' : 'warning'"
               variant="tonal"
             >
               {{ mercadoPagoForm.has_access_token ? `Token guardado ${mercadoPagoForm.access_token_hint || ''}` : 'Sin token guardado' }}
             </v-chip>
+            <v-chip :color="mercadoPagoStatusUi.color" variant="outlined">
+              {{ mercadoPagoStatusUi.label }}
+            </v-chip>
+          </v-col>
+          <v-col cols="12">
+            <v-alert :type="mercadoPagoStatusUi.alertType" variant="tonal">
+              {{ mercadoPagoStatusUi.message }}
+            </v-alert>
           </v-col>
           <v-col cols="12" md="6">
             <v-text-field
@@ -735,12 +736,6 @@ const stockModeOptions = [
   { title: 'Porcentaje', value: 'PERCENT' },
 ]
 
-const gatewayStatusOptions = [
-  { title: 'Deshabilitada', value: 'DISABLED' },
-  { title: 'Próximamente', value: 'COMING_SOON' },
-  { title: 'Habilitada', value: 'ENABLED' },
-]
-
 const mercadoPagoEnvironmentOptions = [
   { title: 'Pruebas / Sandbox', value: 'sandbox' },
   { title: 'Producción', value: 'production' },
@@ -788,6 +783,66 @@ const previewStyles = computed(() => ({
   '--preview-surface': storeForm.value.surface_color,
   '--preview-text': storeForm.value.text_color,
 }))
+
+const mercadoPagoHasPublicKey = computed(() => String(mercadoPagoForm.value.public_key || '').trim().length > 0)
+const mercadoPagoWillKeepToken = computed(() => {
+  if (mercadoPagoForm.value.clear_access_token) return false
+  return mercadoPagoForm.value.has_access_token || String(mercadoPagoForm.value.access_token || '').trim().length > 0
+})
+const mercadoPagoCredentialsReady = computed(() => mercadoPagoHasPublicKey.value && mercadoPagoWillKeepToken.value)
+const mercadoPagoStatusUi = computed(() => buildMercadoPagoStatusUi({
+  allowGatewayPayment: storeForm.value.allow_gateway_payment,
+  environment: mercadoPagoForm.value.environment,
+  credentialsReady: mercadoPagoCredentialsReady.value,
+}))
+
+function buildMercadoPagoStatusUi({ allowGatewayPayment, environment, credentialsReady }) {
+  if (!allowGatewayPayment) {
+    return {
+      label: 'Desactivado',
+      color: 'default',
+      alertType: 'info',
+      shortMessage: 'Mercado Pago no se ofrecerá en checkout.',
+      message: 'Activa Mercado Pago cuando quieras ofrecer cobro online con pasarela. Mientras tanto, la tienda seguirá usando solo pago manual.',
+      storeGatewayStatus: 'DISABLED',
+      credentialsEnabled: false,
+    }
+  }
+
+  if (!credentialsReady) {
+    return {
+      label: 'Faltan credenciales',
+      color: 'warning',
+      alertType: 'warning',
+      shortMessage: 'Completa public key y token.',
+      message: 'Mercado Pago está activado para esta tienda, pero todavía faltan credenciales válidas. La pasarela quedará en espera hasta que haya public key y access token disponibles.',
+      storeGatewayStatus: 'COMING_SOON',
+      credentialsEnabled: false,
+    }
+  }
+
+  if (environment === 'production') {
+    return {
+      label: 'Listo para producción',
+      color: 'success',
+      alertType: 'success',
+      shortMessage: 'La tienda ya puede cobrar en vivo.',
+      message: 'La configuración quedó completa para cobrar con Mercado Pago en producción. Revisa que la cuenta del tenant sea la correcta antes de publicar.',
+      storeGatewayStatus: 'ENABLED',
+      credentialsEnabled: true,
+    }
+  }
+
+  return {
+    label: 'Listo para pruebas',
+    color: 'success',
+    alertType: 'success',
+    shortMessage: 'La tienda ya puede probar checkout sandbox.',
+    message: 'La configuración quedó completa para pruebas sandbox. Usa buyer test users y tarjetas de prueba para validar el flujo antes de pasar a producción.',
+    storeGatewayStatus: 'ENABLED',
+    credentialsEnabled: true,
+  }
+}
 
 function showMsg(message, color = 'success') {
   snackbarMessage.value = message
@@ -932,6 +987,11 @@ async function loadData() {
       access_token: '',
       clear_access_token: false,
     }
+    storeForm.value.gateway_status = buildMercadoPagoStatusUi({
+      allowGatewayPayment: storeForm.value.allow_gateway_payment,
+      environment: mercadoPagoForm.value.environment,
+      credentialsReady: Boolean(mercadoPagoForm.value.public_key) && Boolean(mercadoPagoForm.value.has_access_token),
+    }).storeGatewayStatus
 
     locationOptions.value = locationsRes.success ? (locationsRes.data || []) : []
     userOptions.value = Array.isArray(usersRes) ? usersRes.filter((item) => item.is_active !== false) : []
@@ -983,12 +1043,34 @@ async function saveAll() {
   normalizeSlugField()
 
   try {
-    const storeRes = await onlineStoreService.saveStoreConfig(props.tenantId, storeForm.value)
+    const mpRes = await onlineStoreService.saveMercadoPagoConfig(props.tenantId, {
+      ...mercadoPagoForm.value,
+      is_enabled: mercadoPagoStatusUi.value.credentialsEnabled,
+    })
+    if (!mpRes.success) throw new Error(mpRes.error || 'No se pudieron guardar las credenciales de Mercado Pago.')
+    mercadoPagoForm.value = {
+      ...onlineStoreService.getEmptyMercadoPagoConfig(),
+      ...(mpRes.data || {}),
+      access_token: '',
+      clear_access_token: false,
+    }
+
+    const nextGatewayStatus = buildMercadoPagoStatusUi({
+      allowGatewayPayment: storeForm.value.allow_gateway_payment,
+      environment: mercadoPagoForm.value.environment,
+      credentialsReady: Boolean(mercadoPagoForm.value.public_key) && Boolean(mercadoPagoForm.value.has_access_token),
+    }).storeGatewayStatus
+
+    const storeRes = await onlineStoreService.saveStoreConfig(props.tenantId, {
+      ...storeForm.value,
+      gateway_status: nextGatewayStatus,
+    })
     if (!storeRes.success) throw new Error(storeRes.error || 'No se pudo guardar la configuración general.')
 
     storeForm.value = {
       ...storeForm.value,
       ...storeRes.data,
+      gateway_status: nextGatewayStatus,
     }
 
     const catalogRes = await onlineStoreService.saveCatalogItems(
@@ -997,15 +1079,6 @@ async function saveAll() {
       catalogRows.value,
     )
     if (!catalogRes.success) throw new Error(catalogRes.error || 'No se pudo guardar el catálogo online.')
-
-    const mpRes = await onlineStoreService.saveMercadoPagoConfig(props.tenantId, mercadoPagoForm.value)
-    if (!mpRes.success) throw new Error(mpRes.error || 'No se pudieron guardar las credenciales de Mercado Pago.')
-    mercadoPagoForm.value = {
-      ...onlineStoreService.getEmptyMercadoPagoConfig(),
-      ...(mpRes.data || {}),
-      access_token: '',
-      clear_access_token: false,
-    }
 
     noticeType.value = 'success'
     notice.value = 'La tienda online quedó guardada.'

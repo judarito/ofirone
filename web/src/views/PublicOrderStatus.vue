@@ -168,7 +168,14 @@ function isOrderExpired(value) {
 }
 
 const showContinuePayment = computed(() => {
+  const queryStatus = String(route.query.mp_status || '').trim().toLowerCase()
+  const gatewayStatus = String(order.value?.mercado_pago_status || '').trim().toLowerCase()
+  const shouldBlockRetry = ['success', 'pending'].includes(queryStatus)
+    || ['approved', 'authorized', 'in_process', 'pending'].includes(gatewayStatus)
+
   return Boolean(
+    !shouldBlockRetry
+    && 
     order.value?.payment_mode === 'GATEWAY'
     && order.value?.payment_status === 'PENDING'
     && order.value?.payment_link
@@ -235,7 +242,11 @@ onMounted(loadOrder)
 <style scoped>
 .order-status {
   min-height: 100vh;
-  background: #f8fafc;
+  color: #0f172a;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.10) 0%, transparent 26%),
+    radial-gradient(circle at 85% 8%, rgba(245, 158, 11, 0.08) 0%, transparent 18%),
+    linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
   padding: 24px 16px 64px;
 }
 
@@ -259,6 +270,7 @@ onMounted(loadOrder)
 .order-status__title {
   font-size: 1.5rem;
   font-weight: 700;
+  color: #0f172a;
   margin: 0 0 4px;
 }
 
@@ -274,7 +286,51 @@ onMounted(loadOrder)
 }
 
 .order-status__card {
-  border-radius: 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.order-status__card :deep(.v-card-title),
+.order-status__card :deep(.v-card-text),
+.order-status__card :deep(.v-list-item-title),
+.order-status__card :deep(.v-list-item-subtitle),
+.order-status__card :deep(.v-list-item__append),
+.order-status__card :deep(.v-list),
+.order-status__card :deep(.v-divider),
+.order-status__card :deep(strong),
+.order-status__card :deep(span),
+.order-status__card :deep(div) {
+  color: #0f172a;
+}
+
+.order-status__card :deep(.v-list) {
+  background: transparent;
+}
+
+.order-status__card :deep(.v-list-item) {
+  border-radius: 14px;
+}
+
+.order-status__card :deep(.v-list-item + .v-list-item) {
+  margin-top: 4px;
+}
+
+.order-status__card :deep(.text-medium-emphasis),
+.order-status__card :deep(.v-list-item-subtitle),
+.order-status__card :deep(.text-caption) {
+  color: #64748b !important;
+}
+
+.order-status__card :deep(.v-card-title) {
+  color: #0f172a !important;
+}
+
+.order-status__card :deep(.v-divider) {
+  opacity: 1;
+  border-color: rgba(148, 163, 184, 0.18);
 }
 
 .order-status__proof-link {
