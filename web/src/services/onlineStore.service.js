@@ -654,12 +654,12 @@ class OnlineStoreService {
     }
   }
 
-  async getManualOrders(tenantId, storeId = null, options = {}) {
+  async getOnlineOrders(tenantId, storeId = null, options = {}) {
     if (!tenantId) return { success: true, data: [] }
 
     try {
       return await queryCache.getOrLoad(
-        `online-store:orders:${storeId || 'all'}`,
+        `online-store:orders:${storeId || 'all'}:${options.paymentMode || 'all'}`,
         async () => {
           let query = supabaseService.client
             .from(this.ordersTable)
@@ -688,12 +688,15 @@ class OnlineStoreService {
               updated_at
             `)
             .eq('tenant_id', tenantId)
-            .eq('payment_mode', 'MANUAL')
             .order('created_at', { ascending: false })
             .limit(options.limit || 50)
 
           if (storeId) {
             query = query.eq('store_id', storeId)
+          }
+
+          if (options.paymentMode) {
+            query = query.eq('payment_mode', String(options.paymentMode).trim().toUpperCase())
           }
 
           const { data: orders, error: ordersError } = await query
@@ -775,6 +778,13 @@ class OnlineStoreService {
     } catch (error) {
       return serviceErrorResult(error, { data: [] })
     }
+  }
+
+  async getManualOrders(tenantId, storeId = null, options = {}) {
+    return this.getOnlineOrders(tenantId, storeId, {
+      ...options,
+      paymentMode: 'MANUAL',
+    })
   }
 
   async confirmManualOrder(onlineOrderId, payload = {}) {

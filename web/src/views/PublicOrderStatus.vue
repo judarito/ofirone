@@ -14,11 +14,11 @@
         </div>
 
         <div class="order-status__badges">
-          <v-chip :color="orderStatusColor(order.status)" variant="flat" size="small">
-            {{ orderStatusLabel(order.status) }}
+          <v-chip :color="displayOrderStatus.color" variant="flat" size="small">
+            {{ displayOrderStatus.label }}
           </v-chip>
-          <v-chip :color="paymentStatusColor(order.payment_status)" variant="tonal" size="small">
-            {{ paymentStatusLabel(order.payment_status) }}
+          <v-chip :color="displayPaymentStatus.color" variant="tonal" size="small">
+            {{ displayPaymentStatus.label }}
           </v-chip>
         </div>
 
@@ -182,6 +182,41 @@ const showContinuePayment = computed(() => {
     && !isOrderExpired(order.value?.expires_at),
   )
 })
+
+const paymentFlowSnapshot = computed(() => {
+  const queryStatus = String(route.query.mp_status || '').trim().toLowerCase()
+  const orderStatus = String(order.value?.status || '').trim().toUpperCase()
+  const paymentStatus = String(order.value?.payment_status || '').trim().toUpperCase()
+
+  if (queryStatus === 'success' && paymentStatus !== 'PAID') {
+    return {
+      order: { label: 'Validando pago', color: 'info' },
+      payment: { label: 'Aprobación recibida', color: 'success' },
+    }
+  }
+
+  if (queryStatus === 'pending' && paymentStatus !== 'PAID') {
+    return {
+      order: { label: 'Esperando confirmación', color: 'info' },
+      payment: { label: 'Pago en revisión', color: 'warning' },
+    }
+  }
+
+  if (queryStatus === 'failure' && paymentStatus !== 'PAID' && orderStatus !== 'COMPLETED') {
+    return {
+      order: { label: 'Pago no completado', color: 'warning' },
+      payment: { label: 'Inténtalo de nuevo', color: 'warning' },
+    }
+  }
+
+  return {
+    order: { label: orderStatusLabel(orderStatus), color: orderStatusColor(orderStatus) },
+    payment: { label: paymentStatusLabel(paymentStatus), color: paymentStatusColor(paymentStatus) },
+  }
+})
+
+const displayOrderStatus = computed(() => paymentFlowSnapshot.value.order)
+const displayPaymentStatus = computed(() => paymentFlowSnapshot.value.payment)
 
 function orderStatusLabel(status) {
   return STATUS_LABELS[status] || status

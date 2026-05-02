@@ -64,7 +64,7 @@
               </div>
               <div class="storefront__stat">
                 <span class="storefront__stat-label">Checkout</span>
-                <strong>Pago manual con validación</strong>
+                <strong>{{ checkoutHeroLabel }}</strong>
               </div>
             </div>
           </div>
@@ -90,7 +90,7 @@
             Total: <strong>{{ formatMoney(successOrder.total) }}</strong>
           </div>
           <div class="mt-2">
-            {{ successOrder.message || 'Reservamos el stock mientras el comercio valida tu pago manual.' }}
+            {{ successOrder.message || successOrderMessage }}
           </div>
           <div class="d-flex flex-wrap ga-2 mt-4">
             <v-btn color="primary" variant="flat" @click="goToSection('catalog')">
@@ -253,7 +253,7 @@
             <div>
               <div class="storefront__section-title">Carrito</div>
               <div class="storefront__section-copy">
-                Ajusta cantidades y luego pasa al checkout manual.
+                Ajusta cantidades y luego pasa al checkout para elegir cómo pagar.
               </div>
             </div>
             <div class="storefront__section-actions">
@@ -344,34 +344,7 @@
             <v-col cols="12" md="7">
               <v-card variant="outlined" class="storefront__checkout-card">
                 <v-card-text>
-                  <v-text-field
-                    v-model="checkoutForm.customer_name"
-                    label="Nombre del cliente *"
-                    variant="outlined"
-                    class="mb-3"
-                  />
-                  <v-text-field
-                    v-model="checkoutForm.customer_phone"
-                    label="Teléfono / WhatsApp *"
-                    variant="outlined"
-                    class="mb-3"
-                  />
-                  <v-text-field
-                    v-model="checkoutForm.customer_email"
-                    label="Email"
-                    variant="outlined"
-                    class="mb-3"
-                  />
-                  <v-text-field
-                    v-model="checkoutForm.payment_reference"
-                    label="Referencia del pago manual"
-                    variant="outlined"
-                    class="mb-3"
-                    :disabled="checkoutForm.payment_mode !== 'MANUAL'"
-                    hint="Ej: número de transferencia, comprobante o referencia interna."
-                    persistent-hint
-                  />
-                  <div class="mb-3">
+                  <div class="mb-4">
                     <div class="text-subtitle-2 mb-2">Método de pago</div>
                     <div class="storefront__payment-modes">
                       <button
@@ -400,6 +373,42 @@
                       </button>
                     </div>
                   </div>
+
+                  <v-text-field
+                    v-model="checkoutForm.customer_name"
+                    label="Nombre del cliente *"
+                    variant="outlined"
+                    class="mb-3"
+                  />
+                  <v-text-field
+                    v-model="checkoutForm.customer_phone"
+                    label="Teléfono / WhatsApp *"
+                    variant="outlined"
+                    class="mb-3"
+                  />
+                  <v-text-field
+                    v-model="checkoutForm.customer_email"
+                    label="Email"
+                    variant="outlined"
+                    class="mb-3"
+                  />
+                  <v-text-field
+                    v-if="checkoutForm.payment_mode === 'MANUAL'"
+                    v-model="checkoutForm.payment_reference"
+                    label="Referencia del pago manual"
+                    variant="outlined"
+                    class="mb-3"
+                    hint="Ej: número de transferencia, comprobante o referencia interna."
+                    persistent-hint
+                  />
+                  <v-alert
+                    v-else-if="checkoutForm.payment_mode === 'GATEWAY'"
+                    type="info"
+                    variant="tonal"
+                    class="mb-3"
+                  >
+                    Te vamos a redirigir a Mercado Pago para terminar el cobro. Allí verás los medios disponibles para esta tienda.
+                  </v-alert>
                   <div v-if="checkoutForm.payment_mode === 'MANUAL'" class="mb-3">
                     <div class="text-subtitle-2 mb-2">Comprobante de pago</div>
                     <div class="text-body-2 text-medium-emphasis mb-2">
@@ -618,6 +627,18 @@ const manualPaymentEnabled = computed(() => store.value?.allow_manual_payment !=
 const gatewayPaymentVisible = computed(() => store.value?.allow_gateway_payment === true || store.value?.gateway_status === 'ENABLED')
 const gatewayPaymentEnabled = computed(() => store.value?.allow_gateway_payment === true && store.value?.gateway_status === 'ENABLED')
 const checkoutSubmitLabel = computed(() => checkoutForm.value.payment_mode === 'GATEWAY' ? 'Pagar con Mercado Pago' : 'Confirmar compra')
+const checkoutHeroLabel = computed(() => {
+  if (manualPaymentEnabled.value && gatewayPaymentEnabled.value) return 'Manual o pasarela'
+  if (gatewayPaymentEnabled.value) return 'Pasarela Mercado Pago'
+  if (manualPaymentEnabled.value) return 'Pago manual con validación'
+  return 'Checkout online'
+})
+const successOrderMessage = computed(() => {
+  if (manualPaymentEnabled.value && !gatewayPaymentEnabled.value) {
+    return 'Reservamos el stock mientras el comercio valida tu pago manual.'
+  }
+  return 'Reservamos tu stock y dejaremos el pedido listo mientras el pago termina de confirmarse.'
+})
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('es-CO', {
@@ -903,6 +924,14 @@ async function handlePaymentProofSelected(event) {
 watch(categoryOptions, (options) => {
   if (selectedCategory.value !== 'ALL' && !options.includes(selectedCategory.value)) {
     selectedCategory.value = 'ALL'
+  }
+})
+
+watch(() => checkoutForm.value.payment_mode, (mode) => {
+  if (mode !== 'MANUAL') {
+    checkoutForm.value.payment_reference = ''
+    checkoutForm.value.payment_proof_url = ''
+    paymentProofFileName.value = ''
   }
 })
 

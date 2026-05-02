@@ -156,9 +156,9 @@
           <v-card-text>
             <div class="d-flex flex-wrap align-center ga-3">
               <div>
-                <div class="text-subtitle-1 font-weight-bold">Pedidos online manuales</div>
+                <div class="text-subtitle-1 font-weight-bold">Ventas online</div>
                 <div class="text-body-2 text-medium-emphasis">
-                  Centraliza pedidos pendientes, confirma pagos y convierte a venta real del POS desde aquí.
+                  Revisa pedidos online manuales y por pasarela, su estado de pago y la venta creada en el POS.
                 </div>
               </div>
               <v-spacer />
@@ -236,6 +236,9 @@
                 <div class="font-weight-medium">#{{ order.order_number }}</div>
                 <div class="text-caption text-medium-emphasis">
                   {{ order.payment_reference || 'Sin referencia' }}
+                </div>
+                <div class="text-caption text-medium-emphasis mt-1">
+                  {{ order.payment_mode === 'GATEWAY' ? 'Pasarela Mercado Pago' : 'Pago manual' }}
                 </div>
                 <div v-if="order.payment_proof_url" class="text-caption mt-1">
                   <v-tooltip
@@ -1029,7 +1032,7 @@ const openPaymentProofPreview = (url) => {
 const viewOnlineOrderDetail = async (order) => {
   // Forzar recarga fresca desde la BD para obtener status_history
   try {
-    const result = await onlineStoreService.getManualOrders(tenantId.value, null, { forceRefresh: true, limit: 100 })
+    const result = await onlineStoreService.getOnlineOrders(tenantId.value, null, { forceRefresh: true, limit: 100 })
     if (result.success) {
       onlineOrders.value = result.data || []
       const fresh = (result.data || []).find(o => o.online_order_id === order.online_order_id)
@@ -1132,7 +1135,7 @@ const filteredOnlineOrders = computed(() => {
   const search = String(onlineSearch.value || '').trim().toLowerCase()
   return onlineOrders.value.filter((order) => {
     const matchesStatus = onlineStatusFilter.value === 'ALL'
-      || (onlineStatusFilter.value === 'PENDING' && canReviewOnlineOrder(order))
+      || (onlineStatusFilter.value === 'PENDING' && order?.payment_status === 'PENDING' && ['PENDING', 'PROCESSING'].includes(order?.status))
       || (onlineStatusFilter.value === 'COMPLETED' && order.status === 'COMPLETED' && order.payment_status === 'PAID')
       || (onlineStatusFilter.value === 'CANCELLED' && ['CANCELLED', 'FAILED'].includes(order.status))
 
@@ -1149,10 +1152,10 @@ const filteredOnlineOrders = computed(() => {
   })
 })
 
-const pendingOnlineOrdersCount = computed(() => onlineOrders.value.filter((order) => canReviewOnlineOrder(order)).length)
+const pendingOnlineOrdersCount = computed(() => onlineOrders.value.filter((order) => order?.payment_status === 'PENDING' && ['PENDING', 'PROCESSING'].includes(order?.status)).length)
 const reservedOnlineUnitsLabel = computed(() => {
   const total = onlineOrders.value
-    .filter((order) => canReviewOnlineOrder(order))
+    .filter((order) => order?.payment_status === 'PENDING' && ['PENDING', 'PROCESSING'].includes(order?.status))
     .reduce((sum, order) => sum + (order.reservations || [])
       .filter((reservation) => reservation.status === 'ACTIVE')
       .reduce((orderSum, reservation) => orderSum + Number(reservation.reserved_qty || 0), 0), 0)
@@ -1288,7 +1291,7 @@ const refreshOnlineOrders = async () => {
   if (!tenantId.value) return
   loadingOnlineOrders.value = true
   try {
-    const result = await onlineStoreService.getManualOrders(tenantId.value, null, { forceRefresh: true, limit: 100 })
+    const result = await onlineStoreService.getOnlineOrders(tenantId.value, null, { forceRefresh: true, limit: 100 })
     if (result.success) {
       onlineOrders.value = result.data || []
     } else {
