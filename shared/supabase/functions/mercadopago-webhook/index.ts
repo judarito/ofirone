@@ -13,6 +13,21 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    const message = String(record.message || record.error || record.details || record.hint || '').trim()
+    if (message) return message
+    try {
+      return JSON.stringify(record)
+    } catch (_jsonError) {
+      return 'Error desconocido en mercadopago-webhook'
+    }
+  }
+  return String(error || 'Error desconocido en mercadopago-webhook')
+}
+
 function normalizePaymentId(body: Record<string, unknown>, url: URL) {
   const bodyData = body?.data as Record<string, unknown> | undefined
   return String(
@@ -34,6 +49,16 @@ function normalizeExternalReference(body: Record<string, unknown>, url: URL) {
   ).trim()
 }
 
+function normalizePreferenceId(body: Record<string, unknown>, url: URL) {
+  const bodyData = body?.data as Record<string, unknown> | undefined
+  return String(
+    body?.preference_id
+    || bodyData?.preference_id
+    || url.searchParams.get('preference_id')
+    || '',
+  ).trim()
+}
+
 async function fetchPaymentById(accessToken: string, paymentId: string) {
   const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
     headers: {
@@ -43,6 +68,34 @@ async function fetchPaymentById(accessToken: string, paymentId: string) {
   })
   const payload = await response.json().catch(() => ({}))
   return { ok: response.ok, status: response.status, payload }
+}
+
+async function fetchPaymentFromPreference(accessToken: string, preferenceId: string) {
+  const url = new URL('https://api.mercadopago.com/merchant_orders/search')
+  url.searchParams.set('preference_id', preferenceId)
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) return { ok: false, status: response.status, payload, payment: null }
+
+  const merchantOrder = Array.isArray(payload?.elements) ? payload.elements[0] : null
+  const payments = Array.isArray(merchantOrder?.payments) ? merchantOrder.payments : []
+  const paymentRef = payments.find((item) => item?.status === 'approved') || payments[0] || null
+  const paymentId = String(paymentRef?.id || '').trim()
+  if (!paymentId) return { ok: true, status: response.status, payload, payment: null }
+
+  const paymentResult = await fetchPaymentById(accessToken, paymentId)
+  return {
+    ok: paymentResult.ok,
+    status: paymentResult.status,
+    payload: paymentResult.payload,
+    payment: paymentResult.ok ? paymentResult.payload : null,
+  }
 }
 
 async function searchLatestPaymentByReference(accessToken: string, externalReference: string) {
@@ -93,16 +146,18 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     const paymentId = normalizePaymentId(body, requestUrl)
     let externalReference = normalizeExternalReference(body, requestUrl)
+    const preferenceId = normalizePreferenceId(body, requestUrl)
     const topic = String(body?.type || body?.topic || requestUrl.searchParams.get('type') || requestUrl.searchParams.get('topic') || '').trim()
 
-    await supabase.rpc('fn_release_expired_online_orders', { p_limit: 50 })
+    const { error: releaseError } = await supabase.rpc('fn_release_expired_online_orders', { p_limit: 50 })
+    if (releaseError) throw new Error(`No se pudieron liberar pedidos vencidos: ${getErrorMessage(releaseError)}`)
 
     if (topic && topic !== 'payment') {
       return jsonResponse({ ok: true, ignored: `unsupported_topic:${topic}` })
     }
 
-    if (!paymentId && !externalReference) {
-      return jsonResponse({ ok: true, ignored: 'missing_payment_id_and_external_reference' })
+    if (!paymentId && !externalReference && !preferenceId) {
+      return jsonResponse({ ok: true, ignored: 'missing_payment_id_external_reference_and_preference_id' })
     }
 
     let orderForToken: Record<string, unknown> | null = null
@@ -112,7 +167,7 @@ serve(async (req) => {
         .select('online_order_id, tenant_id, total, payment_mode')
         .eq('online_order_id', externalReference)
         .maybeSingle()
-      if (error) throw error
+      if (error) throw new Error(`No se pudo cargar el pedido online: ${getErrorMessage(error)}`)
       orderForToken = data
     }
 
@@ -122,7 +177,7 @@ serve(async (req) => {
       .eq('provider', 'MERCADO_PAGO')
       .eq('is_enabled', true)
 
-    if (credentialsError) throw credentialsError
+    if (credentialsError) throw new Error(`No se pudieron leer credenciales Mercado Pago: ${getErrorMessage(credentialsError)}`)
 
     let accessToken = ''
     let payment: Record<string, unknown> | null = null
@@ -137,6 +192,14 @@ serve(async (req) => {
       const result = await fetchPaymentById(accessToken, paymentId)
       lookupStatus = result.status
       if (result.ok) payment = result.payload as Record<string, unknown>
+    }
+
+    if (!payment && preferenceId && accessToken) {
+      const result = await fetchPaymentFromPreference(accessToken, preferenceId)
+      lookupStatus = result.status
+      if (result.ok && result.payment) {
+        payment = result.payment as Record<string, unknown>
+      }
     }
 
     if (!payment && paymentId) {
@@ -157,7 +220,7 @@ serve(async (req) => {
           .select('online_order_id, tenant_id, total, payment_mode')
           .eq('online_order_id', candidateReference)
           .maybeSingle()
-        if (candidateOrderError) throw candidateOrderError
+        if (candidateOrderError) throw new Error(`No se pudo asociar el pago a un pedido: ${getErrorMessage(candidateOrderError)}`)
 
         if (candidateOrder?.payment_mode === 'GATEWAY' && candidateOrder.tenant_id === credential.tenant_id) {
           payment = candidatePayment
@@ -177,11 +240,43 @@ serve(async (req) => {
       }
     }
 
+    if (!payment && preferenceId) {
+      for (const credential of (credentials || [])) {
+        const candidateToken = String(credential?.access_token || '').trim()
+        if (!candidateToken) continue
+
+        const result = await fetchPaymentFromPreference(candidateToken, preferenceId)
+        lookupStatus = result.status
+        if (!result.ok || !result.payment) continue
+
+        const candidatePayment = result.payment as Record<string, unknown>
+        const candidateReference = paymentExternalReference(candidatePayment, externalReference)
+        if (!candidateReference && !externalReference) continue
+
+        if (candidateReference) {
+          const { data: candidateOrder, error: candidateOrderError } = await supabase
+            .from('online_orders')
+            .select('online_order_id, tenant_id, total, payment_mode')
+            .eq('online_order_id', candidateReference)
+            .maybeSingle()
+          if (candidateOrderError) throw new Error(`No se pudo asociar la preferencia a un pedido: ${getErrorMessage(candidateOrderError)}`)
+          if (candidateOrder?.payment_mode === 'GATEWAY' && candidateOrder.tenant_id !== credential.tenant_id) continue
+          orderForToken = candidateOrder || orderForToken
+          externalReference = candidateReference
+        }
+
+        payment = candidatePayment
+        accessToken = candidateToken
+        break
+      }
+    }
+
     if (!payment) {
       return jsonResponse({
         error: 'No se pudo consultar el pago en Mercado Pago.',
         payment_id: paymentId || null,
         external_reference: externalReference || null,
+        preference_id: preferenceId || null,
       }, lookupStatus >= 400 ? lookupStatus : 404)
     }
 
@@ -196,7 +291,7 @@ serve(async (req) => {
         .select('online_order_id, tenant_id, total, payment_mode')
         .eq('online_order_id', externalReference)
         .maybeSingle()
-      if (error) throw error
+      if (error) throw new Error(`No se pudo recargar el pedido online: ${getErrorMessage(error)}`)
       orderForToken = data
     }
 
@@ -243,7 +338,7 @@ serve(async (req) => {
       p_gateway_payload: gatewayPayload,
     })
 
-    if (syncError) throw syncError
+    if (syncError) throw new Error(`No se pudo sincronizar el pago gateway: ${getErrorMessage(syncError)}`)
 
     return jsonResponse({
       ok: true,
@@ -253,6 +348,6 @@ serve(async (req) => {
       result: syncData || null,
     })
   } catch (error) {
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500)
+    return jsonResponse({ error: getErrorMessage(error) }, 500)
   }
 })

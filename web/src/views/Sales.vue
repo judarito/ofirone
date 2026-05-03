@@ -1364,7 +1364,10 @@ const resyncGatewayOrder = async (order) => {
   onlineOrderActionMode.value = 'sync'
   onlineOrderActionLoading.value = true
   try {
-    const result = await onlineStoreService.syncGatewayOrder(order.online_order_id)
+    const result = await onlineStoreService.syncGatewayOrder(order.online_order_id, {
+      payment_id: order.payment_payload?.mercado_pago_payment_id,
+      preference_id: order.payment_payload?.preference_id,
+    })
     if (!result.success) {
       showMsg(result.error || 'No se pudo revalidar el pago en Mercado Pago.', 'error')
       return

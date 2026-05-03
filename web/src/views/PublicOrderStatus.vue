@@ -283,7 +283,11 @@ async function revalidateGatewayOrderIfNeeded() {
 
   syncingGateway.value = true
   try {
-    await onlineStoreService.syncGatewayOrder(orderId)
+    await onlineStoreService.syncGatewayOrder(orderId, {
+      payment_id: route.query.payment_id || route.query.collection_id || route.query.id,
+      collection_id: route.query.collection_id,
+      preference_id: route.query.preference_id,
+    })
   } catch (_error) {
     // silencioso: la vista seguirá mostrando el estado actual y podrá reintentarse desde admin
   } finally {

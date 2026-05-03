@@ -841,13 +841,15 @@ class OnlineStoreService {
     }
   }
 
-  async syncGatewayOrder(orderId) {
+  async syncGatewayOrder(orderId, payload = {}) {
     if (!orderId) return { success: false, error: 'No encontramos el pedido a revalidar.' }
 
     try {
       const { data, error } = await supabase.functions.invoke(MERCADO_PAGO_WEBHOOK_EDGE_FUNCTION, {
         body: {
           external_reference: orderId,
+          id: String(payload.payment_id || payload.collection_id || '').trim() || undefined,
+          preference_id: String(payload.preference_id || '').trim() || undefined,
           type: 'payment',
         },
       })
