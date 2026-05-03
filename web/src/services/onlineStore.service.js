@@ -5,7 +5,11 @@ import { serviceErrorResult } from '@/utils/appErrors'
 
 const STOREFRONT_BUCKET = 'storefront'
 const ADMIN_CACHE_TTL_MS = 60 * 1000
-const MERCADO_PAGO_PREFERENCE_EDGE_FUNCTION = import.meta.env.VITE_MP_CREATE_PREFERENCE_EDGE_FUNCTION || 'mercadopago-create-preference'
+const configuredMercadoPagoPreferenceFunction = String(import.meta.env.VITE_MP_CREATE_PREFERENCE_EDGE_FUNCTION || '').trim()
+const MERCADO_PAGO_PREFERENCE_EDGE_FUNCTION = configuredMercadoPagoPreferenceFunction
+  && configuredMercadoPagoPreferenceFunction !== 'mercadopago-create-preference'
+  ? configuredMercadoPagoPreferenceFunction
+  : 'mercadopago-create-preference-v2'
 const TENANT_MERCADOPAGO_CONFIG_EDGE_FUNCTION = import.meta.env.VITE_TENANT_MP_CONFIG_EDGE_FUNCTION || 'tenant-mercadopago-config'
 const MERCADO_PAGO_WEBHOOK_EDGE_FUNCTION = import.meta.env.VITE_MP_WEBHOOK_EDGE_FUNCTION || 'mercadopago-webhook'
 

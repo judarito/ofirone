@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const FUNCTION_BUILD_ID = 'mp-create-preference-single-total-item-v2'
+const FUNCTION_BUILD_ID = 'mp-create-preference-v2-single-total-item-v1'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -85,7 +85,7 @@ serve(async (req) => {
   if (req.method === 'GET') {
     return jsonResponse({
       ok: true,
-      function_name: 'mercadopago-create-preference',
+      function_name: 'mercadopago-create-preference-v2',
       build_id: FUNCTION_BUILD_ID,
     })
   }

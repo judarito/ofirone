@@ -1,5 +1,6 @@
 chat-order-parser/index.ts
 create-tenant-user/index.ts
 mercadopago-create-preference/index.ts
+mercadopago-create-preference-v2/index.ts
 mercadopago-webhook/index.ts
 tenant-mercadopago-config/index.ts
