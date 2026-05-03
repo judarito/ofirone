@@ -49,7 +49,14 @@ async function extractFunctionInvokeError(error) {
   try {
     const payload = await context.json()
     const nestedMessage = String(payload?.error || payload?.message || '').trim()
-    return nestedMessage || rawMessage
+    const buildId = String(payload?.build_id || '').trim()
+    const submittedPreference = payload?.submitted_preference || payload?.submitted_items || null
+    const debugSuffix = [
+      buildId ? `build_id=${buildId}` : '',
+      submittedPreference ? `submitted_preference=${JSON.stringify(submittedPreference)}` : '',
+    ].filter(Boolean).join(' | ')
+    const message = nestedMessage || rawMessage
+    return debugSuffix ? `${message} (${debugSuffix})` : message
   } catch (_contextError) {
     return rawMessage
   }
@@ -591,7 +598,13 @@ class OnlineStoreService {
       })
 
       if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      if (data?.error) {
+        const debugSuffix = [
+          data?.build_id ? `build_id=${data.build_id}` : '',
+          data?.submitted_preference ? `submitted_preference=${JSON.stringify(data.submitted_preference)}` : '',
+        ].filter(Boolean).join(' | ')
+        throw new Error(debugSuffix ? `${data.error} (${debugSuffix})` : data.error)
+      }
       return { success: true, data }
     } catch (error) {
       const extractedError = await extractFunctionInvokeError(error)
