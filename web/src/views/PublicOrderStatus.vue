@@ -28,7 +28,8 @@
           variant="tonal"
           class="mt-4"
         >
-          Mercado Pago devolvió tu compra como aprobada. Estamos validando el pago y actualizando el pedido.
+          <div class="font-weight-medium">{{ gatewayReturnTitle }}</div>
+          <div class="text-body-2 mt-1">{{ gatewayReturnMessage }}</div>
         </v-alert>
 
         <v-alert
@@ -133,6 +134,10 @@ const loading = ref(true)
 const order = ref(null)
 const errorMessage = ref('')
 const syncingGateway = ref(false)
+const gatewaySyncAttempts = ref(0)
+const gatewaySyncMessage = ref('')
+
+const GATEWAY_SYNC_DELAYS_MS = [0, 1200, 2500, 4500, 7000]
 
 const STATUS_LABELS = {
   PENDING: 'Pendiente',
@@ -223,6 +228,22 @@ const paymentFlowSnapshot = computed(() => {
 const displayOrderStatus = computed(() => paymentFlowSnapshot.value.order)
 const displayPaymentStatus = computed(() => paymentFlowSnapshot.value.payment)
 
+const gatewayReturnTitle = computed(() => {
+  if (order.value?.payment_status === 'PAID') return 'Pago confirmado'
+  if (syncingGateway.value) return 'Validando pago con Mercado Pago'
+  return 'Aprobación recibida'
+})
+
+const gatewayReturnMessage = computed(() => {
+  if (order.value?.payment_status === 'PAID') {
+    return 'El pago fue validado y el pedido ya quedó actualizado.'
+  }
+
+  if (gatewaySyncMessage.value) return gatewaySyncMessage.value
+
+  return 'Mercado Pago devolvió tu compra como aprobada. Estamos validando el pago y actualizando el pedido.'
+})
+
 function orderStatusLabel(status) {
   return STATUS_LABELS[status] || status
 }
@@ -246,6 +267,19 @@ function formatMoney(amount) {
 function formatDate(dateStr) {
   if (!dateStr) return ''
   return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(dateStr))
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function queryValue(value) {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
+function isOrderPaid() {
+  return String(order.value?.payment_status || '').trim().toUpperCase() === 'PAID'
 }
 
 async function loadOrder() {
@@ -280,16 +314,45 @@ async function revalidateGatewayOrderIfNeeded() {
   const orderId = String(route.params.orderId || '').trim()
   const queryStatus = String(route.query.mp_status || '').trim().toLowerCase()
   if (!orderId || !['success', 'pending'].includes(queryStatus)) return
+  if (isOrderPaid()) return
 
   syncingGateway.value = true
+  gatewaySyncMessage.value = queryStatus === 'success'
+    ? 'Recibimos el retorno exitoso. Estamos confirmando el pago directamente con Mercado Pago.'
+    : 'Estamos consultando si Mercado Pago ya actualizó el estado del pago.'
+
   try {
-    await onlineStoreService.syncGatewayOrder(orderId, {
-      payment_id: route.query.payment_id || route.query.collection_id || route.query.id,
-      collection_id: route.query.collection_id,
-      preference_id: route.query.preference_id,
-    })
-  } catch (_error) {
-    // silencioso: la vista seguirá mostrando el estado actual y podrá reintentarse desde admin
+    for (let index = 0; index < GATEWAY_SYNC_DELAYS_MS.length; index += 1) {
+      const delay = GATEWAY_SYNC_DELAYS_MS[index]
+      if (delay > 0) await sleep(delay)
+      if (isOrderPaid()) break
+
+      gatewaySyncAttempts.value = index + 1
+      gatewaySyncMessage.value = `Validando pago con Mercado Pago... intento ${gatewaySyncAttempts.value} de ${GATEWAY_SYNC_DELAYS_MS.length}.`
+
+      const result = await onlineStoreService.syncGatewayOrder(orderId, {
+        payment_id: queryValue(route.query.payment_id) || queryValue(route.query.collection_id) || queryValue(route.query.id),
+        collection_id: queryValue(route.query.collection_id),
+        preference_id: queryValue(route.query.preference_id),
+      })
+
+      await loadOrder()
+      if (result?.success && isOrderPaid()) {
+        gatewaySyncMessage.value = 'Pago confirmado. El pedido ya quedó actualizado.'
+        break
+      }
+
+      if (isOrderPaid()) {
+        gatewaySyncMessage.value = 'Pago confirmado. El pedido ya quedó actualizado.'
+        break
+      }
+    }
+
+    if (!isOrderPaid()) {
+      gatewaySyncMessage.value = 'Mercado Pago recibió el retorno, pero todavía no entrega la confirmación final. Puedes dejar esta pantalla abierta o revisar de nuevo en unos segundos.'
+    }
+  } catch (error) {
+    gatewaySyncMessage.value = error?.message || 'No pudimos validar el pago automáticamente. El equipo de la tienda podrá revalidarlo desde ventas online.'
   } finally {
     syncingGateway.value = false
   }
@@ -298,7 +361,7 @@ async function revalidateGatewayOrderIfNeeded() {
 onMounted(async () => {
   await loadOrder()
   await revalidateGatewayOrderIfNeeded()
-  await loadOrder()
+  if (!isOrderPaid()) await loadOrder()
 })
 </script>
 

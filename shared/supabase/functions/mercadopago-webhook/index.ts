@@ -6,6 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const FUNCTION_BUILD_ID = 'mp-webhook-multi-lookup-v2'
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -70,6 +72,17 @@ async function fetchPaymentById(accessToken: string, paymentId: string) {
   return { ok: response.ok, status: response.status, payload }
 }
 
+async function fetchPreferenceById(accessToken: string, preferenceId: string) {
+  const response = await fetch(`https://api.mercadopago.com/checkout/preferences/${preferenceId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  const payload = await response.json().catch(() => ({}))
+  return { ok: response.ok, status: response.status, payload }
+}
+
 async function fetchPaymentFromPreference(accessToken: string, preferenceId: string) {
   const url = new URL('https://api.mercadopago.com/merchant_orders/search')
   url.searchParams.set('preference_id', preferenceId)
@@ -87,7 +100,7 @@ async function fetchPaymentFromPreference(accessToken: string, preferenceId: str
   const payments = Array.isArray(merchantOrder?.payments) ? merchantOrder.payments : []
   const paymentRef = payments.find((item) => item?.status === 'approved') || payments[0] || null
   const paymentId = String(paymentRef?.id || '').trim()
-  if (!paymentId) return { ok: true, status: response.status, payload, payment: null }
+  if (!paymentId) return { ok: true, status: response.status, payload, payment: null, payment_id: null }
 
   const paymentResult = await fetchPaymentById(accessToken, paymentId)
   return {
@@ -95,6 +108,7 @@ async function fetchPaymentFromPreference(accessToken: string, preferenceId: str
     status: paymentResult.status,
     payload: paymentResult.payload,
     payment: paymentResult.ok ? paymentResult.payload : null,
+    payment_id: paymentId,
   }
 }
 
@@ -104,6 +118,9 @@ async function searchLatestPaymentByReference(accessToken: string, externalRefer
   url.searchParams.set('sort', 'date_created')
   url.searchParams.set('criteria', 'desc')
   url.searchParams.set('limit', '1')
+  url.searchParams.set('range', 'date_created')
+  url.searchParams.set('begin_date', 'NOW-90DAYS')
+  url.searchParams.set('end_date', 'NOW')
 
   const response = await fetch(url, {
     headers: {
@@ -114,6 +131,35 @@ async function searchLatestPaymentByReference(accessToken: string, externalRefer
   const payload = await response.json().catch(() => ({}))
   const payment = Array.isArray(payload?.results) ? payload.results[0] : null
   return { ok: response.ok, status: response.status, payload, payment }
+}
+
+function summarizeLookupPayload(payload: unknown) {
+  const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
+  const results = Array.isArray(record.results) ? record.results : []
+  const elements = Array.isArray(record.elements) ? record.elements : []
+  const payments = elements
+    .flatMap((element) => {
+      const elementRecord = element && typeof element === 'object' ? element as Record<string, unknown> : {}
+      return Array.isArray(elementRecord.payments) ? elementRecord.payments : []
+    })
+    .map((payment) => {
+      const paymentRecord = payment && typeof payment === 'object' ? payment as Record<string, unknown> : {}
+      return {
+        id: paymentRecord.id || null,
+        status: paymentRecord.status || null,
+        status_detail: paymentRecord.status_detail || null,
+        transaction_amount: paymentRecord.transaction_amount || null,
+      }
+    })
+
+  return {
+    message: record.message || record.error || null,
+    paging_total: (record.paging as Record<string, unknown> | undefined)?.total ?? null,
+    results_count: results.length,
+    elements_count: elements.length,
+    merchant_order_payments: payments,
+    preference_external_reference: record.external_reference || null,
+  }
 }
 
 function paymentExternalReference(payment: Record<string, unknown> | null, fallback = '') {
@@ -182,6 +228,8 @@ serve(async (req) => {
     let accessToken = ''
     let payment: Record<string, unknown> | null = null
     let lookupStatus = 404
+    let preferenceExternalReference = ''
+    const lookupDebug: Array<Record<string, unknown>> = []
 
     if (orderForToken?.payment_mode === 'GATEWAY') {
       const credential = (credentials || []).find((row) => row.tenant_id === orderForToken?.tenant_id)
@@ -191,14 +239,47 @@ serve(async (req) => {
     if (paymentId && accessToken) {
       const result = await fetchPaymentById(accessToken, paymentId)
       lookupStatus = result.status
+      lookupDebug.push({
+        step: 'tenant_payment_id',
+        status: result.status,
+        ok: result.ok,
+        found: Boolean(result.ok && result.payload?.id),
+        summary: summarizeLookupPayload(result.payload),
+      })
       if (result.ok) payment = result.payload as Record<string, unknown>
     }
 
     if (!payment && preferenceId && accessToken) {
       const result = await fetchPaymentFromPreference(accessToken, preferenceId)
       lookupStatus = result.status
+      lookupDebug.push({
+        step: 'tenant_merchant_order_by_preference',
+        status: result.status,
+        ok: result.ok,
+        found: Boolean(result.payment),
+        payment_id: result.payment_id || null,
+        summary: summarizeLookupPayload(result.payload),
+      })
       if (result.ok && result.payment) {
         payment = result.payment as Record<string, unknown>
+      }
+    }
+
+    if (!payment && preferenceId && accessToken) {
+      const result = await fetchPreferenceById(accessToken, preferenceId)
+      lookupStatus = result.status
+      lookupDebug.push({
+        step: 'tenant_preference_by_id',
+        status: result.status,
+        ok: result.ok,
+        found: Boolean(result.ok && result.payload?.id),
+        summary: summarizeLookupPayload(result.payload),
+      })
+      if (result.ok) {
+        preferenceExternalReference = String(result.payload?.external_reference || '').trim()
+        if (!externalReference && preferenceExternalReference) {
+          externalReference = preferenceExternalReference
+        }
       }
     }
 
@@ -209,6 +290,14 @@ serve(async (req) => {
 
         const result = await fetchPaymentById(candidateToken, paymentId)
         lookupStatus = result.status
+        lookupDebug.push({
+          step: 'credential_payment_id',
+          tenant_id: credential?.tenant_id || null,
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.ok && result.payload?.id),
+          summary: summarizeLookupPayload(result.payload),
+        })
         if (!result.ok) continue
 
         const candidatePayment = result.payload as Record<string, unknown>
@@ -235,8 +324,51 @@ serve(async (req) => {
     if (!payment && externalReference && orderForToken?.payment_mode === 'GATEWAY' && accessToken) {
       const result = await searchLatestPaymentByReference(accessToken, externalReference)
       lookupStatus = result.status
+      lookupDebug.push({
+        step: 'tenant_payment_search_by_external_reference',
+        status: result.status,
+        ok: result.ok,
+        found: Boolean(result.payment),
+        summary: summarizeLookupPayload(result.payload),
+      })
       if (result.ok && result.payment) {
         payment = result.payment as Record<string, unknown>
+      }
+    }
+
+    if (!payment && externalReference) {
+      for (const credential of (credentials || [])) {
+        const candidateToken = String(credential?.access_token || '').trim()
+        if (!candidateToken) continue
+
+        const result = await searchLatestPaymentByReference(candidateToken, externalReference)
+        lookupStatus = result.status
+        lookupDebug.push({
+          step: 'credential_payment_search_by_external_reference',
+          tenant_id: credential?.tenant_id || null,
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.payment),
+          summary: summarizeLookupPayload(result.payload),
+        })
+        if (!result.ok || !result.payment) continue
+
+        const candidatePayment = result.payment as Record<string, unknown>
+        const candidateReference = paymentExternalReference(candidatePayment, externalReference)
+        const { data: candidateOrder, error: candidateOrderError } = await supabase
+          .from('online_orders')
+          .select('online_order_id, tenant_id, total, payment_mode')
+          .eq('online_order_id', candidateReference)
+          .maybeSingle()
+        if (candidateOrderError) throw new Error(`No se pudo asociar la referencia a un pedido: ${getErrorMessage(candidateOrderError)}`)
+
+        if (candidateOrder?.payment_mode === 'GATEWAY' && candidateOrder.tenant_id === credential.tenant_id) {
+          payment = candidatePayment
+          externalReference = candidateReference
+          orderForToken = candidateOrder
+          accessToken = candidateToken
+          break
+        }
       }
     }
 
@@ -247,6 +379,15 @@ serve(async (req) => {
 
         const result = await fetchPaymentFromPreference(candidateToken, preferenceId)
         lookupStatus = result.status
+        lookupDebug.push({
+          step: 'credential_merchant_order_by_preference',
+          tenant_id: credential?.tenant_id || null,
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.payment),
+          payment_id: result.payment_id || null,
+          summary: summarizeLookupPayload(result.payload),
+        })
         if (!result.ok || !result.payment) continue
 
         const candidatePayment = result.payment as Record<string, unknown>
@@ -271,12 +412,37 @@ serve(async (req) => {
       }
     }
 
+    if (!payment && preferenceId && !preferenceExternalReference) {
+      for (const credential of (credentials || [])) {
+        const candidateToken = String(credential?.access_token || '').trim()
+        if (!candidateToken) continue
+
+        const result = await fetchPreferenceById(candidateToken, preferenceId)
+        lookupStatus = result.status
+        lookupDebug.push({
+          step: 'credential_preference_by_id',
+          tenant_id: credential?.tenant_id || null,
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.ok && result.payload?.id),
+          summary: summarizeLookupPayload(result.payload),
+        })
+        if (!result.ok) continue
+        preferenceExternalReference = String(result.payload?.external_reference || '').trim()
+        if (preferenceExternalReference && !externalReference) externalReference = preferenceExternalReference
+        break
+      }
+    }
+
     if (!payment) {
       return jsonResponse({
         error: 'No se pudo consultar el pago en Mercado Pago.',
+        build_id: FUNCTION_BUILD_ID,
         payment_id: paymentId || null,
         external_reference: externalReference || null,
         preference_id: preferenceId || null,
+        preference_external_reference: preferenceExternalReference || null,
+        lookup_debug: lookupDebug,
       }, lookupStatus >= 400 ? lookupStatus : 404)
     }
 
@@ -342,6 +508,7 @@ serve(async (req) => {
 
     return jsonResponse({
       ok: true,
+      build_id: FUNCTION_BUILD_ID,
       payment_id: resolvedPaymentId || null,
       external_reference: externalReference,
       status: payment?.status || null,

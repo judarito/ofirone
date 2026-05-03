@@ -6,6 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const FUNCTION_BUILD_ID = 'mp-create-preference-single-total-item-v2'
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -225,7 +227,13 @@ serve(async (req) => {
     if (!mpResponse.ok) {
       return jsonResponse({
         error: 'Mercado Pago no pudo crear la preferencia.',
+        build_id: FUNCTION_BUILD_ID,
         details: mpData,
+        submitted_preference: {
+          external_reference: preferenceBody.external_reference,
+          items: preferenceBody.items,
+          total: orderRow.total,
+        },
         submitted_items: preferenceBody.items,
       }, mpResponse.status)
     }
@@ -250,6 +258,7 @@ serve(async (req) => {
 
     return jsonResponse({
       success: true,
+      build_id: FUNCTION_BUILD_ID,
       order: {
         online_order_id: orderId,
         order_number: orderRow.order_number,
