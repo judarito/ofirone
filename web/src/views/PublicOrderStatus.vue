@@ -172,13 +172,16 @@ function isOrderExpired(value) {
 const showContinuePayment = computed(() => {
   const queryStatus = String(route.query.mp_status || '').trim().toLowerCase()
   const gatewayStatus = String(order.value?.mercado_pago_status || '').trim().toLowerCase()
+  const orderStatus = String(order.value?.status || '').trim().toUpperCase()
   const shouldBlockRetry = ['success', 'pending'].includes(queryStatus)
     || ['approved', 'authorized', 'in_process', 'pending'].includes(gatewayStatus)
+    || orderStatus === 'PROCESSING'
 
   return Boolean(
     !shouldBlockRetry
-    && 
+    &&
     order.value?.payment_mode === 'GATEWAY'
+    && order.value?.status === 'PENDING'
     && order.value?.payment_status === 'PENDING'
     && order.value?.payment_link
     && !isOrderExpired(order.value?.expires_at),

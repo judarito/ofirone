@@ -24,13 +24,57 @@ function normalizePaymentId(body: Record<string, unknown>, url: URL) {
   ).trim()
 }
 
+function normalizeExternalReference(body: Record<string, unknown>, url: URL) {
+  const bodyData = body?.data as Record<string, unknown> | undefined
+  return String(
+    body?.external_reference
+    || bodyData?.external_reference
+    || url.searchParams.get('external_reference')
+    || '',
+  ).trim()
+}
+
+async function fetchPaymentById(accessToken: string, paymentId: string) {
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  const payload = await response.json().catch(() => ({}))
+  return { ok: response.ok, status: response.status, payload }
+}
+
+async function searchLatestPaymentByReference(accessToken: string, externalReference: string) {
+  const url = new URL('https://api.mercadopago.com/v1/payments/search')
+  url.searchParams.set('external_reference', externalReference)
+  url.searchParams.set('sort', 'date_created')
+  url.searchParams.set('criteria', 'desc')
+  url.searchParams.set('limit', '1')
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  const payload = await response.json().catch(() => ({}))
+  const payment = Array.isArray(payload?.results) ? payload.results[0] : null
+  return { ok: response.ok, status: response.status, payload, payment }
+}
+
+function paymentExternalReference(payment: Record<string, unknown> | null, fallback = '') {
+  const metadata = payment?.metadata as Record<string, unknown> | undefined
+  return String(payment?.external_reference || metadata?.online_order_id || fallback || '').trim()
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Método no permitido.' }, 405)
+    return jsonResponse({ error: 'Metodo no permitido.' }, 405)
   }
 
   try {
@@ -48,77 +92,128 @@ serve(async (req) => {
     const requestUrl = new URL(req.url)
     const body = await req.json().catch(() => ({}))
     const paymentId = normalizePaymentId(body, requestUrl)
+    let externalReference = normalizeExternalReference(body, requestUrl)
     const topic = String(body?.type || body?.topic || requestUrl.searchParams.get('type') || requestUrl.searchParams.get('topic') || '').trim()
 
     await supabase.rpc('fn_release_expired_online_orders', { p_limit: 50 })
-
-    if (!paymentId) {
-      return jsonResponse({ ok: true, ignored: 'missing_payment_id' })
-    }
 
     if (topic && topic !== 'payment') {
       return jsonResponse({ ok: true, ignored: `unsupported_topic:${topic}` })
     }
 
-    const { data: orderForToken, error: orderForTokenError } = await supabase
-      .from('online_orders')
-      .select('online_order_id, tenant_id, total, payment_mode')
-      .eq('online_order_id', externalReference)
-      .maybeSingle()
-
-    if (orderForTokenError) throw orderForTokenError
-    if (!orderForToken || orderForToken.payment_mode !== 'GATEWAY') {
-      return jsonResponse({ ok: true, ignored: 'order_not_found_or_not_gateway', payment_id: paymentId, external_reference: externalReference })
+    if (!paymentId && !externalReference) {
+      return jsonResponse({ ok: true, ignored: 'missing_payment_id_and_external_reference' })
     }
 
-    const { data: credentialRow, error: credentialError } = await supabase
+    let orderForToken: Record<string, unknown> | null = null
+    if (externalReference) {
+      const { data, error } = await supabase
+        .from('online_orders')
+        .select('online_order_id, tenant_id, total, payment_mode')
+        .eq('online_order_id', externalReference)
+        .maybeSingle()
+      if (error) throw error
+      orderForToken = data
+    }
+
+    const { data: credentials, error: credentialsError } = await supabase
       .from('tenant_gateway_credentials')
-      .select('access_token, is_enabled')
-      .eq('tenant_id', orderForToken.tenant_id)
+      .select('tenant_id, access_token, is_enabled')
       .eq('provider', 'MERCADO_PAGO')
-      .maybeSingle()
+      .eq('is_enabled', true)
 
-    if (credentialError) throw credentialError
-    const mercadoPagoAccessToken = String(credentialRow?.access_token || '').trim()
-    if (!credentialRow?.is_enabled || !mercadoPagoAccessToken) {
-      return jsonResponse({ error: 'El tenant del pedido no tiene credenciales activas de Mercado Pago.' }, 400)
+    if (credentialsError) throw credentialsError
+
+    let accessToken = ''
+    let payment: Record<string, unknown> | null = null
+    let lookupStatus = 404
+
+    if (orderForToken?.payment_mode === 'GATEWAY') {
+      const credential = (credentials || []).find((row) => row.tenant_id === orderForToken?.tenant_id)
+      accessToken = String(credential?.access_token || '').trim()
     }
 
-    const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-      headers: {
-        Authorization: `Bearer ${mercadoPagoAccessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    if (paymentId && accessToken) {
+      const result = await fetchPaymentById(accessToken, paymentId)
+      lookupStatus = result.status
+      if (result.ok) payment = result.payload as Record<string, unknown>
+    }
 
-    const payment = await mpResponse.json().catch(() => ({}))
-    if (!mpResponse.ok) {
+    if (!payment && paymentId) {
+      for (const credential of (credentials || [])) {
+        const candidateToken = String(credential?.access_token || '').trim()
+        if (!candidateToken) continue
+
+        const result = await fetchPaymentById(candidateToken, paymentId)
+        lookupStatus = result.status
+        if (!result.ok) continue
+
+        const candidatePayment = result.payload as Record<string, unknown>
+        const candidateReference = paymentExternalReference(candidatePayment, externalReference)
+        if (!candidateReference) continue
+
+        const { data: candidateOrder, error: candidateOrderError } = await supabase
+          .from('online_orders')
+          .select('online_order_id, tenant_id, total, payment_mode')
+          .eq('online_order_id', candidateReference)
+          .maybeSingle()
+        if (candidateOrderError) throw candidateOrderError
+
+        if (candidateOrder?.payment_mode === 'GATEWAY' && candidateOrder.tenant_id === credential.tenant_id) {
+          payment = candidatePayment
+          externalReference = candidateReference
+          orderForToken = candidateOrder
+          accessToken = candidateToken
+          break
+        }
+      }
+    }
+
+    if (!payment && externalReference && orderForToken?.payment_mode === 'GATEWAY' && accessToken) {
+      const result = await searchLatestPaymentByReference(accessToken, externalReference)
+      lookupStatus = result.status
+      if (result.ok && result.payment) {
+        payment = result.payment as Record<string, unknown>
+      }
+    }
+
+    if (!payment) {
       return jsonResponse({
         error: 'No se pudo consultar el pago en Mercado Pago.',
-        details: payment,
-      }, mpResponse.status)
+        payment_id: paymentId || null,
+        external_reference: externalReference || null,
+      }, lookupStatus >= 400 ? lookupStatus : 404)
     }
 
-    const externalReference = String(
-      payment?.external_reference
-      || payment?.metadata?.online_order_id
-      || '',
-    ).trim()
-
+    externalReference = paymentExternalReference(payment, externalReference)
     if (!externalReference) {
       return jsonResponse({ ok: true, ignored: 'missing_external_reference', payment_id: paymentId })
     }
 
+    if (!orderForToken || orderForToken.online_order_id !== externalReference) {
+      const { data, error } = await supabase
+        .from('online_orders')
+        .select('online_order_id, tenant_id, total, payment_mode')
+        .eq('online_order_id', externalReference)
+        .maybeSingle()
+      if (error) throw error
+      orderForToken = data
+    }
+
+    if (!orderForToken || orderForToken.payment_mode !== 'GATEWAY') {
+      return jsonResponse({ ok: true, ignored: 'order_not_found_or_not_gateway', payment_id: paymentId, external_reference: externalReference })
+    }
+
     const transactionAmount = Number(payment?.transaction_amount || 0)
     const orderTotal = Number(orderForToken.total || 0)
-    if (transactionAmount > 0 && orderTotal > 0 && Math.abs(transactionAmount - orderTotal) > 1) {
+    if (transactionAmount > 0 && orderTotal > 0 && Math.abs(transactionAmount - orderTotal) > 100) {
       return jsonResponse({
         error: 'El total del pago no coincide con el pedido online.',
-        payment_id: paymentId,
+        payment_id: String(payment?.id || paymentId || ''),
         external_reference: externalReference,
         transaction_amount: transactionAmount,
         order_total: orderTotal,
-      }, 400)
+      }, 409)
     }
 
     const gatewayPayload = {
@@ -139,9 +234,10 @@ serve(async (req) => {
       },
     }
 
+    const resolvedPaymentId = String(payment?.id || paymentId || '').trim()
     const { data: syncData, error: syncError } = await supabase.rpc('fn_sync_online_gateway_payment', {
       p_online_order_id: externalReference,
-      p_payment_id: paymentId,
+      p_payment_id: resolvedPaymentId || null,
       p_gateway_status: String(payment?.status || 'pending'),
       p_payment_status_detail: String(payment?.status_detail || '').trim() || null,
       p_gateway_payload: gatewayPayload,
@@ -151,7 +247,7 @@ serve(async (req) => {
 
     return jsonResponse({
       ok: true,
-      payment_id: paymentId,
+      payment_id: resolvedPaymentId || null,
       external_reference: externalReference,
       status: payment?.status || null,
       result: syncData || null,

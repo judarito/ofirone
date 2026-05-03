@@ -47,6 +47,57 @@ function buildStatementDescriptor(value: unknown) {
     .slice(0, 13)
 }
 
+function buildPreferenceItems(orderId: string, lineRows: Array<Record<string, unknown>>) {
+  return (lineRows || []).map((line) => {
+    const quantity = Math.max(1, Number(line.quantity || 0))
+    const lineTotal = Math.round(Number(line.line_total || 0))
+    const productLabel = [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto'
+    const safeId = `${orderId}:${String(line.product_name || 'producto').slice(0, 24)}`
+
+    if (Number.isInteger(lineTotal / quantity)) {
+      return {
+        id: safeId,
+        title: productLabel,
+        quantity,
+        unit_price: Math.round(lineTotal / quantity),
+        description: productLabel,
+        category_id: 'retail',
+        currency_id: 'COP',
+      }
+    }
+
+    return {
+      id: safeId,
+      title: quantity > 1 ? `${quantity} x ${productLabel}` : productLabel,
+      quantity: 1,
+      unit_price: lineTotal,
+      description: productLabel,
+      category_id: 'retail',
+      currency_id: 'COP',
+    }
+  })
+}
+
+function buildOrderPreferenceItem(orderId: string, orderRow: Record<string, unknown>, lineRows: Array<Record<string, unknown>>) {
+  const productNames = (lineRows || [])
+    .map((line) => String(line.product_name || '').trim())
+    .filter(Boolean)
+  const uniqueNames = [...new Set(productNames)]
+  const description = uniqueNames.length > 0
+    ? uniqueNames.slice(0, 3).join(', ')
+    : 'Compra tienda online'
+
+  return {
+    id: orderId,
+    title: `Pedido #${orderRow.order_number || ''}`.trim(),
+    quantity: 1,
+    unit_price: Math.round(Number(orderRow.total || 0)),
+    description,
+    category_id: 'retail',
+    currency_id: 'COP',
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -149,17 +200,7 @@ serve(async (req) => {
     const { name: payerName, surname: payerSurname } = splitFullName(orderRow.customer_name)
     const payerPhone = onlyDigits(orderRow.customer_phone)
     const preferenceBody = {
-      items: (lineRows || []).map((line) => ({
-        id: `${orderId}:${String(line.product_name || 'producto').slice(0, 24)}`,
-        title: [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto',
-        quantity: Number(line.quantity || 0),
-        unit_price: Number(line.quantity || 0) > 0
-          ? Number((Number(line.line_total || 0) / Number(line.quantity || 1)).toFixed(2))
-          : Number(line.unit_price || 0),
-        description: [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto',
-        category_id: 'retail',
-        currency_id: 'COP',
-      })),
+      items: [buildOrderPreferenceItem(orderId, orderRow, lineRows || [])],
       payer: {
         name: payerName || undefined,
         surname: payerSurname || undefined,
