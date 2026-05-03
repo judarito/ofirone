@@ -523,7 +523,7 @@ BEGIN
    AND pm.is_active = TRUE
   WHERE o.online_order_id = p_online_order_id
     AND o.payment_mode = 'GATEWAY'
-  FOR UPDATE;
+  FOR UPDATE OF o;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'No encontramos el pedido gateway solicitado.';

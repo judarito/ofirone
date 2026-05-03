@@ -47,35 +47,12 @@ function buildStatementDescriptor(value: unknown) {
     .slice(0, 13)
 }
 
-function buildPreferenceItems(orderId: string, lineRows: Array<Record<string, unknown>>) {
-  return (lineRows || []).map((line) => {
-    const quantity = Math.max(1, Number(line.quantity || 0))
-    const lineTotal = Math.round(Number(line.line_total || 0))
-    const productLabel = [line.product_name, line.variant_name].filter(Boolean).join(' - ') || 'Producto'
-    const safeId = `${orderId}:${String(line.product_name || 'producto').slice(0, 24)}`
-
-    if (Number.isInteger(lineTotal / quantity)) {
-      return {
-        id: safeId,
-        title: productLabel,
-        quantity,
-        unit_price: Math.round(lineTotal / quantity),
-        description: productLabel,
-        category_id: 'retail',
-        currency_id: 'COP',
-      }
-    }
-
-    return {
-      id: safeId,
-      title: quantity > 1 ? `${quantity} x ${productLabel}` : productLabel,
-      quantity: 1,
-      unit_price: lineTotal,
-      description: productLabel,
-      category_id: 'retail',
-      currency_id: 'COP',
-    }
-  })
+function toCopIntegerAmount(value: unknown) {
+  const amount = Math.round(Number(value || 0))
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new Error('El total del pedido no es un entero válido para Mercado Pago.')
+  }
+  return amount
 }
 
 function buildOrderPreferenceItem(orderId: string, orderRow: Record<string, unknown>, lineRows: Array<Record<string, unknown>>) {
@@ -91,7 +68,7 @@ function buildOrderPreferenceItem(orderId: string, orderRow: Record<string, unkn
     id: orderId,
     title: `Pedido #${orderRow.order_number || ''}`.trim(),
     quantity: 1,
-    unit_price: Math.round(Number(orderRow.total || 0)),
+    unit_price: toCopIntegerAmount(orderRow.total),
     description,
     category_id: 'retail',
     currency_id: 'COP',
@@ -249,6 +226,7 @@ serve(async (req) => {
       return jsonResponse({
         error: 'Mercado Pago no pudo crear la preferencia.',
         details: mpData,
+        submitted_items: preferenceBody.items,
       }, mpResponse.status)
     }
 
