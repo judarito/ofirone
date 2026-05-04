@@ -41,6 +41,18 @@ function notificationKey(event: string) {
   return event === 'rejected' ? 'purchase_rejected' : 'purchase_approved'
 }
 
+function notificationAlreadyHandled(notification: unknown) {
+  if (!notification || typeof notification !== 'object') return false
+  const status = String((notification as Record<string, unknown>).status || '').toLowerCase()
+  return status === 'sent' || status === 'sending' || Boolean((notification as Record<string, unknown>).sent_at)
+}
+
+function notificationWasSent(notification: unknown) {
+  if (!notification || typeof notification !== 'object') return false
+  const status = String((notification as Record<string, unknown>).status || '').toLowerCase()
+  return status === 'sent' || Boolean((notification as Record<string, unknown>).sent_at)
+}
+
 function resolveEvent(bodyEvent: unknown, order: OrderRow) {
   const raw = String(bodyEvent || '').trim().toLowerCase()
   if (['approved', 'paid', 'confirmed', 'success'].includes(raw)) return 'approved'
@@ -201,8 +213,28 @@ serve(async (req) => {
     const notifications = paymentPayload.email_notifications && typeof paymentPayload.email_notifications === 'object'
       ? paymentPayload.email_notifications as Record<string, unknown>
       : {}
-    if (!force && notifications[key]) {
+    if (!force && notificationWasSent(notifications[key])) {
       return jsonResponse({ ok: true, skipped: 'already_sent', event, notification_key: key })
+    }
+
+    if (!force) {
+      const { data: claimData, error: claimError } = await supabase
+        .rpc('fn_claim_online_order_email_notification', {
+          p_online_order_id: orderId,
+          p_notification_key: key,
+        })
+      if (claimError) throw claimError
+
+      const claim = Array.isArray(claimData) ? claimData[0] : claimData
+      if (!claim?.claimed) {
+        return jsonResponse({
+          ok: true,
+          skipped: notificationAlreadyHandled(claim?.notification) ? 'already_sent' : 'email_send_in_progress',
+          event,
+          notification_key: key,
+          notification: claim?.notification || null,
+        })
+      }
     }
 
     const [{ data: store, error: storeError }, { data: lines, error: linesError }] = await Promise.all([
@@ -237,24 +269,39 @@ serve(async (req) => {
     })
 
     const sentAt = new Date().toISOString()
-    const nextPayload = {
-      ...paymentPayload,
-      email_notifications: {
-        ...notifications,
-        [key]: {
-          sent_at: sentAt,
-          event,
-          resend_id: resendData?.id || null,
-          to,
-        },
-      },
+    const notification = {
+      sent_at: sentAt,
+      event,
+      resend_id: resendData?.id || null,
+      to,
     }
 
-    const { error: updateError } = await supabase
-      .from('online_orders')
-      .update({ payment_payload: nextPayload })
-      .eq('online_order_id', orderId)
-    if (updateError) throw updateError
+    if (force) {
+      const nextPayload = {
+        ...paymentPayload,
+        email_notifications: {
+          ...notifications,
+          [key]: {
+            ...notification,
+            status: 'sent',
+          },
+        },
+      }
+
+      const { error: updateError } = await supabase
+        .from('online_orders')
+        .update({ payment_payload: nextPayload })
+        .eq('online_order_id', orderId)
+      if (updateError) throw updateError
+    } else {
+      const { error: completeError } = await supabase
+        .rpc('fn_complete_online_order_email_notification', {
+          p_online_order_id: orderId,
+          p_notification_key: key,
+          p_notification: notification,
+        })
+      if (completeError) throw completeError
+    }
 
     return jsonResponse({
       ok: true,
