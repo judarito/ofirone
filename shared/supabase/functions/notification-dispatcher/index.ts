@@ -1,6 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+type SupabaseClient = ReturnType<typeof createClient>
+type Row = Record<string, unknown>
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -21,6 +24,165 @@ function normalizeLimit(value: unknown) {
   const parsed = Number(value || 10)
   if (!Number.isFinite(parsed)) return 10
   return Math.max(1, Math.min(50, Math.trunc(parsed)))
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function formatMoney(value: unknown) {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0))
+}
+
+function buildPublicOrderUrl(orderId: unknown) {
+  const origin = String(Deno.env.get('PUBLIC_APP_URL') || Deno.env.get('APP_PUBLIC_URL') || '').trim().replace(/\/+$/, '')
+  if (!origin || !orderId) return ''
+  return `${origin}/pedido/${orderId}`
+}
+
+function getStoreSnapshotBrand(order: Row) {
+  const snapshot = order.store_snapshot && typeof order.store_snapshot === 'object'
+    ? order.store_snapshot as Row
+    : {}
+  return String(snapshot.brand_name || '').trim()
+}
+
+function buildOnlineOrderEmailHtml(params: {
+  eventType: string
+  order: Row
+  store: Row | null
+  lines: Row[]
+}) {
+  const { eventType, order, store, lines } = params
+  const isApproved = eventType === 'ONLINE_ORDER_APPROVED'
+  const isRejected = eventType === 'ONLINE_ORDER_REJECTED'
+  const storeName = String(store?.brand_name || getStoreSnapshotBrand(order) || 'La tienda').trim()
+  const title = isApproved
+    ? 'Tu compra fue confirmada'
+    : isRejected
+      ? 'Tu compra no pudo ser confirmada'
+      : 'Recibimos tu pedido'
+  const intro = isApproved
+    ? 'Recibimos la confirmación del pago y tu pedido quedó aprobado.'
+    : isRejected
+      ? 'Tu pedido fue rechazado o el pago no pudo ser confirmado. Si crees que fue un error, contacta a la tienda.'
+      : 'Tu pedido fue recibido y está pendiente de validación.'
+  const headerBg = isApproved ? '#ecfdf5' : isRejected ? '#fff7ed' : '#eff6ff'
+  const statusUrl = buildPublicOrderUrl(order.online_order_id)
+
+  const itemsHtml = lines.length
+    ? lines.map((line) => `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+            <div style="font-weight:600;color:#111827;">${escapeHtml(line.quantity)} x ${escapeHtml(line.product_name)}</div>
+            ${line.variant_name ? `<div style="font-size:13px;color:#64748b;">${escapeHtml(line.variant_name)}</div>` : ''}
+            ${line.sku ? `<div style="font-size:12px;color:#94a3b8;">SKU: ${escapeHtml(line.sku)}</div>` : ''}
+          </td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#111827;">
+            ${formatMoney(line.line_total)}
+          </td>
+        </tr>
+      `).join('')
+    : '<tr><td style="padding:10px 0;color:#64748b;">Productos no disponibles en el resumen.</td></tr>'
+
+  return `
+    <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#111827;">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;border:1px solid #e5e7eb;overflow:hidden;">
+        <div style="padding:24px;background:${headerBg};">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;">${escapeHtml(storeName)}</div>
+          <h1 style="margin:8px 0 0;font-size:24px;color:#111827;">${escapeHtml(title)}</h1>
+          <p style="margin:10px 0 0;color:#334155;line-height:1.5;">${escapeHtml(intro)}</p>
+        </div>
+        <div style="padding:24px;">
+          <p style="margin:0 0 16px;color:#334155;">Pedido <strong>#${escapeHtml(order.order_number)}</strong></p>
+          <table style="width:100%;border-collapse:collapse;">
+            ${itemsHtml}
+            <tr>
+              <td style="padding:14px 0 0;color:#64748b;">Total</td>
+              <td style="padding:14px 0 0;text-align:right;font-size:18px;font-weight:700;">${formatMoney(order.total)}</td>
+            </tr>
+          </table>
+          ${statusUrl ? `
+            <div style="margin-top:24px;">
+              <a href="${escapeHtml(statusUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:12px;font-weight:700;">
+                Ver estado del pedido
+              </a>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function buildOnlineOrderEmailText(eventType: string, order: Row, store: Row | null) {
+  const storeName = String(store?.brand_name || getStoreSnapshotBrand(order) || 'La tienda').trim()
+  const status = eventType === 'ONLINE_ORDER_APPROVED'
+    ? 'confirmada'
+    : eventType === 'ONLINE_ORDER_REJECTED'
+      ? 'rechazada'
+      : 'recibida'
+  return `${storeName}: tu compra #${order.order_number} fue ${status}. Total: ${formatMoney(order.total)}.`
+}
+
+async function buildEmailContent(supabase: SupabaseClient, row: Row) {
+  const eventType = String(row.event_type || '')
+  const entityType = String(row.entity_type || '')
+  const entityId = String(row.entity_id || '').trim()
+
+  if (entityType !== 'ONLINE_ORDER' || !['ONLINE_ORDER_APPROVED', 'ONLINE_ORDER_REJECTED', 'ONLINE_ORDER_PENDING'].includes(eventType) || !entityId) {
+    return {
+      html: String(row.html || `<p>${row.text_body || row.subject}</p>`),
+      text: String(row.text_body || row.subject || ''),
+      fromName: '',
+    }
+  }
+
+  const { data: order, error: orderError } = await supabase
+    .from('online_orders')
+    .select('online_order_id, store_id, order_number, total, customer_name, customer_email, payment_status, status, store_snapshot')
+    .eq('online_order_id', entityId)
+    .maybeSingle()
+  if (orderError || !order) {
+    return {
+      html: String(row.html || `<p>${row.text_body || row.subject}</p>`),
+      text: String(row.text_body || row.subject || ''),
+      fromName: '',
+    }
+  }
+
+  const [{ data: store }, { data: lines }] = await Promise.all([
+    supabase
+      .from('online_stores')
+      .select('store_id, brand_name, slug')
+      .eq('store_id', order.store_id)
+      .maybeSingle(),
+    supabase
+      .from('online_order_lines')
+      .select('product_name, variant_name, sku, quantity, line_total')
+      .eq('online_order_id', entityId)
+      .order('created_at', { ascending: true }),
+  ])
+
+  return {
+    html: buildOnlineOrderEmailHtml({
+      eventType,
+      order,
+      store: store || null,
+      lines: lines || [],
+    }),
+    text: buildOnlineOrderEmailText(eventType, order, store || null),
+    fromName: String(store?.brand_name || getStoreSnapshotBrand(order) || '').trim(),
+  }
 }
 
 async function sendResendEmail(payload: Record<string, unknown>) {
@@ -123,13 +285,14 @@ serve(async (req) => {
 
       try {
         const payload = row.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {}
-        const fromName = sanitizeName(payload.from_name || defaultFromName)
+        const content = await buildEmailContent(supabase, row)
+        const fromName = sanitizeName(payload.from_name || content.fromName || defaultFromName)
         const resendData = await sendResendEmail({
           from: `${fromName} <${fromEmail}>`,
           to: row.recipient_email,
           subject: row.subject,
-          html: row.html || `<p>${row.text_body || row.subject}</p>`,
-          text: row.text_body || row.subject,
+          html: content.html,
+          text: content.text,
         })
 
         const { error: sentError } = await supabase

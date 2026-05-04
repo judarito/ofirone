@@ -102,6 +102,16 @@ Tambien puede llamarse desde la app despues de acciones criticas, como confirmar
 
 Recomendacion para produccion: programar `notification-dispatcher` con Supabase Cron cada 1 minuto para procesar cualquier correo pendiente o reintento.
 
+## Templates
+
+`notification-dispatcher` puede usar el HTML guardado en `notification_outbox`, pero para eventos de pedido online reconstruye el template con datos frescos de base de datos:
+
+- `ONLINE_ORDER_APPROVED`
+- `ONLINE_ORDER_REJECTED`
+- `ONLINE_ORDER_PENDING`
+
+Ese template incluye marca de tienda, estado, numero de pedido, lineas de producto, variante, SKU, total y boton de estado publico. Esto mantiene la experiencia visual de los correos originales de `online-order-email`, pero conservando la deduplicacion centralizada del outbox.
+
 ## Diagnostico
 
 Consultar pendientes:
