@@ -23,6 +23,16 @@ const ORDERS_SELECT = `
   updated_at
 `;
 
+async function dispatchQueuedEmails() {
+  try {
+    await supabase.functions.invoke('notification-dispatcher', {
+      body: { limit: 10 },
+    });
+  } catch (_error) {
+    // El correo no debe bloquear la operacion principal del pedido.
+  }
+}
+
 export async function getManualOrders(tenantId, { limit = 50 } = {}) {
   if (!tenantId) return { success: true, data: [] };
   try {
@@ -96,6 +106,7 @@ export async function confirmManualOrder(onlineOrderId, { payment_reference = nu
       p_payment_note: payment_note || null,
     });
     if (error) throw error;
+    await dispatchQueuedEmails();
     return { success: true, data };
   } catch (error) {
     return { success: false, error: error.message };
@@ -110,6 +121,7 @@ export async function rejectManualOrder(onlineOrderId, { reason = null } = {}) {
       p_reason: reason || null,
     });
     if (error) throw error;
+    await dispatchQueuedEmails();
     return { success: true, data };
   } catch (error) {
     return { success: false, error: error.message };

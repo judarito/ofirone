@@ -85,16 +85,16 @@ De las **23 configuraciones** creadas en `tenant_settings`, solo **~30%** están
 
 ---
 
-### 6. **Notificaciones** (0/4)
+### 6. **Notificaciones** (4/4)
 
 | Configuración | Estado | Ubicación Esperada | Problema |
 |--------------|--------|-------------------|----------|
-| `email_alerts_enabled` | ❌ **NO INTEGRADO** | alerts.service.js | No se envían emails |
-| `alert_email` | ❌ **NO INTEGRADO** | alerts.service.js | No se envían emails |
-| `notify_low_stock` | ❌ **NO INTEGRADO** | alerts.service.js | No se filtra por configuración |
-| `notify_expiring_products` | ❌ **NO INTEGRADO** | alerts.service.js | No se filtra por configuración |
+| `email_alerts_enabled` | ✅ **INTEGRADO** | `notification_outbox` + triggers SQL | Habilita/deshabilita emails operativos del tenant |
+| `alert_email` | ✅ **INTEGRADO** | `notification_outbox` + triggers SQL | Destino de alertas operativas |
+| `notify_low_stock` | ✅ **INTEGRADO** | `trg_enqueue_operational_email` | Filtra alertas `STOCK` |
+| `notify_expiring_products` | ✅ **INTEGRADO** | `trg_enqueue_operational_email` | Filtra alertas `EXPIRATION` |
 
-**Impacto**: Sistema de notificaciones por email no existe.
+**Impacto**: El sistema de email ya existe y se centraliza en `notification_outbox` + `notification-dispatcher`, con deduplicacion por `channel + dedupe_key` para evitar sobrecostos.
 
 ---
 
@@ -168,7 +168,7 @@ De las **23 configuraciones** creadas en `tenant_settings`, solo **~30%** están
 ### Fase 4: Futuras (Backlog)
 8. Formato de fechas y locale
 9. Timeout de sesión
-10. Sistema de emails (requiere backend adicional)
+10. Afinar plantillas de emails por marca/tenant
 
 ---
 

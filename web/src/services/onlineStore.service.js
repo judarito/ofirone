@@ -12,7 +12,7 @@ const MERCADO_PAGO_PREFERENCE_EDGE_FUNCTION = configuredMercadoPagoPreferenceFun
   : 'mercadopago-create-preference-v2'
 const TENANT_MERCADOPAGO_CONFIG_EDGE_FUNCTION = import.meta.env.VITE_TENANT_MP_CONFIG_EDGE_FUNCTION || 'tenant-mercadopago-config'
 const MERCADO_PAGO_WEBHOOK_EDGE_FUNCTION = import.meta.env.VITE_MP_WEBHOOK_EDGE_FUNCTION || 'mercadopago-webhook'
-const ONLINE_ORDER_EMAIL_EDGE_FUNCTION = import.meta.env.VITE_ONLINE_ORDER_EMAIL_EDGE_FUNCTION || 'online-order-email'
+const NOTIFICATION_DISPATCHER_EDGE_FUNCTION = import.meta.env.VITE_NOTIFICATION_DISPATCHER_EDGE_FUNCTION || 'notification-dispatcher'
 
 function slugify(value) {
   return String(value || '')
@@ -814,7 +814,7 @@ class OnlineStoreService {
         p_payment_note: String(payload.payment_note || '').trim() || null,
       })
       if (error) throw error
-      await this.sendOnlineOrderEmail(onlineOrderId, 'approved')
+      await this.dispatchQueuedEmails()
       queryCache.invalidateByTags(['online-store-orders', 'online-store'])
       return { success: true, data }
     } catch (error) {
@@ -829,7 +829,7 @@ class OnlineStoreService {
         p_reason: String(payload.reason || '').trim() || null,
       })
       if (error) throw error
-      await this.sendOnlineOrderEmail(onlineOrderId, 'rejected')
+      await this.dispatchQueuedEmails()
       queryCache.invalidateByTags(['online-store-orders', 'online-store'])
       return { success: true, data }
     } catch (error) {
@@ -837,16 +837,11 @@ class OnlineStoreService {
     }
   }
 
-  async sendOnlineOrderEmail(onlineOrderId, event, options = {}) {
-    if (!onlineOrderId) return { success: false, error: 'No encontramos el pedido para notificar.' }
-
+  async dispatchQueuedEmails(options = {}) {
     try {
-      const { data, error } = await supabase.functions.invoke(ONLINE_ORDER_EMAIL_EDGE_FUNCTION, {
+      const { data, error } = await supabase.functions.invoke(NOTIFICATION_DISPATCHER_EDGE_FUNCTION, {
         body: {
-          online_order_id: onlineOrderId,
-          event,
-          force: options.force === true,
-          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+          limit: options.limit || 10,
         },
       })
       if (error) throw error

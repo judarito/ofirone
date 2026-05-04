@@ -1,0 +1,1 @@
+../../../../shared/supabase/functions/notification-dispatcher/index.ts

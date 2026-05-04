@@ -5,6 +5,41 @@ Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 
 ---
 
+## Actualizacion reciente (2026-05-04) — Mercado Pago + emails centralizados con Resend
+
+- Se integro Mercado Pago para tienda online en modo multi-tenant:
+  - cada tenant guarda sus propias credenciales de Mercado Pago en backend
+  - `mercadopago-create-preference-v2` crea preferencias de pago
+  - `mercadopago-webhook` sincroniza pagos gateway y revalida contra Mercado Pago
+  - el flujo soporta retorno `success/failure/pending` con estado publico del pedido
+- Se centralizo el envio de emails:
+  - nueva migracion `shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql`
+  - nueva Edge Function `shared/supabase/functions/notification-dispatcher/index.ts`
+  - nueva documentacion `shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md`
+  - tabla canonica `notification_outbox`
+  - deduplicacion fuerte por `channel + dedupe_key`
+- Procesos cubiertos por email:
+  - pedidos online pendientes/aprobados/rechazados
+  - ventas POS
+  - devoluciones
+  - plan separe y abonos
+  - cartera/credito
+  - cuentas por pagar y pagos a proveedor
+  - alertas operativas
+  - usuarios creados
+  - importaciones masivas finalizadas
+  - suscripciones de tenant
+- Regla operativa:
+  - ningun modulo debe llamar Resend directamente
+  - todo email debe encolarse con `fn_enqueue_email_notification(...)`
+  - `notification-dispatcher` procesa la cola y marca `sent/failed`
+  - un mismo evento logico debe definir `dedupe_key` estable para evitar correos repetidos y sobrecostos
+- Secrets requeridos en Supabase Edge Functions:
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL`
+  - `RESEND_FROM_NAME`
+  - `PUBLIC_APP_URL`
+
 ## Actualizacion reciente (2026-04-22) — alertas de pedidos online llegan a mobile (push + tab de gestion)
 
 - Se cerro la brecha entre web y mobile para alertas operativas de tienda online.
@@ -862,6 +897,7 @@ Nunca exponer UUIDs, nombres de constraints ni mensajes crudos de BD en la UI.
 | `web/migrations/FIX_SALE_COUNTERS_RLS.sql` | Redefine `fn_next_sale_number` como SECURITY DEFINER para evitar error RLS en `sale_counters` | Pendiente ejecucion manual |
 | `shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql` | Emite alerta `ONLINE_ORDER` al llegar un pedido online pendiente y la limpia al confirmar/rechazar; alimenta web y mobile via `system_alerts` | Pendiente ejecucion manual |
 | `shared/supabase/migrations/ONLINE_ORDER_MOBILE_NOTIFICATIONS.sql` | Reemplaza `fn_upsert_online_order_alert` para que ademas emita a `notifications` (canal push/in-app mobile) con dedupe de 30 min. Ejecutar DESPUES de `ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql` | Pendiente ejecucion manual |
+| `shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql` | Crea `notification_outbox`, helpers/triggers de email y deduplicacion fuerte por `channel + dedupe_key`; requiere desplegar `notification-dispatcher` | Pendiente ejecucion manual |
 
 ---
 
@@ -869,6 +905,7 @@ Nunca exponer UUIDs, nombres de constraints ni mensajes crudos de BD en la UI.
 
 | Fecha      | Cambio |
 |------------|--------|
+| 2026-05-04 | Mercado Pago multi-tenant y sistema central de emails con Resend: `notification_outbox`, `notification-dispatcher`, dedupe por `channel + dedupe_key`, docs en `shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md`. |
 | 2026-04-16 | Backend Supabase compartido unificado: fuente canonica en `shared/supabase`, `145` migraciones compartidas sin divergencias, `create-tenant-user` y `chat-order-parser` canonizadas, rutas `web/` y `mobile/` mantenidas via symlinks, script `scripts/sync-shared-supabase.sh` con modos `link`, `check` y `sync`. |
 | 2026-04-08 | Creacion del archivo. Incluye setup de testing (Vitest web + Jest mobile), `pricingRuleEngine.js` en shared, metro.config mobile, warmup de reglas de precio en POS, regla TDD obligatoria. |
 | 2026-04-09 | Nuevos tests: `appErrors.test.js` (web, 39 tests) y `deterministicParser.test.js` (mobile, 49 tests). Total suite: 326 tests. |

@@ -14,6 +14,24 @@
 - Realtime habilitado para `notifications`.
 - Formateo de copy en frontend (`src/components/NotificationsModal.js`) para traducir severidad y eventos tecnicos a mensajes mas claros en espanol.
 
+## Relacion con email
+
+El inbox in-app no envia correos directamente. El canal email esta centralizado en el backend compartido:
+
+- Tabla: `notification_outbox`
+- Edge Function: `notification-dispatcher`
+- Migracion: `shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql`
+- Documentacion: `shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md`
+
+Regla operativa:
+
+- `notifications` muestra eventos al usuario dentro de la app.
+- `notification_push_queue` / `push-dispatcher` entrega push remoto.
+- `notification_outbox` / `notification-dispatcher` entrega email.
+- Los correos deben pasar por `notification_outbox` para aprovechar deduplicacion por `dedupe_key` y evitar sobrecostos.
+
+Procesos mobile que confirman/rechazan pedidos online llaman `notification-dispatcher` despues de la RPC; el correo real ya fue encolado por triggers SQL.
+
 ## Despliegue
 1. Ejecuta la migración:
 ```sql
@@ -106,3 +124,5 @@ await unsubscribeNotifications(channel)
 ## Nota de dedupe_key
 `dedupe_key` evita spam de la misma alerta lógica dentro de una ventana de tiempo.
 Ejemplo: `low_stock:{tenant}:{location}:{variant}`
+
+Para email, la deduplicacion es mas estricta: `notification_outbox` tiene un indice unico por `channel + dedupe_key`, por lo que un mismo correo logico solo se puede enviar una vez.

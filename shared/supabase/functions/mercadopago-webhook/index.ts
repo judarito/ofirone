@@ -167,16 +167,15 @@ function paymentExternalReference(payment: Record<string, unknown> | null, fallb
   return String(payment?.external_reference || metadata?.online_order_id || fallback || '').trim()
 }
 
-async function notifyOnlineOrderByEmail(supabaseUrl: string, serviceRoleKey: string, orderId: string, event: 'approved' | 'rejected') {
-  const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/online-order-email`, {
+async function dispatchQueuedNotifications(supabaseUrl: string, serviceRoleKey: string) {
+  const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/notification-dispatcher`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${serviceRoleKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      online_order_id: orderId,
-      event,
+      limit: 10,
     }),
   })
   const payload = await response.json().catch(() => ({}))
@@ -525,11 +524,9 @@ serve(async (req) => {
     let emailNotification: Record<string, unknown> | null = null
     const syncedPaymentStatus = String(syncData?.payment_status || '').toUpperCase()
     if (syncedPaymentStatus === 'PAID' || syncedPaymentStatus === 'FAILED') {
-      const emailResult = await notifyOnlineOrderByEmail(
+      const emailResult = await dispatchQueuedNotifications(
         supabaseUrl,
         serviceRoleKey,
-        externalReference,
-        syncedPaymentStatus === 'PAID' ? 'approved' : 'rejected',
       )
       emailNotification = {
         ok: emailResult.ok,

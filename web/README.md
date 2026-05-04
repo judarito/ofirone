@@ -51,6 +51,9 @@ VITE_DEEPSEEK_TEXT_EDGE_FUNCTION=deepseek-proxy
 VITE_DEEPSEEK_TEXT_MODEL=deepseek-chat
 VITE_OPS_RAG_EDGE_FUNCTION=ops-rag-agent
 VITE_PRODUCT_PHOTO_PARSER_EDGE_FUNCTION=product-photo-parser
+VITE_MP_CREATE_PREFERENCE_EDGE_FUNCTION=mercadopago-create-preference-v2
+VITE_TENANT_MP_CONFIG_EDGE_FUNCTION=tenant-mercadopago-config
+VITE_NOTIFICATION_DISPATCHER_EDGE_FUNCTION=notification-dispatcher
 VITE_AUTH_RECOVERY_URL=
 ```
 
@@ -58,6 +61,7 @@ Notas:
 
 - La llave de IA no va en frontend.
 - `DEEPSEEK_API_KEY` debe configurarse como secreto en Supabase Edge Functions.
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` y `PUBLIC_APP_URL` deben configurarse como secretos de Supabase Edge Functions, no en frontend.
 - `VITE_AUTH_RECOVERY_URL` debe apuntar a la URL publica que abrira el flujo de recuperacion.
   Ejemplo: `https://app.tudominio.com/login`
 - Esa misma URL debe estar permitida en Supabase Auth:
@@ -115,6 +119,14 @@ Ejemplos:
 - Migraciones SQL en [`migrations`](./migrations)
 - Recursos Supabase en [`supabase`](./supabase)
 - Manual y documentacion adicional en [`docs`](./docs)
+- Backend compartido canonico en [`../shared/supabase`](../shared/supabase)
+
+### Mercado Pago y Emails
+
+- Mercado Pago multi-tenant usa `mercadopago-create-preference-v2`, `tenant-mercadopago-config` y `mercadopago-webhook`.
+- El envio de correos esta centralizado en `notification_outbox` y la Edge Function `notification-dispatcher`.
+- La deduplicacion por `dedupe_key` evita que un mismo evento genere correos repetidos.
+- Documentacion tecnica: [`../shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md`](../shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md)
 
 ## Reglas operativas relevantes
 

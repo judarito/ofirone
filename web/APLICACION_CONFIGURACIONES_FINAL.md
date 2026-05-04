@@ -116,15 +116,18 @@ De las **23 configuraciones** disponibles en `tenant_settings`:
 
 ---
 
-### 📬 Notificaciones (0/4)
+### 📬 Notificaciones (4/4)
 
-20-23. **Sistema de Emails** ⏳ BACKLOG (Requiere Backend)
+20-23. **Sistema de Emails** ✅ IMPLEMENTADO
     - `email_alerts_enabled`
     - `alert_email`
     - `notify_low_stock`
     - `notify_expiring_products`
     
-    **Requiere**: Servicio de envío de emails (Supabase Edge Functions, SendGrid, etc.)
+    **Backend**: `notification_outbox` + Edge Function `notification-dispatcher`.
+    **Proveedor actual**: Resend.
+    **Deduplicacion**: indice unico por `channel + dedupe_key` para evitar correos repetidos.
+    **Documentacion**: `shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md`
 
 ---
 
@@ -199,7 +202,7 @@ Cambiar theme a "dark"
 8. 🔔 **Alertas de vencimiento** configurables
 
 ### Largo Plazo (Backlog)
-9. 📧 **Sistema de notificaciones por email** (requiere backend)
+9. 📧 **Mejorar plantillas de notificaciones por email**
 10. 🤖 **Habilitar/deshabilitar módulos IA** según configuración
 
 ---

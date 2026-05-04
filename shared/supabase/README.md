@@ -4,15 +4,47 @@ Este directorio es la fuente canónica del backend compartido entre `web` y `mob
 
 ## Qué quedó unificado en esta fase
 
-- `145` migraciones que existían en `web/migrations` y `mobile/migrations` con contenido idéntico.
-- `2` Edge Functions compartidas:
+- Migraciones compartidas que existian en `web/migrations` y `mobile/migrations`, mas las nuevas migraciones canonicas de tienda online, Mercado Pago y notificaciones.
+- Edge Functions compartidas:
   - `chat-order-parser`
   - `create-tenant-user`
+  - `mercadopago-create-preference`
+  - `mercadopago-create-preference-v2`
+  - `mercadopago-webhook`
+  - `online-order-email`
+  - `notification-dispatcher`
+  - `tenant-mercadopago-config`
 
 Manifiestos:
 
 - [shared-migrations.txt](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/shared-migrations.txt)
 - [shared-functions.txt](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/shared-functions.txt)
+- [EMAIL_NOTIFICATION_SYSTEM.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md)
+
+## Sistemas recientes
+
+### Mercado Pago multi-tenant
+
+- Cada tenant guarda sus propias credenciales de Mercado Pago en backend.
+- La preferencia de pago se crea con `mercadopago-create-preference-v2`.
+- El webhook `mercadopago-webhook` sincroniza el estado del pedido gateway y procesa emails pendientes mediante `notification-dispatcher`.
+- Las URLs de retorno usan el estado publico del pedido y el webhook/revalidacion confirman contra Mercado Pago.
+
+### Emails centralizados con Resend
+
+- La migracion `ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql` crea `notification_outbox` y triggers de eventos.
+- `notification-dispatcher` es la unica Edge Function objetivo para enviar correos.
+- La deduplicacion se hace con `channel + dedupe_key`, evitando correos repetidos y sobrecostos.
+- `online-order-email` queda como compatibilidad, pero el flujo nuevo debe encolar en `notification_outbox`.
+
+Secrets requeridos:
+
+```bash
+RESEND_API_KEY=...
+RESEND_FROM_EMAIL=ventas@ofirone.com
+RESEND_FROM_NAME=OfirOne
+PUBLIC_APP_URL=https://ofirone.com
+```
 
 ## Qué no se unificó todavía
 

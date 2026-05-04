@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql

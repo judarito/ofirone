@@ -217,7 +217,14 @@ loadItems({ page: 1, pageSize: defaultPageSize.value, ... })
 - `email_alerts_enabled`
 - `alert_email`
 
-**Requiere**: Backend adicional para envío de emails
+**Estado**: Implementado con backend compartido.
+
+**Backend**:
+- `notification_outbox`
+- `notification-dispatcher`
+- `ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql`
+
+**Nota**: Los correos usan deduplicacion por `channel + dedupe_key` para evitar envios repetidos y sobrecostos.
 
 ---
 
@@ -230,8 +237,8 @@ loadItems({ page: 1, pageSize: defaultPageSize.value, ... })
 | **Inventario** | 2 | 0 | 2 | 0% |
 | **Ventas** | 3 | 3 | 0 | ✅ 100% |
 | **Facturación** | 5 | 0 | 5 | 0% |
-| **Notificaciones** | 4 | 0 | 4 | 0% |
-| **TOTAL** | **23** | **6** | **17** | **26%** |
+| **Notificaciones** | 4 | 4 | 0 | ✅ 100% |
+| **TOTAL** | **23** | **10** | **13** | **43%** |
 
 ---
 
@@ -250,7 +257,7 @@ loadItems({ page: 1, pageSize: defaultPageSize.value, ... })
 ### Largo Plazo (Backlog)
 7. 📅 Formatos de fechas y locale
 8. ⏱️ Timeout de sesión
-9. 📧 Sistema de emails (requiere backend)
+9. 📧 Afinar plantillas de emails por marca/tenant
 
 ---
 
