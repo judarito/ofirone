@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/FIX_ONLINE_STORE_CREATE_SALE_SIGNATURE_DETECTION_V2.sql

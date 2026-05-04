@@ -167,6 +167,22 @@ function paymentExternalReference(payment: Record<string, unknown> | null, fallb
   return String(payment?.external_reference || metadata?.online_order_id || fallback || '').trim()
 }
 
+async function notifyOnlineOrderByEmail(supabaseUrl: string, serviceRoleKey: string, orderId: string, event: 'approved' | 'rejected') {
+  const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/online-order-email`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      online_order_id: orderId,
+      event,
+    }),
+  })
+  const payload = await response.json().catch(() => ({}))
+  return { ok: response.ok, status: response.status, payload }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -506,6 +522,22 @@ serve(async (req) => {
 
     if (syncError) throw new Error(`No se pudo sincronizar el pago gateway: ${getErrorMessage(syncError)}`)
 
+    let emailNotification: Record<string, unknown> | null = null
+    const syncedPaymentStatus = String(syncData?.payment_status || '').toUpperCase()
+    if (syncedPaymentStatus === 'PAID' || syncedPaymentStatus === 'FAILED') {
+      const emailResult = await notifyOnlineOrderByEmail(
+        supabaseUrl,
+        serviceRoleKey,
+        externalReference,
+        syncedPaymentStatus === 'PAID' ? 'approved' : 'rejected',
+      )
+      emailNotification = {
+        ok: emailResult.ok,
+        status: emailResult.status,
+        result: emailResult.payload,
+      }
+    }
+
     return jsonResponse({
       ok: true,
       build_id: FUNCTION_BUILD_ID,
@@ -513,6 +545,7 @@ serve(async (req) => {
       external_reference: externalReference,
       status: payment?.status || null,
       result: syncData || null,
+      email_notification: emailNotification,
     })
   } catch (error) {
     return jsonResponse({ error: getErrorMessage(error) }, 500)
