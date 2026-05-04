@@ -56,6 +56,114 @@ function getStoreSnapshotBrand(order: Row) {
   return String(snapshot.brand_name || '').trim()
 }
 
+function humanizeEventType(value: unknown) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function valueOrDash(value: unknown) {
+  const text = String(value ?? '').trim()
+  return text || '-'
+}
+
+function buildInfoRows(rows: Array<{ label: string; value: unknown; strong?: boolean }>) {
+  return rows
+    .filter((row) => valueOrDash(row.value) !== '-')
+    .map((row) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#64748b;">${escapeHtml(row.label)}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;color:#111827;${row.strong ? 'font-weight:700;' : 'font-weight:600;'}">${escapeHtml(row.value)}</td>
+      </tr>
+    `)
+    .join('')
+}
+
+function buildLineRows(lines: Row[], options: { emptyText?: string } = {}) {
+  if (!lines.length) {
+    return `<tr><td style="padding:10px 0;color:#64748b;">${escapeHtml(options.emptyText || 'Detalle no disponible.')}</td></tr>`
+  }
+
+  return lines.map((line) => {
+    const variant = line.variant && typeof line.variant === 'object' ? line.variant as Row : {}
+    const product = variant.product && typeof variant.product === 'object' ? variant.product as Row : {}
+    const name = line.product_name || product.name || line.name || 'Producto'
+    const variantName = line.variant_name || variant.variant_name || ''
+    const sku = line.sku || variant.sku || ''
+    const qty = line.quantity || ''
+    const total = line.line_total ?? line.amount ?? line.unit_price ?? ''
+
+    return `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+          <div style="font-weight:600;color:#111827;">${qty ? `${escapeHtml(qty)} x ` : ''}${escapeHtml(name)}</div>
+          ${variantName ? `<div style="font-size:13px;color:#64748b;">${escapeHtml(variantName)}</div>` : ''}
+          ${sku ? `<div style="font-size:12px;color:#94a3b8;">SKU: ${escapeHtml(sku)}</div>` : ''}
+        </td>
+        <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#111827;">${formatMoney(total)}</td>
+      </tr>
+    `
+  }).join('')
+}
+
+function buildRichEmailShell(params: {
+  eyebrow?: string
+  title: string
+  intro: string
+  accent?: 'green' | 'blue' | 'amber' | 'red' | 'slate'
+  body: string
+  actionUrl?: string
+  actionLabel?: string
+}) {
+  const accentBg = {
+    green: '#ecfdf5',
+    blue: '#eff6ff',
+    amber: '#fffbeb',
+    red: '#fff1f2',
+    slate: '#f8fafc',
+  }[params.accent || 'blue']
+
+  return `
+    <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#111827;">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;border:1px solid #e5e7eb;overflow:hidden;">
+        <div style="padding:24px;background:${accentBg};">
+          ${params.eyebrow ? `<div style="font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;">${escapeHtml(params.eyebrow)}</div>` : ''}
+          <h1 style="margin:${params.eyebrow ? '8px' : '0'} 0 0;font-size:24px;color:#111827;">${escapeHtml(params.title)}</h1>
+          <p style="margin:10px 0 0;color:#334155;line-height:1.5;">${escapeHtml(params.intro)}</p>
+        </div>
+        <div style="padding:24px;">
+          ${params.body}
+          ${params.actionUrl ? `
+            <div style="margin-top:24px;">
+              <a href="${escapeHtml(params.actionUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:12px;font-weight:700;">
+                ${escapeHtml(params.actionLabel || 'Ver detalle')}
+              </a>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function buildGenericPayloadTable(payload: Row) {
+  const entries = Object.entries(payload)
+    .filter(([, value]) => value !== null && value !== undefined && typeof value !== 'object')
+    .slice(0, 8)
+
+  if (!entries.length) return ''
+
+  return `
+    <table style="width:100%;border-collapse:collapse;">
+      ${buildInfoRows(entries.map(([key, value]) => ({
+        label: humanizeEventType(key),
+        value: String(value),
+      })))}
+    </table>
+  `
+}
+
 function buildOnlineOrderEmailHtml(params: {
   eventType: string
   order: Row
@@ -134,17 +242,271 @@ function buildOnlineOrderEmailText(eventType: string, order: Row, store: Row | n
   return `${storeName}: tu compra #${order.order_number} fue ${status}. Total: ${formatMoney(order.total)}.`
 }
 
+async function buildSaleEmailContent(supabase: SupabaseClient, row: Row, entityId: string) {
+  const { data: sale, error } = await supabase
+    .from('sales')
+    .select(`
+      sale_id, sale_number, total, subtotal, discount_total, tax_total, status, sold_at,
+      customer:customer_id(full_name, email),
+      third_party:third_party_id(legal_name, trade_name, email, fiscal_email),
+      location:location_id(name)
+    `)
+    .eq('sale_id', entityId)
+    .maybeSingle()
+
+  if (error || !sale) return null
+
+  const { data: lines } = await supabase
+    .from('sale_lines')
+    .select('quantity, line_total, unit_price, variant:variant_id(sku, variant_name, product:product_id(name))')
+    .eq('sale_id', entityId)
+    .order('sale_line_id', { ascending: true })
+
+  const location = sale.location && typeof sale.location === 'object' ? sale.location as Row : {}
+  const body = `
+    <p style="margin:0 0 16px;color:#334155;">Venta <strong>#${escapeHtml(sale.sale_number)}</strong></p>
+    <table style="width:100%;border-collapse:collapse;">
+      ${buildLineRows(lines || [], { emptyText: 'Productos no disponibles en el resumen.' })}
+      <tr>
+        <td style="padding:14px 0 0;color:#64748b;">Total</td>
+        <td style="padding:14px 0 0;text-align:right;font-size:18px;font-weight:700;">${formatMoney(sale.total)}</td>
+      </tr>
+    </table>
+  `
+
+  return {
+    html: buildRichEmailShell({
+      eyebrow: String(location.name || 'OfirOne'),
+      title: 'Gracias por tu compra',
+      intro: 'Tu venta fue registrada correctamente.',
+      accent: 'blue',
+      body,
+    }),
+    text: `Venta #${sale.sale_number} registrada por ${formatMoney(sale.total)}.`,
+    fromName: '',
+  }
+}
+
+async function buildSaleReturnEmailContent(supabase: SupabaseClient, row: Row, entityId: string) {
+  const { data: saleReturn, error } = await supabase
+    .from('sale_returns')
+    .select('return_id, refund_total, reason, created_at, sale:sale_id(sale_number, total)')
+    .eq('return_id', entityId)
+    .maybeSingle()
+
+  if (error || !saleReturn) return null
+
+  const sale = saleReturn.sale && typeof saleReturn.sale === 'object' ? saleReturn.sale as Row : {}
+  const body = `
+    <table style="width:100%;border-collapse:collapse;">
+      ${buildInfoRows([
+        { label: 'Venta', value: sale.sale_number ? `#${sale.sale_number}` : '', strong: true },
+        { label: 'Valor devuelto', value: formatMoney(saleReturn.refund_total), strong: true },
+        { label: 'Motivo', value: saleReturn.reason },
+      ])}
+    </table>
+  `
+
+  return {
+    html: buildRichEmailShell({
+      title: 'Devolución registrada',
+      intro: 'Procesamos una devolución sobre tu compra.',
+      accent: 'amber',
+      body,
+    }),
+    text: `Devolución registrada por ${formatMoney(saleReturn.refund_total)}.`,
+    fromName: '',
+  }
+}
+
+async function buildLayawayEmailContent(supabase: SupabaseClient, row: Row, entityId: string) {
+  const eventType = String(row.event_type || '')
+  const { data: layaway, error } = await supabase
+    .from('layaway_contracts')
+    .select('layaway_id, total, paid_total, balance, status, due_date, created_at, customer:customer_id(full_name, email)')
+    .eq('layaway_id', entityId)
+    .maybeSingle()
+
+  if (error || !layaway) return null
+
+  const { data: items } = await supabase
+    .from('layaway_items')
+    .select('quantity, line_total, unit_price, variant:variant_id(sku, variant_name, product:product_id(name))')
+    .eq('layaway_id', entityId)
+    .order('layaway_item_id', { ascending: true })
+
+  const title = eventType === 'LAYAWAY_CREATED'
+    ? 'Plan separé creado'
+    : eventType === 'LAYAWAY_COMPLETED'
+      ? 'Plan separé completado'
+      : eventType === 'LAYAWAY_CANCELLED'
+        ? 'Plan separé cancelado'
+        : eventType === 'LAYAWAY_EXPIRED'
+          ? 'Plan separé vencido'
+          : 'Actualización de plan separé'
+
+  const body = `
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+      ${buildInfoRows([
+        { label: 'Estado', value: layaway.status, strong: true },
+        { label: 'Total', value: formatMoney(layaway.total), strong: true },
+        { label: 'Pagado', value: formatMoney(layaway.paid_total) },
+        { label: 'Saldo', value: formatMoney(layaway.balance), strong: true },
+        { label: 'Fecha límite', value: layaway.due_date },
+      ])}
+    </table>
+    <table style="width:100%;border-collapse:collapse;">
+      ${buildLineRows(items || [], { emptyText: 'Productos no disponibles en el resumen.' })}
+    </table>
+  `
+
+  return {
+    html: buildRichEmailShell({
+      title,
+      intro: 'Te compartimos el estado actualizado de tu plan separé.',
+      accent: eventType === 'LAYAWAY_CANCELLED' || eventType === 'LAYAWAY_EXPIRED' ? 'red' : 'green',
+      body,
+    }),
+    text: `${title}. Total ${formatMoney(layaway.total)}, saldo ${formatMoney(layaway.balance)}.`,
+    fromName: '',
+  }
+}
+
+async function buildLayawayPaymentEmailContent(supabase: SupabaseClient, row: Row, entityId: string) {
+  const { data: payment, error } = await supabase
+    .from('layaway_payments')
+    .select('layaway_payment_id, amount, reference, paid_at, layaway:layaway_id(total, paid_total, balance, status)')
+    .eq('layaway_payment_id', entityId)
+    .maybeSingle()
+
+  if (error || !payment) return null
+
+  const layaway = payment.layaway && typeof payment.layaway === 'object' ? payment.layaway as Row : {}
+  const body = `
+    <table style="width:100%;border-collapse:collapse;">
+      ${buildInfoRows([
+        { label: 'Abono recibido', value: formatMoney(payment.amount), strong: true },
+        { label: 'Referencia', value: payment.reference },
+        { label: 'Saldo actual', value: formatMoney(layaway.balance), strong: true },
+        { label: 'Estado', value: layaway.status },
+      ])}
+    </table>
+  `
+
+  return {
+    html: buildRichEmailShell({
+      title: 'Abono recibido',
+      intro: 'Registramos tu abono al plan separé.',
+      accent: 'green',
+      body,
+    }),
+    text: `Abono recibido por ${formatMoney(payment.amount)}. Saldo ${formatMoney(layaway.balance)}.`,
+    fromName: '',
+  }
+}
+
+async function buildSupplierPayableEmailContent(supabase: SupabaseClient, row: Row, entityId: string) {
+  const { data: payable, error } = await supabase
+    .from('supplier_payables')
+    .select('payable_id, invoice_number, due_date, total_amount, paid_amount, balance, status, supplier:supplier_id(legal_name, trade_name)')
+    .eq('payable_id', entityId)
+    .maybeSingle()
+
+  if (error || !payable) return null
+
+  const supplier = payable.supplier && typeof payable.supplier === 'object' ? payable.supplier as Row : {}
+  const body = `
+    <table style="width:100%;border-collapse:collapse;">
+      ${buildInfoRows([
+        { label: 'Proveedor', value: supplier.legal_name || supplier.trade_name, strong: true },
+        { label: 'Factura', value: payable.invoice_number },
+        { label: 'Total', value: formatMoney(payable.total_amount), strong: true },
+        { label: 'Pagado', value: formatMoney(payable.paid_amount) },
+        { label: 'Saldo', value: formatMoney(payable.balance), strong: true },
+        { label: 'Vencimiento', value: payable.due_date },
+        { label: 'Estado', value: payable.status },
+      ])}
+    </table>
+  `
+
+  return {
+    html: buildRichEmailShell({
+      title: 'Cuenta por pagar creada',
+      intro: 'Se registró una nueva cuenta por pagar.',
+      accent: 'amber',
+      body,
+    }),
+    text: `Cuenta por pagar por ${formatMoney(payable.total_amount)}. Saldo ${formatMoney(payable.balance)}.`,
+    fromName: '',
+  }
+}
+
+function buildPayloadEmailContent(row: Row) {
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload as Row : {}
+  const eventType = String(row.event_type || '')
+  const title = String(row.subject || humanizeEventType(eventType) || 'Notificación')
+  const entityType = String(row.entity_type || '')
+  const intro = entityType === 'SYSTEM_ALERT'
+    ? String(payload.message || 'Hay una alerta operativa que requiere revisión.')
+    : entityType === 'USER'
+      ? 'Tu usuario fue creado o actualizado en OfirOne.'
+      : entityType === 'BULK_IMPORT'
+        ? 'El proceso de importación cambió de estado.'
+        : entityType === 'TENANT_SUBSCRIPTION'
+          ? 'La suscripción del tenant cambió de estado.'
+          : 'Te compartimos una actualización importante.'
+
+  const accent: 'green' | 'blue' | 'amber' | 'red' | 'slate' = eventType.includes('FAILED') || eventType.includes('CANCELLED') || eventType.includes('EXPIRED')
+    ? 'red'
+    : eventType.includes('WARNING') || eventType.includes('PENDING') || eventType.includes('PAYABLE')
+      ? 'amber'
+      : eventType.includes('APPROVED') || eventType.includes('COMPLETED') || eventType.includes('PAID')
+        ? 'green'
+        : 'blue'
+
+  const body = buildGenericPayloadTable(payload)
+    || `<p style="margin:0;color:#334155;line-height:1.5;">${escapeHtml(row.text_body || row.subject || '')}</p>`
+
+  return {
+    html: buildRichEmailShell({
+      eyebrow: humanizeEventType(entityType),
+      title,
+      intro,
+      accent,
+      body,
+    }),
+    text: String(row.text_body || `${title}. ${intro}`),
+    fromName: '',
+  }
+}
+
 async function buildEmailContent(supabase: SupabaseClient, row: Row) {
   const eventType = String(row.event_type || '')
   const entityType = String(row.entity_type || '')
   const entityId = String(row.entity_id || '').trim()
 
+  if (entityType === 'SALE' && entityId) {
+    return await buildSaleEmailContent(supabase, row, entityId) || buildPayloadEmailContent(row)
+  }
+
+  if (entityType === 'SALE_RETURN' && entityId) {
+    return await buildSaleReturnEmailContent(supabase, row, entityId) || buildPayloadEmailContent(row)
+  }
+
+  if (entityType === 'LAYAWAY' && entityId) {
+    return await buildLayawayEmailContent(supabase, row, entityId) || buildPayloadEmailContent(row)
+  }
+
+  if (entityType === 'LAYAWAY_PAYMENT' && entityId) {
+    return await buildLayawayPaymentEmailContent(supabase, row, entityId) || buildPayloadEmailContent(row)
+  }
+
+  if (entityType === 'SUPPLIER_PAYABLE' && entityId) {
+    return await buildSupplierPayableEmailContent(supabase, row, entityId) || buildPayloadEmailContent(row)
+  }
+
   if (entityType !== 'ONLINE_ORDER' || !['ONLINE_ORDER_APPROVED', 'ONLINE_ORDER_REJECTED', 'ONLINE_ORDER_PENDING'].includes(eventType) || !entityId) {
-    return {
-      html: String(row.html || `<p>${row.text_body || row.subject}</p>`),
-      text: String(row.text_body || row.subject || ''),
-      fromName: '',
-    }
+    return buildPayloadEmailContent(row)
   }
 
   const { data: order, error: orderError } = await supabase

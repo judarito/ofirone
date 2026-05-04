@@ -104,13 +104,25 @@ Recomendacion para produccion: programar `notification-dispatcher` con Supabase 
 
 ## Templates
 
-`notification-dispatcher` puede usar el HTML guardado en `notification_outbox`, pero para eventos de pedido online reconstruye el template con datos frescos de base de datos:
+`notification-dispatcher` puede usar el HTML guardado en `notification_outbox`, pero el objetivo es que los templates ricos vivan en TypeScript, no en SQL.
+
+Templates especializados con consulta a datos frescos:
 
 - `ONLINE_ORDER_APPROVED`
 - `ONLINE_ORDER_REJECTED`
 - `ONLINE_ORDER_PENDING`
+- `SALE_COMPLETED`
+- `SALE_RETURN_COMPLETED`
+- `LAYAWAY_CREATED`
+- `LAYAWAY_COMPLETED`
+- `LAYAWAY_CANCELLED`
+- `LAYAWAY_EXPIRED`
+- `LAYAWAY_PAYMENT_RECEIVED`
+- `SUPPLIER_PAYABLE_CREATED`
 
-Ese template incluye marca de tienda, estado, numero de pedido, lineas de producto, variante, SKU, total y boton de estado publico. Esto mantiene la experiencia visual de los correos originales de `online-order-email`, pero conservando la deduplicacion centralizada del outbox.
+Los templates especializados consultan tablas como `online_orders`, `online_order_lines`, `sales`, `sale_lines`, `layaway_contracts`, `layaway_items` y `supplier_payables` para renderizar resumen, lineas, totales y estados.
+
+Eventos sin template especializado usan un fallback visual enriquecido basado en `payload`, `event_type` y `entity_type`. Esto cubre alertas operativas, usuarios, importaciones, suscripciones y otros eventos sin volver al correo plano.
 
 ## Diagnostico
 
