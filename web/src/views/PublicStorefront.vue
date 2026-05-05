@@ -126,6 +126,15 @@
               prepend-inner-icon="mdi-magnify"
               class="storefront__search"
             />
+            <v-select
+              v-model="sortMode"
+              :items="sortOptions"
+              label="Ordenar"
+              variant="outlined"
+              density="comfortable"
+              hide-details
+              class="storefront__sort"
+            />
           </div>
         </section>
 
@@ -147,6 +156,14 @@
             @click="selectedCategory = category"
           >
             {{ category }}
+          </button>
+          <button
+            type="button"
+            class="storefront__filter-chip storefront__filter-chip--utility"
+            :class="{ 'storefront__filter-chip--active': onlyInStock }"
+            @click="onlyInStock = !onlyInStock"
+          >
+            Solo disponibles
           </button>
         </section>
 
@@ -342,6 +359,39 @@
 
           <v-row v-else>
             <v-col cols="12" md="7">
+              <div class="storefront__payment-rail mb-4">
+                <div>
+                  <div class="storefront__payment-rail-label">Primero elige cómo pagar</div>
+                  <div class="storefront__payment-rail-copy">
+                    Ajustamos los campos del checkout según tu método.
+                  </div>
+                </div>
+                <div class="storefront__payment-rail-actions">
+                  <button
+                    v-if="manualPaymentEnabled"
+                    type="button"
+                    class="storefront__payment-pill"
+                    :class="{ 'storefront__payment-pill--active': checkoutForm.payment_mode === 'MANUAL' }"
+                    @click="checkoutForm.payment_mode = 'MANUAL'"
+                  >
+                    Manual
+                  </button>
+                  <button
+                    v-if="gatewayPaymentVisible"
+                    type="button"
+                    class="storefront__payment-pill"
+                    :class="{
+                      'storefront__payment-pill--active': checkoutForm.payment_mode === 'GATEWAY',
+                      'storefront__payment-pill--disabled': !gatewayPaymentEnabled,
+                    }"
+                    :disabled="!gatewayPaymentEnabled"
+                    @click="gatewayPaymentEnabled ? checkoutForm.payment_mode = 'GATEWAY' : null"
+                  >
+                    Mercado Pago
+                  </button>
+                </div>
+              </div>
+
               <v-card variant="outlined" class="storefront__checkout-card">
                 <v-card-text>
                   <div class="mb-4">
@@ -388,9 +438,11 @@
                   />
                   <v-text-field
                     v-model="checkoutForm.customer_email"
-                    label="Email"
+                    label="Email para confirmación"
                     variant="outlined"
                     class="mb-3"
+                    hint="Te enviaremos el estado de la compra a este correo si lo escribes."
+                    persistent-hint
                   />
                   <v-text-field
                     v-if="checkoutForm.payment_mode === 'MANUAL'"
@@ -476,6 +528,11 @@
                     {{ store.checkout_message }}
                   </div>
 
+                  <div class="storefront__checkout-assurance">
+                    <span>{{ checkoutAssurance.primary }}</span>
+                    <strong>{{ checkoutAssurance.secondary }}</strong>
+                  </div>
+
                   <v-btn
                     class="mt-5"
                     block
@@ -530,6 +587,8 @@ const products = ref([])
 const successOrder = ref(null)
 const searchTerm = ref('')
 const selectedCategory = ref('ALL')
+const sortMode = ref('featured')
+const onlyInStock = ref(false)
 const cartState = ref([])
 const uploadingProof = ref(false)
 const paymentProofInput = ref(null)
@@ -565,6 +624,14 @@ const currentSection = computed(() => {
 
 const normalizedSearch = computed(() => String(searchTerm.value || '').trim().toLowerCase())
 
+const sortOptions = [
+  { title: 'Recomendados', value: 'featured' },
+  { title: 'Nombre A-Z', value: 'name_asc' },
+  { title: 'Menor precio', value: 'price_asc' },
+  { title: 'Mayor precio', value: 'price_desc' },
+  { title: 'Más stock', value: 'stock_desc' },
+]
+
 const categoryOptions = computed(() => {
   return [...new Set(
     products.value
@@ -574,7 +641,7 @@ const categoryOptions = computed(() => {
 })
 
 const filteredProducts = computed(() => {
-  return products.value.filter((product) => {
+  const filtered = products.value.filter((product) => {
     const matchesCategory = selectedCategory.value === 'ALL'
       || String(product.category_name || '').trim() === selectedCategory.value
 
@@ -588,7 +655,24 @@ const filteredProducts = computed(() => {
     ].join(' ').toLowerCase()
 
     const matchesSearch = !normalizedSearch.value || haystack.includes(normalizedSearch.value)
-    return matchesCategory && matchesSearch
+    const matchesStock = !onlyInStock.value || Number(product.available || 0) > 0
+    return matchesCategory && matchesSearch && matchesStock
+  })
+
+  return [...filtered].sort((a, b) => {
+    if (sortMode.value === 'name_asc') {
+      return String(a.display_name || '').localeCompare(String(b.display_name || ''))
+    }
+    if (sortMode.value === 'price_asc') {
+      return Number(a.final_price || 0) - Number(b.final_price || 0)
+    }
+    if (sortMode.value === 'price_desc') {
+      return Number(b.final_price || 0) - Number(a.final_price || 0)
+    }
+    if (sortMode.value === 'stock_desc') {
+      return Number(b.available || 0) - Number(a.available || 0)
+    }
+    return 0
   })
 })
 
@@ -627,6 +711,19 @@ const manualPaymentEnabled = computed(() => store.value?.allow_manual_payment !=
 const gatewayPaymentVisible = computed(() => store.value?.allow_gateway_payment === true || store.value?.gateway_status === 'ENABLED')
 const gatewayPaymentEnabled = computed(() => store.value?.allow_gateway_payment === true && store.value?.gateway_status === 'ENABLED')
 const checkoutSubmitLabel = computed(() => checkoutForm.value.payment_mode === 'GATEWAY' ? 'Pagar con Mercado Pago' : 'Confirmar compra')
+const checkoutAssurance = computed(() => {
+  if (checkoutForm.value.payment_mode === 'GATEWAY') {
+    return {
+      primary: 'Pago protegido por Mercado Pago',
+      secondary: 'La tienda confirma el pedido cuando la pasarela apruebe el cobro.',
+    }
+  }
+
+  return {
+    primary: 'Pedido sujeto a validación manual',
+    secondary: 'Reservamos el stock mientras el comercio revisa tu soporte.',
+  }
+})
 const checkoutHeroLabel = computed(() => {
   if (manualPaymentEnabled.value && gatewayPaymentEnabled.value) return 'Manual o pasarela'
   if (gatewayPaymentEnabled.value) return 'Pasarela Mercado Pago'
@@ -1151,8 +1248,19 @@ watch(() => route.params.slug, () => {
   color: color-mix(in srgb, var(--store-text) 62%, white);
 }
 
+.storefront__toolbar-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .storefront__search {
   min-width: 320px;
+}
+
+.storefront__sort {
+  min-width: 190px;
 }
 
 .storefront__filters {
@@ -1179,6 +1287,10 @@ watch(() => route.params.slug, () => {
 .storefront__filter-chip--active {
   background: color-mix(in srgb, var(--store-primary) 16%, white);
   border-color: color-mix(in srgb, var(--store-primary) 42%, white);
+}
+
+.storefront__filter-chip--utility {
+  border-style: dashed;
 }
 
 .storefront__section-head {
@@ -1466,6 +1578,65 @@ watch(() => route.params.slug, () => {
   border-radius: 26px;
 }
 
+.storefront__payment-rail {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--store-primary) 18%, white);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--store-primary) 12%, white) 0%, color-mix(in srgb, var(--store-surface) 90%, white) 100%);
+  box-shadow: 0 18px 34px rgb(15 23 42 / 0.06);
+}
+
+.storefront__payment-rail-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 900;
+  color: color-mix(in srgb, var(--store-primary) 78%, black);
+}
+
+.storefront__payment-rail-copy {
+  margin-top: 4px;
+  color: color-mix(in srgb, var(--store-text) 62%, white);
+}
+
+.storefront__payment-rail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.storefront__payment-pill {
+  border: 1px solid color-mix(in srgb, var(--store-text) 14%, white);
+  border-radius: 999px;
+  background: white;
+  color: var(--store-text);
+  padding: 10px 16px;
+  font-weight: 900;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.storefront__payment-pill:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.storefront__payment-pill--active {
+  color: white;
+  border-color: var(--store-primary);
+  background: linear-gradient(135deg, var(--store-primary), color-mix(in srgb, var(--store-primary) 60%, var(--store-secondary)));
+  box-shadow: 0 14px 24px color-mix(in srgb, var(--store-primary) 22%, transparent);
+}
+
+.storefront__payment-pill--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .storefront__summary-card-body {
   display: flex;
   justify-content: space-between;
@@ -1502,6 +1673,28 @@ watch(() => route.params.slug, () => {
   margin-top: 16px;
   color: color-mix(in srgb, var(--store-text) 62%, white);
   line-height: 1.55;
+}
+
+.storefront__checkout-assurance {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--store-secondary) 12%, white);
+  color: color-mix(in srgb, var(--store-text) 78%, white);
+  display: grid;
+  gap: 4px;
+}
+
+.storefront__checkout-assurance span {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 900;
+  color: color-mix(in srgb, var(--store-secondary) 80%, black);
+}
+
+.storefront__checkout-assurance strong {
+  font-size: 0.95rem;
 }
 
 .storefront__payment-modes {
@@ -1601,6 +1794,14 @@ watch(() => route.params.slug, () => {
 
   .storefront__search {
     min-width: 100%;
+  }
+
+  .storefront__sort {
+    min-width: 100%;
+  }
+
+  .storefront__toolbar-right {
+    width: 100%;
   }
 
   .storefront__grid {

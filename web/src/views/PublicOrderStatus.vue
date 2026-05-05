@@ -50,6 +50,32 @@
           El pago no quedó aprobado. Si el link sigue activo puedes intentarlo otra vez desde este pedido.
         </v-alert>
 
+        <v-card variant="outlined" class="order-status__card order-status__timeline-card mt-6">
+          <v-card-text>
+            <div class="order-status__timeline-title">Seguimiento del pedido</div>
+            <div class="order-status__timeline">
+              <div
+                v-for="step in orderTimeline"
+                :key="step.key"
+                class="order-status__timeline-step"
+                :class="{
+                  'order-status__timeline-step--done': step.state === 'done',
+                  'order-status__timeline-step--active': step.state === 'active',
+                  'order-status__timeline-step--blocked': step.state === 'blocked',
+                }"
+              >
+                <div class="order-status__timeline-dot">
+                  <v-icon size="16">{{ step.icon }}</v-icon>
+                </div>
+                <div>
+                  <div class="order-status__timeline-label">{{ step.label }}</div>
+                  <div class="order-status__timeline-copy">{{ step.copy }}</div>
+                </div>
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+
         <v-card variant="outlined" class="order-status__card mt-6">
           <v-card-title class="text-body-1 font-weight-bold px-4 pt-4">Productos</v-card-title>
           <v-list density="compact">
@@ -227,6 +253,55 @@ const paymentFlowSnapshot = computed(() => {
 
 const displayOrderStatus = computed(() => paymentFlowSnapshot.value.order)
 const displayPaymentStatus = computed(() => paymentFlowSnapshot.value.payment)
+
+const orderTimeline = computed(() => {
+  const orderStatus = String(order.value?.status || '').trim().toUpperCase()
+  const paymentStatus = String(order.value?.payment_status || '').trim().toUpperCase()
+  const queryStatus = String(route.query.mp_status || '').trim().toLowerCase()
+  const gatewayReturnedSuccess = queryStatus === 'success'
+  const paymentIsConfirmed = paymentStatus === 'PAID'
+  const paymentIsFailed = paymentStatus === 'FAILED' || orderStatus === 'CANCELLED'
+  const waitingGatewayValidation = gatewayReturnedSuccess && !paymentIsConfirmed && !paymentIsFailed
+  const preparing = paymentIsConfirmed || orderStatus === 'PROCESSING'
+  const completed = orderStatus === 'COMPLETED' && paymentIsConfirmed
+
+  return [
+    {
+      key: 'received',
+      icon: 'mdi-receipt-text-check',
+      label: 'Pedido recibido',
+      copy: 'La tienda ya tiene el resumen de tu compra.',
+      state: 'done',
+    },
+    {
+      key: 'payment',
+      icon: paymentIsFailed ? 'mdi-alert-circle' : paymentIsConfirmed ? 'mdi-credit-card-check' : 'mdi-timer-sand',
+      label: paymentIsConfirmed ? 'Pago confirmado' : paymentIsFailed ? 'Pago no aprobado' : 'Pago en validación',
+      copy: paymentIsConfirmed
+        ? 'El pago quedó aprobado y no necesitas pagarlo de nuevo.'
+        : paymentIsFailed
+          ? 'El pago fue rechazado o el pedido fue cancelado.'
+          : waitingGatewayValidation
+            ? 'Mercado Pago devolvió aprobación; estamos sincronizando el pedido.'
+            : 'La tienda o la pasarela todavía están validando el pago.',
+      state: paymentIsConfirmed ? 'done' : paymentIsFailed ? 'blocked' : 'active',
+    },
+    {
+      key: 'preparing',
+      icon: 'mdi-package-variant-closed',
+      label: 'Preparación',
+      copy: preparing ? 'La compra puede avanzar a despacho o entrega.' : 'Se activa cuando el pago esté confirmado.',
+      state: completed ? 'done' : preparing ? 'active' : 'pending',
+    },
+    {
+      key: 'completed',
+      icon: 'mdi-check-decagram',
+      label: 'Finalizado',
+      copy: completed ? 'El pedido quedó confirmado por la tienda.' : 'Aparecerá como finalizado cuando la tienda lo cierre.',
+      state: completed ? 'done' : 'pending',
+    },
+  ]
+})
 
 const gatewayReturnTitle = computed(() => {
   if (order.value?.payment_status === 'PAID') return 'Pago confirmado'
@@ -467,5 +542,86 @@ onMounted(async () => {
 
 .order-status__proof-link:hover {
   text-decoration: underline;
+}
+
+.order-status__timeline-card {
+  overflow: hidden;
+}
+
+.order-status__timeline-title {
+  margin-bottom: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.order-status__timeline {
+  display: grid;
+  gap: 0;
+}
+
+.order-status__timeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 12px;
+  padding: 0 0 18px;
+}
+
+.order-status__timeline-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: 38px;
+  bottom: 0;
+  width: 2px;
+  background: #dbe4f0;
+}
+
+.order-status__timeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #eef2f7;
+  border: 1px solid #dbe4f0;
+}
+
+.order-status__timeline-label {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.order-status__timeline-copy {
+  margin-top: 3px;
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.order-status__timeline-step--done .order-status__timeline-dot {
+  color: #047857;
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+
+.order-status__timeline-step--active .order-status__timeline-dot {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.order-status__timeline-step--blocked .order-status__timeline-dot {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.order-status__timeline-step--done:not(:last-child)::after {
+  background: #a7f3d0;
 }
 </style>
