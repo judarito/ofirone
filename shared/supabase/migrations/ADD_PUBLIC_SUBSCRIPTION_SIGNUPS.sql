@@ -46,6 +46,9 @@ CREATE INDEX IF NOT EXISTS ix_public_subscription_signups_status
 CREATE INDEX IF NOT EXISTS ix_public_subscription_signups_email
   ON public_subscription_signups(lower(admin_email), created_at DESC);
 
+CREATE INDEX IF NOT EXISTS ix_public_subscription_signups_tax_id
+  ON public_subscription_signups(regexp_replace(COALESCE(tax_id, ''), '[^A-Za-z0-9]+', '', 'g'), created_at DESC);
+
 CREATE UNIQUE INDEX IF NOT EXISTS ux_public_subscription_signups_preference
   ON public_subscription_signups(mercado_pago_preference_id)
   WHERE mercado_pago_preference_id IS NOT NULL;
@@ -154,8 +157,10 @@ DECLARE
   v_price RECORD;
   v_signup public_subscription_signups%ROWTYPE;
   v_email TEXT;
+  v_tax_id TEXT;
 BEGIN
   v_email := lower(trim(COALESCE(p_admin_email, '')));
+  v_tax_id := upper(regexp_replace(trim(COALESCE(p_tax_id, '')), '[^A-Za-z0-9]+', '', 'g'));
 
   IF p_plan_price_id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'PLAN_REQUIRED', 'message', 'Selecciona un plan.');
@@ -168,6 +173,58 @@ BEGIN
   END IF;
   IF v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN
     RETURN jsonb_build_object('success', false, 'error', 'EMAIL_INVALID', 'message', 'El email no es valido.');
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM users u
+    WHERE lower(trim(u.email)) = v_email
+      AND COALESCE(u.is_active, TRUE) = TRUE
+  ) THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'EMAIL_ALREADY_USED',
+      'message', 'Este email ya esta asociado a una cuenta de OfirOne. Usa otro email administrador o inicia sesion con la cuenta existente.'
+    );
+  END IF;
+
+  IF v_tax_id <> '' AND EXISTS (
+    SELECT 1
+    FROM tenants t
+    WHERE upper(regexp_replace(COALESCE(t.tax_id, ''), '[^A-Za-z0-9]+', '', 'g')) = v_tax_id
+      AND COALESCE(t.is_active, TRUE) = TRUE
+  ) THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'TAX_ID_ALREADY_USED',
+      'message', 'Este NIT o identificacion ya esta asociado a una empresa en OfirOne.'
+    );
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public_subscription_signups s
+    WHERE lower(trim(s.admin_email)) = v_email
+      AND s.status IN ('PENDING_PAYMENT', 'PAID', 'PROVISIONING', 'PROVISIONED')
+  ) THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'EMAIL_SIGNUP_EXISTS',
+      'message', 'Ya existe una solicitud de suscripcion activa para este email. Revisa el estado de esa solicitud antes de crear otra.'
+    );
+  END IF;
+
+  IF v_tax_id <> '' AND EXISTS (
+    SELECT 1
+    FROM public_subscription_signups s
+    WHERE upper(regexp_replace(COALESCE(s.tax_id, ''), '[^A-Za-z0-9]+', '', 'g')) = v_tax_id
+      AND s.status IN ('PENDING_PAYMENT', 'PAID', 'PROVISIONING', 'PROVISIONED')
+  ) THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'TAX_ID_SIGNUP_EXISTS',
+      'message', 'Ya existe una solicitud de suscripcion activa para este NIT o identificacion.'
+    );
   END IF;
 
   SELECT

@@ -7,10 +7,11 @@ Estado: fase 1 implementada.
 1. El cliente entra a `/planes`.
 2. Selecciona un plan publico de `billing_plans` con precio activo.
 3. La app llama a `subscription-create-preference`.
-4. La function crea `public_subscription_signups` y una preferencia de Mercado Pago.
-5. Mercado Pago retorna a `/suscripcion/estado/:signupId`.
-6. `mercadopago-webhook` detecta `external_reference = subscription_signup:<signupId>`.
-7. Si el pago queda aprobado:
+4. Antes de enviar a Mercado Pago se valida que email/NIT no existan en Auth, tenants, usuarios o solicitudes activas.
+5. La function crea `public_subscription_signups` y una preferencia de Mercado Pago.
+6. Mercado Pago retorna a `/suscripcion/estado/:signupId`.
+7. `mercadopago-webhook` detecta `external_reference = subscription_signup:<signupId>`.
+8. Si el pago queda aprobado:
    - marca la solicitud como `PAID`;
    - crea usuario Auth;
    - ejecuta `fn_create_tenant`;
@@ -73,6 +74,7 @@ supabase functions deploy mercadopago-webhook
 - Suscripcion interna con renovacion manual.
 - Aprovisionamiento automatico del tenant.
 - Pantalla publica de estado.
+- Validacion previa de email administrador y NIT/identificacion para evitar cobros duplicados que terminen en revision.
 
 No incluye todavia:
 

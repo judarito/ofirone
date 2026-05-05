@@ -8,6 +8,16 @@ const corsHeaders = {
 
 const FUNCTION_BUILD_ID = 'subscription-create-preference-v1'
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    const message = String(record.message || record.error || record.details || record.hint || '').trim()
+    if (message) return message
+  }
+  return String(error || 'Error desconocido')
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -44,6 +54,23 @@ function splitFullName(value: unknown) {
     name: parts.slice(0, -1).join(' ') || parts[0],
     surname: parts.slice(-1).join(' '),
   }
+}
+
+async function findAuthUserIdByEmail(supabase: ReturnType<typeof createClient>, email: string) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  if (!normalizedEmail) return ''
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error) throw error
+
+    const users = data?.users || []
+    const found = users.find((user) => String(user.email || '').trim().toLowerCase() === normalizedEmail)
+    if (found?.id) return String(found.id)
+    if (users.length < 1000) break
+  }
+
+  return ''
 }
 
 function getMercadoPagoAccessToken() {
@@ -95,11 +122,22 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
+    const adminEmail = String(body?.admin_email || '').trim().toLowerCase()
+    const existingAuthUserId = await findAuthUserIdByEmail(supabase, adminEmail).catch((error) => {
+      throw new Error(`No se pudo validar el email en Supabase Auth: ${getErrorMessage(error)}`)
+    })
+    if (existingAuthUserId) {
+      return jsonResponse({
+        error: 'Este email ya existe en OfirOne. Usa otro email administrador o inicia sesion con la cuenta existente.',
+        code: 'AUTH_EMAIL_ALREADY_EXISTS',
+      }, 409)
+    }
+
     const { data: signupResult, error: signupError } = await supabase.rpc('fn_create_public_subscription_signup', {
       p_plan_price_id: String(body?.plan_price_id || '').trim() || null,
       p_business_name: String(body?.business_name || '').trim(),
       p_admin_full_name: String(body?.admin_full_name || '').trim(),
-      p_admin_email: String(body?.admin_email || '').trim(),
+      p_admin_email: adminEmail,
       p_phone: String(body?.phone || '').trim() || null,
       p_legal_name: String(body?.legal_name || '').trim() || null,
       p_tax_id: String(body?.tax_id || '').trim() || null,

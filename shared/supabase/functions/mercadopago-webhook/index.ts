@@ -194,6 +194,31 @@ function generateTemporaryPassword() {
   return `Ofir${random.slice(0, 14)}!`
 }
 
+function isAuthEmailAlreadyRegistered(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase()
+  return message.includes('already been registered')
+    || message.includes('already registered')
+    || message.includes('already exists')
+    || message.includes('email address has already')
+}
+
+async function findAuthUserIdByEmail(supabase: ReturnType<typeof createClient>, email: string) {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return ''
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error) throw error
+
+    const users = data?.users || []
+    const found = users.find((user) => String(user.email || '').trim().toLowerCase() === normalizedEmail)
+    if (found?.id) return String(found.id)
+    if (users.length < 1000) break
+  }
+
+  return ''
+}
+
 async function sendSubscriptionWelcomeEmail(params: {
   email: string
   name: string
@@ -325,17 +350,59 @@ async function processSubscriptionSignupPayment(params: {
     })
 
     if (authError) {
+      if (isAuthEmailAlreadyRegistered(authError)) {
+        authUserId = await findAuthUserIdByEmail(supabase, String(currentSignup.admin_email || '').trim())
+      }
+
+      if (!authUserId) {
+        await supabase
+          .from('public_subscription_signups')
+          .update({
+            status: 'FAILED',
+            error_message: `No se pudo crear el usuario Auth: ${authError.message}`,
+          })
+          .eq('signup_id', signupId)
+        throw new Error(`No se pudo crear el usuario Auth: ${authError.message}`)
+      }
+    }
+
+    if (!authUserId) {
+      authUserId = String(authData?.user?.id || '').trim()
+    }
+
+    if (!authUserId) {
       await supabase
         .from('public_subscription_signups')
         .update({
           status: 'FAILED',
-          error_message: `No se pudo crear el usuario Auth: ${authError.message}`,
+          error_message: 'Supabase Auth no devolvió el identificador del usuario administrador.',
         })
         .eq('signup_id', signupId)
-      throw new Error(`No se pudo crear el usuario Auth: ${authError.message}`)
+      throw new Error('Supabase Auth no devolvió el identificador del usuario administrador.')
     }
+  }
 
-    authUserId = String(authData?.user?.id || '').trim()
+  const { data: existingAppUser, error: existingAppUserError } = await supabase
+    .from('users')
+    .select('user_id, tenant_id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
+
+  if (existingAppUserError) {
+    throw new Error(`No se pudo validar si el email ya pertenece a otro tenant: ${getErrorMessage(existingAppUserError)}`)
+  }
+
+  if (existingAppUser) {
+    const message = 'El email ya pertenece a una cuenta existente de OfirOne. El pago fue aprobado, pero la activacion requiere revision manual o usar un email administrador diferente.'
+    await supabase
+      .from('public_subscription_signups')
+      .update({
+        status: 'FAILED',
+        auth_user_id: authUserId,
+        error_message: message,
+      })
+      .eq('signup_id', signupId)
+    throw new Error(message)
   }
 
   const { data: provisionData, error: provisionError } = await supabase.rpc('fn_provision_public_subscription_signup', {

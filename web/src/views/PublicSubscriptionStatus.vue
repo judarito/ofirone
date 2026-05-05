@@ -87,15 +87,24 @@ const statusMeta = computed(() => {
   const status = String(signup.value?.status || '').toUpperCase()
   if (status === 'PROVISIONED') return { label: 'Cuenta creada', color: 'success' }
   if (status === 'PAID' || status === 'PROVISIONING') return { label: 'Pago confirmado', color: 'info' }
+  if (status === 'FAILED' && paymentWasApproved.value) return { label: 'Pago aprobado, en revisión', color: 'warning' }
   if (status === 'FAILED') return { label: 'Requiere revisión', color: 'warning' }
   if (status === 'CANCELLED') return { label: 'Cancelado', color: 'error' }
   return { label: 'Pago pendiente', color: 'warning' }
+})
+
+const paymentWasApproved = computed(() => {
+  const status = String(signup.value?.status || '').toUpperCase()
+  return ['PAID', 'PROVISIONING', 'PROVISIONED'].includes(status)
+    || Boolean(signup.value?.paid_at)
+    || String(route.query.mp_status || '').toLowerCase() === 'success'
 })
 
 const heroTitle = computed(() => {
   const status = String(signup.value?.status || '').toUpperCase()
   if (status === 'PROVISIONED') return 'Tu cuenta ya está lista'
   if (status === 'PAID' || status === 'PROVISIONING') return 'Pago recibido, creando tu cuenta'
+  if (status === 'FAILED' && paymentWasApproved.value) return 'Pago recibido, necesitamos revisar tu cuenta'
   if (route.query.mp_status === 'success') return 'Recibimos la aprobación del pago'
   if (route.query.mp_status === 'failure') return 'El pago no quedó aprobado'
   return 'Estamos esperando el pago'
@@ -105,6 +114,7 @@ const heroMessage = computed(() => {
   const status = String(signup.value?.status || '').toUpperCase()
   if (status === 'PROVISIONED') return 'Te enviamos un correo para crear tu contraseña e ingresar como administrador.'
   if (status === 'PAID' || status === 'PROVISIONING') return 'Estamos aprovisionando el tenant y preparando el acceso administrador.'
+  if (status === 'FAILED' && paymentWasApproved.value) return 'El cobro ya fue recibido, pero la creación automática de la cuenta necesita revisión. No realices otro pago.'
   if (route.query.mp_status === 'success') return 'Mercado Pago regresó como exitoso. El webhook terminará de validar y crear la cuenta.'
   if (route.query.mp_status === 'failure') return 'Puedes reintentar el pago si la preferencia sigue activa.'
   return 'Cuando Mercado Pago confirme el cobro, crearemos tu tenant automáticamente.'
@@ -112,9 +122,10 @@ const heroMessage = computed(() => {
 
 const timeline = computed(() => {
   const status = String(signup.value?.status || '').toUpperCase()
-  const paid = ['PAID', 'PROVISIONING', 'PROVISIONED'].includes(status)
+  const paid = paymentWasApproved.value
   const provisioned = status === 'PROVISIONED'
   const failed = status === 'FAILED'
+  const provisionFailed = failed && paid
 
   return [
     {
@@ -127,16 +138,16 @@ const timeline = computed(() => {
     {
       key: 'payment',
       icon: paid ? 'mdi-credit-card-check' : failed ? 'mdi-alert-circle' : 'mdi-timer-sand',
-      label: paid ? 'Pago confirmado' : failed ? 'Pago o provisión con error' : 'Pago pendiente',
+      label: paid ? 'Pago confirmado' : failed ? 'Pago con error' : 'Pago pendiente',
       copy: paid ? 'Mercado Pago confirmó el primer periodo.' : 'Aún esperamos confirmación del cobro.',
       state: paid ? 'done' : failed ? 'blocked' : 'active',
     },
     {
       key: 'provision',
-      icon: provisioned ? 'mdi-domain-plus' : 'mdi-cog-clockwise',
-      label: provisioned ? 'Tenant aprovisionado' : 'Creación de cuenta',
-      copy: provisioned ? 'La empresa y el usuario administrador ya existen.' : 'Se ejecuta automáticamente después del pago.',
-      state: provisioned ? 'done' : paid ? 'active' : 'pending',
+      icon: provisioned ? 'mdi-domain-plus' : provisionFailed ? 'mdi-alert-circle' : 'mdi-cog-clockwise',
+      label: provisioned ? 'Tenant aprovisionado' : provisionFailed ? 'Creación de cuenta en revisión' : 'Creación de cuenta',
+      copy: provisioned ? 'La empresa y el usuario administrador ya existen.' : provisionFailed ? 'El pago está aprobado, pero necesitamos revisar el acceso administrador.' : 'Se ejecuta automáticamente después del pago.',
+      state: provisioned ? 'done' : provisionFailed ? 'blocked' : paid ? 'active' : 'pending',
     },
     {
       key: 'access',
@@ -150,6 +161,7 @@ const timeline = computed(() => {
 
 const showContinuePayment = computed(() => {
   return ['PENDING_PAYMENT', 'FAILED'].includes(String(signup.value?.status || '').toUpperCase())
+    && !paymentWasApproved.value
     && Boolean(signup.value?.payment_url)
 })
 
