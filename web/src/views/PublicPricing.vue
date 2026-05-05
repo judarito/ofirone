@@ -40,7 +40,7 @@
             </div>
             <v-chip v-if="plan.code === 'pro'" color="success" variant="flat" size="small">Popular</v-chip>
           </div>
-          <p>{{ plan.description || 'Plan comercial para operar OfirOne.' }}</p>
+          <p class="pricing-card__description">{{ plan.description || 'Plan comercial para operar OfirOne.' }}</p>
           <div class="pricing-card__price">
             <strong>{{ formatMoney(getPrimaryPrice(plan)?.amount) }}</strong>
             <span>/ {{ intervalLabel(getPrimaryPrice(plan)?.billing_interval) }}</span>
@@ -54,6 +54,7 @@
             </li>
           </ul>
           <v-btn
+            class="pricing-card__button"
             block
             color="primary"
             variant="flat"
@@ -250,7 +251,7 @@ loadPlans()
 <style scoped>
 .pricing-page {
   min-height: 100vh;
-  padding: 28px 18px 80px;
+  padding: clamp(18px, 2.4vw, 34px) clamp(16px, 3vw, 44px) 80px;
   color: #111827;
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 28%),
@@ -260,14 +261,14 @@ loadPlans()
 
 .pricing-hero,
 .signup-section {
-  width: min(1120px, 100%);
+  width: min(1480px, 100%);
   margin: 0 auto;
 }
 
 .pricing-hero {
-  min-height: 340px;
+  min-height: 280px;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
   gap: 24px;
   align-items: stretch;
 }
@@ -299,8 +300,9 @@ loadPlans()
 
 .pricing-hero h1 {
   margin: 10px 0 14px;
-  font-size: clamp(2.8rem, 7vw, 5.4rem);
-  line-height: 0.92;
+  max-width: 920px;
+  font-size: clamp(2.6rem, 5.8vw, 5rem);
+  line-height: 0.94;
   letter-spacing: -0.07em;
 }
 
@@ -332,18 +334,20 @@ loadPlans()
 }
 
 .pricing-grid {
-  width: min(1120px, 100%);
-  margin: 28px auto;
+  width: min(1480px, 100%);
+  margin: 28px auto 34px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(18px, 2vw, 28px);
+  align-items: stretch;
 }
 
 .pricing-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px;
+  gap: 18px;
+  min-height: 100%;
+  padding: clamp(22px, 2.4vw, 32px);
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.92);
@@ -364,12 +368,12 @@ loadPlans()
 
 .pricing-card h2 {
   margin: 4px 0 0;
-  font-size: 2rem;
+  font-size: clamp(1.9rem, 2.4vw, 2.45rem);
   letter-spacing: -0.05em;
 }
 
 .pricing-card__price strong {
-  font-size: 2.2rem;
+  font-size: clamp(2rem, 2.8vw, 2.8rem);
   letter-spacing: -0.05em;
 }
 
@@ -381,16 +385,28 @@ loadPlans()
   margin: 0;
   padding-left: 18px;
   color: #334155;
-  line-height: 1.8;
+  line-height: 1.75;
   flex: 1;
+}
+
+.pricing-card__description {
+  min-height: 58px;
+}
+
+.pricing-card__button {
+  flex: 0 0 auto;
+  min-height: 46px;
+  height: 46px;
+  border-radius: 10px;
+  letter-spacing: 0.16em;
 }
 
 .signup-section {
   display: grid;
-  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(320px, 0.62fr) minmax(0, 1.38fr);
   gap: 22px;
   align-items: start;
-  padding-top: 24px;
+  padding-top: 10px;
 }
 
 .signup-section__copy h2 {
@@ -421,6 +437,26 @@ loadPlans()
   .pricing-hero,
   .signup-section {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1080px) {
+  .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .pricing-page {
+    padding-inline: 14px;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-card__description {
+    min-height: 0;
   }
 }
 </style>
