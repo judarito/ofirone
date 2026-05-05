@@ -219,6 +219,43 @@ async function findAuthUserIdByEmail(supabase: ReturnType<typeof createClient>, 
   return ''
 }
 
+async function createSubscriptionAuthUser(params: {
+  supabase: ReturnType<typeof createClient>
+  email: string
+  password: string
+  fullName: string
+  businessName: string
+  signupId: string
+}) {
+  const { supabase, email, password, fullName, businessName, signupId } = params
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  })
+
+  if (error) return { userId: '', error }
+
+  const userId = String(data?.user?.id || '').trim()
+  if (userId) {
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+      user_metadata: {
+        full_name: fullName || '',
+        tenant_name: businessName || '',
+        source: 'public_subscription_signup',
+      },
+      app_metadata: {
+        signup_id: signupId,
+      },
+    })
+    if (updateError) {
+      console.warn('[mercadopago-webhook] Usuario Auth creado, pero no se pudo actualizar metadata', getErrorMessage(updateError))
+    }
+  }
+
+  return { userId, error: null }
+}
+
 async function sendSubscriptionWelcomeEmail(params: {
   email: string
   name: string
@@ -335,18 +372,13 @@ async function processSubscriptionSignupPayment(params: {
   let authUserId = String(currentSignup.auth_user_id || '').trim()
   if (!authUserId) {
     const temporaryPassword = generateTemporaryPassword()
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    const { userId: createdAuthUserId, error: authError } = await createSubscriptionAuthUser({
+      supabase,
       email: String(currentSignup.admin_email || '').trim(),
       password: temporaryPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name: currentSignup.admin_full_name || '',
-        tenant_name: currentSignup.business_name || '',
-        source: 'public_subscription_signup',
-      },
-      app_metadata: {
-        signup_id: signupId,
-      },
+      fullName: String(currentSignup.admin_full_name || '').trim(),
+      businessName: String(currentSignup.business_name || '').trim(),
+      signupId,
     })
 
     if (authError) {
@@ -367,7 +399,7 @@ async function processSubscriptionSignupPayment(params: {
     }
 
     if (!authUserId) {
-      authUserId = String(authData?.user?.id || '').trim()
+      authUserId = createdAuthUserId
     }
 
     if (!authUserId) {

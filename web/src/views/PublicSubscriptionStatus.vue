@@ -212,7 +212,7 @@ onMounted(async () => {
 <style scoped>
 .subscription-status {
   min-height: 100vh;
-  padding: 28px 16px 80px;
+  padding: clamp(18px, 3vw, 34px) 16px 80px;
   color: #111827;
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 28%),
@@ -221,7 +221,7 @@ onMounted(async () => {
 }
 
 .subscription-status__shell {
-  width: min(720px, 100%);
+  width: min(760px, 100%);
   margin: 0 auto;
 }
 
@@ -235,8 +235,9 @@ onMounted(async () => {
 }
 
 .subscription-status__hero {
-  padding: 32px;
+  padding: clamp(24px, 4vw, 34px);
   margin-bottom: 20px;
+  overflow: hidden;
 }
 
 .subscription-status__eyebrow {
@@ -249,9 +250,10 @@ onMounted(async () => {
 
 .subscription-status__hero h1 {
   margin: 8px 0 10px;
-  font-size: clamp(2.2rem, 6vw, 4rem);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
+  font-size: clamp(2rem, 5.2vw, 3.65rem);
+  line-height: 1;
+  letter-spacing: -0.055em;
+  overflow-wrap: anywhere;
 }
 
 .subscription-status__hero p {
