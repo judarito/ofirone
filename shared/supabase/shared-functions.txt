@@ -6,3 +6,4 @@ mercadopago-webhook/index.ts
 online-order-email/index.ts
 notification-dispatcher/index.ts
 tenant-mercadopago-config/index.ts
+subscription-create-preference/index.ts

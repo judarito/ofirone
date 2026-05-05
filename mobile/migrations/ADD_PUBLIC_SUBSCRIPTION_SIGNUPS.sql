@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql

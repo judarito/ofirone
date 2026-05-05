@@ -62,6 +62,8 @@ const AIInsights = () => import('@/views/AIInsights.vue')
 const SuperAdminBilling = () => import('@/views/SuperAdminBilling.vue')
 const PublicOrderStatus = () => import('@/views/PublicOrderStatus.vue')
 const PublicStorefront = () => import('@/views/PublicStorefront.vue')
+const PublicPricing = () => import('@/views/PublicPricing.vue')
+const PublicSubscriptionStatus = () => import('@/views/PublicSubscriptionStatus.vue')
 
 function isRouteAlwaysAllowed(path) {
   return path === '/' || path === '/about' || path === '/setup' || path === '/help' || path === '/ai-insights'
@@ -150,6 +152,22 @@ async function getCurrentUserTenantId(authUserId) {
 }
 
 const routes = [
+  {
+    path: '/planes',
+    name: 'PublicPricing',
+    component: PublicPricing,
+    meta: { publicShell: true }
+  },
+  {
+    path: '/pricing',
+    redirect: '/planes'
+  },
+  {
+    path: '/suscripcion/estado/:signupId',
+    name: 'PublicSubscriptionStatus',
+    component: PublicSubscriptionStatus,
+    meta: { publicShell: true }
+  },
   {
     path: '/s/:slug',
     name: 'PublicStoreCatalog',

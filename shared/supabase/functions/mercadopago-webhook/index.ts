@@ -164,7 +164,216 @@ function summarizeLookupPayload(payload: unknown) {
 
 function paymentExternalReference(payment: Record<string, unknown> | null, fallback = '') {
   const metadata = payment?.metadata as Record<string, unknown> | undefined
-  return String(payment?.external_reference || metadata?.online_order_id || fallback || '').trim()
+  return String(payment?.external_reference || metadata?.online_order_id || metadata?.signup_id || fallback || '').trim()
+}
+
+function getSubscriptionMercadoPagoAccessToken() {
+  return String(
+    Deno.env.get('OFIRONE_MP_ACCESS_TOKEN')
+    || Deno.env.get('SUBSCRIPTION_MP_ACCESS_TOKEN')
+    || Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN')
+    || Deno.env.get('MP_ACCESS_TOKEN')
+    || '',
+  ).trim()
+}
+
+function parseSubscriptionSignupId(reference: string, payment: Record<string, unknown> | null = null) {
+  const normalized = String(reference || '').trim()
+  if (normalized.startsWith('subscription_signup:')) {
+    return normalized.replace('subscription_signup:', '').trim()
+  }
+
+  const metadata = payment?.metadata && typeof payment.metadata === 'object'
+    ? payment.metadata as Record<string, unknown>
+    : {}
+  return String(metadata?.signup_id || '').trim()
+}
+
+function generateTemporaryPassword() {
+  const random = crypto.randomUUID().replace(/-/g, '')
+  return `Ofir${random.slice(0, 14)}!`
+}
+
+async function sendSubscriptionWelcomeEmail(params: {
+  email: string
+  name: string
+  businessName: string
+  resetLink?: string
+}) {
+  const apiKey = String(Deno.env.get('RESEND_API_KEY') || Deno.env.get('RESEND_KEY') || '').trim()
+  if (!apiKey || !params.email) return { ok: false, skipped: 'missing_resend_or_email' }
+
+  const fromEmail = String(Deno.env.get('RESEND_FROM_EMAIL') || 'onboarding@resend.dev').trim()
+  const fromName = String(Deno.env.get('RESEND_FROM_NAME') || 'OfirOne').replace(/[<>]/g, '').trim() || 'OfirOne'
+  const html = `
+    <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#111827;">
+      <div style="max-width:620px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;">
+        <div style="padding:24px;background:#ecfdf5;">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;">${fromName}</div>
+          <h1 style="margin:8px 0 0;font-size:24px;">Tu cuenta ya está lista</h1>
+          <p style="margin:10px 0 0;color:#334155;line-height:1.5;">Hola ${params.name || 'equipo'}, activamos ${params.businessName || 'tu negocio'} en OfirOne.</p>
+        </div>
+        <div style="padding:24px;">
+          <p style="margin:0;color:#334155;line-height:1.5;">Usa el botón para crear tu contraseña e ingresar como administrador.</p>
+          ${params.resetLink ? `
+            <p style="margin-top:24px;">
+              <a href="${params.resetLink}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:12px;font-weight:700;">Crear contraseña</a>
+            </p>
+          ` : ''}
+          <p style="margin-top:18px;color:#64748b;font-size:13px;">Si no solicitaste esta cuenta, ignora este mensaje.</p>
+        </div>
+      </div>
+    </div>
+  `
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: `${fromName} <${fromEmail}>`,
+      to: params.email,
+      subject: 'Tu cuenta de OfirOne ya está lista',
+      html,
+      text: `Tu cuenta de OfirOne para ${params.businessName || 'tu negocio'} ya está lista. ${params.resetLink ? `Crea tu contraseña aquí: ${params.resetLink}` : ''}`,
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  return { ok: response.ok, status: response.status, payload }
+}
+
+async function processSubscriptionSignupPayment(params: {
+  supabase: ReturnType<typeof createClient>
+  payment: Record<string, unknown>
+  paymentId: string
+  externalReference: string
+}) {
+  const { supabase, payment, paymentId, externalReference } = params
+  const signupId = parseSubscriptionSignupId(externalReference, payment)
+  if (!signupId) {
+    return { processed: false, reason: 'missing_subscription_signup_id' }
+  }
+
+  const gatewayPayload = {
+    mercado_pago: {
+      id: payment?.id || paymentId || null,
+      status: payment?.status || null,
+      status_detail: payment?.status_detail || null,
+      transaction_amount: payment?.transaction_amount || null,
+      currency_id: payment?.currency_id || null,
+      payment_method_id: payment?.payment_method_id || null,
+      payment_type_id: payment?.payment_type_id || null,
+      date_created: payment?.date_created || null,
+      date_approved: payment?.date_approved || null,
+      live_mode: payment?.live_mode ?? null,
+      external_reference: externalReference,
+      metadata: payment?.metadata || null,
+      payer: payment?.payer || null,
+    },
+  }
+
+  const { data: markData, error: markError } = await supabase.rpc('fn_mark_subscription_signup_payment', {
+    p_signup_id: signupId,
+    p_payment_id: String(payment?.id || paymentId || '').trim() || null,
+    p_gateway_status: String(payment?.status || 'pending'),
+    p_status_detail: String(payment?.status_detail || '').trim() || null,
+    p_payment_payload: gatewayPayload,
+  })
+
+  if (markError) throw new Error(`No se pudo marcar el pago de suscripcion: ${getErrorMessage(markError)}`)
+  if (markData?.success === false) {
+    throw new Error(String(markData?.message || 'No se pudo marcar el pago de suscripcion.'))
+  }
+
+  const signup = markData?.signup || {}
+  const status = String(signup?.status || '').toUpperCase()
+  if (status !== 'PAID') {
+    return { processed: true, signup_id: signupId, status, provision: null }
+  }
+
+  const { data: currentSignup, error: signupError } = await supabase
+    .from('public_subscription_signups')
+    .select('signup_id, status, admin_email, admin_full_name, business_name, auth_user_id')
+    .eq('signup_id', signupId)
+    .maybeSingle()
+
+  if (signupError) throw new Error(`No se pudo cargar la solicitud de suscripcion: ${getErrorMessage(signupError)}`)
+  if (!currentSignup) throw new Error('Solicitud de suscripcion no encontrada.')
+
+  if (currentSignup.status === 'PROVISIONED') {
+    return { processed: true, signup_id: signupId, status: 'PROVISIONED', provision: { already_provisioned: true } }
+  }
+
+  let authUserId = String(currentSignup.auth_user_id || '').trim()
+  if (!authUserId) {
+    const temporaryPassword = generateTemporaryPassword()
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: String(currentSignup.admin_email || '').trim(),
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        full_name: currentSignup.admin_full_name || '',
+        tenant_name: currentSignup.business_name || '',
+        source: 'public_subscription_signup',
+      },
+      app_metadata: {
+        signup_id: signupId,
+      },
+    })
+
+    if (authError) {
+      await supabase
+        .from('public_subscription_signups')
+        .update({
+          status: 'FAILED',
+          error_message: `No se pudo crear el usuario Auth: ${authError.message}`,
+        })
+        .eq('signup_id', signupId)
+      throw new Error(`No se pudo crear el usuario Auth: ${authError.message}`)
+    }
+
+    authUserId = String(authData?.user?.id || '').trim()
+  }
+
+  const { data: provisionData, error: provisionError } = await supabase.rpc('fn_provision_public_subscription_signup', {
+    p_signup_id: signupId,
+    p_auth_user_id: authUserId,
+  })
+
+  if (provisionError) throw new Error(`No se pudo aprovisionar la suscripcion: ${getErrorMessage(provisionError)}`)
+
+  let welcomeEmail: Record<string, unknown> | null = null
+  if (provisionData?.success !== false) {
+    let resetLink: string | undefined
+    try {
+      const { data: linkData } = await supabase.auth.admin.generateLink({
+        type: 'recovery',
+        email: String(currentSignup.admin_email || '').trim(),
+      })
+      const properties = (linkData?.properties || {}) as Record<string, unknown>
+      resetLink = String(properties.action_link || '').trim() || undefined
+    } catch (linkError) {
+      console.warn('[mercadopago-webhook] No se pudo generar link de acceso de suscripcion', getErrorMessage(linkError))
+    }
+
+    welcomeEmail = await sendSubscriptionWelcomeEmail({
+      email: String(currentSignup.admin_email || '').trim(),
+      name: String(currentSignup.admin_full_name || '').trim(),
+      businessName: String(currentSignup.business_name || '').trim(),
+      resetLink,
+    })
+  }
+
+  return {
+    processed: true,
+    signup_id: signupId,
+    status,
+    provision: provisionData || null,
+    welcome_email: welcomeEmail,
+  }
 }
 
 async function dispatchQueuedNotifications(supabaseUrl: string, serviceRoleKey: string) {
@@ -219,6 +428,88 @@ serve(async (req) => {
 
     if (!paymentId && !externalReference && !preferenceId) {
       return jsonResponse({ ok: true, ignored: 'missing_payment_id_external_reference_and_preference_id' })
+    }
+
+    const subscriptionAccessToken = getSubscriptionMercadoPagoAccessToken()
+    if (subscriptionAccessToken) {
+      let subscriptionPayment: Record<string, unknown> | null = null
+      const subscriptionLookupDebug: Array<Record<string, unknown>> = []
+
+      if (paymentId) {
+        const result = await fetchPaymentById(subscriptionAccessToken, paymentId)
+        subscriptionLookupDebug.push({
+          step: 'subscription_payment_id',
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.ok && result.payload?.id),
+          summary: summarizeLookupPayload(result.payload),
+        })
+        if (result.ok) subscriptionPayment = result.payload as Record<string, unknown>
+      }
+
+      if (!subscriptionPayment && preferenceId) {
+        const result = await fetchPaymentFromPreference(subscriptionAccessToken, preferenceId)
+        subscriptionLookupDebug.push({
+          step: 'subscription_merchant_order_by_preference',
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.payment),
+          payment_id: result.payment_id || null,
+          summary: summarizeLookupPayload(result.payload),
+        })
+        if (result.ok && result.payment) subscriptionPayment = result.payment as Record<string, unknown>
+      }
+
+      const candidateSubscriptionReference = paymentExternalReference(subscriptionPayment, externalReference)
+      if (!subscriptionPayment && externalReference.startsWith('subscription_signup:')) {
+        const result = await searchLatestPaymentByReference(subscriptionAccessToken, externalReference)
+        subscriptionLookupDebug.push({
+          step: 'subscription_payment_search_by_external_reference',
+          status: result.status,
+          ok: result.ok,
+          found: Boolean(result.payment),
+          summary: summarizeLookupPayload(result.payload),
+        })
+        if (result.ok && result.payment) subscriptionPayment = result.payment as Record<string, unknown>
+      }
+
+      const resolvedSubscriptionReference = paymentExternalReference(subscriptionPayment, externalReference)
+      if (resolvedSubscriptionReference.startsWith('subscription_signup:') || parseSubscriptionSignupId(resolvedSubscriptionReference, subscriptionPayment)) {
+        if (!subscriptionPayment) {
+          return jsonResponse({
+            error: 'No se pudo consultar el pago de suscripcion en Mercado Pago.',
+            build_id: FUNCTION_BUILD_ID,
+            payment_id: paymentId || null,
+            external_reference: externalReference || null,
+            preference_id: preferenceId || null,
+            lookup_debug: subscriptionLookupDebug,
+          }, 404)
+        }
+
+        const subscriptionResult = await processSubscriptionSignupPayment({
+          supabase,
+          payment: subscriptionPayment,
+          paymentId,
+          externalReference: resolvedSubscriptionReference || candidateSubscriptionReference,
+        })
+
+        return jsonResponse({
+          ok: true,
+          build_id: FUNCTION_BUILD_ID,
+          payment_id: String(subscriptionPayment?.id || paymentId || '').trim() || null,
+          external_reference: resolvedSubscriptionReference || null,
+          subscription: subscriptionResult,
+          lookup_debug: subscriptionLookupDebug,
+        })
+      }
+    }
+
+    if (externalReference.startsWith('subscription_signup:')) {
+      return jsonResponse({
+        error: 'Webhook de suscripcion recibido, pero falta configurar OFIRONE_MP_ACCESS_TOKEN.',
+        build_id: FUNCTION_BUILD_ID,
+        external_reference: externalReference,
+      }, 500)
     }
 
     let orderForToken: Record<string, unknown> | null = null

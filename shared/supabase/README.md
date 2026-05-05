@@ -20,6 +20,7 @@ Manifiestos:
 - [shared-migrations.txt](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/shared-migrations.txt)
 - [shared-functions.txt](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/shared-functions.txt)
 - [EMAIL_NOTIFICATION_SYSTEM.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/EMAIL_NOTIFICATION_SYSTEM.md)
+- [PUBLIC_SUBSCRIPTION_SIGNUP.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/PUBLIC_SUBSCRIPTION_SIGNUP.md)
 
 ## Sistemas recientes
 
@@ -36,6 +37,13 @@ Manifiestos:
 - `notification-dispatcher` es la unica Edge Function objetivo para enviar correos.
 - La deduplicacion se hace con `channel + dedupe_key`, evitando correos repetidos y sobrecostos.
 - `online-order-email` queda como compatibilidad, pero el flujo nuevo debe encolar en `notification_outbox`.
+
+## Alta Publica SaaS
+
+- La ruta publica `/planes` permite comprar el primer periodo de una suscripcion OfirOne.
+- `subscription-create-preference` usa la cuenta Mercado Pago de OfirOne (`OFIRONE_MP_ACCESS_TOKEN`), no credenciales de tenants.
+- `mercadopago-webhook` detecta `external_reference = subscription_signup:<id>` y aprovisiona tenant + suscripcion.
+- Detalle operativo: [PUBLIC_SUBSCRIPTION_SIGNUP.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/PUBLIC_SUBSCRIPTION_SIGNUP.md)
 
 Secrets requeridos:
 
