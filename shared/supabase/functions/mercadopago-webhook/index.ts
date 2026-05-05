@@ -194,6 +194,32 @@ function generateTemporaryPassword() {
   return `Ofir${random.slice(0, 14)}!`
 }
 
+function normalizeAbsoluteUrl(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    if (!/^https?:$/.test(url.protocol)) return ''
+    return url.toString()
+  } catch (_error) {
+    return ''
+  }
+}
+
+function getAuthRecoveryRedirectUrl() {
+  const explicitRecoveryUrl = normalizeAbsoluteUrl(Deno.env.get('OFIRONE_AUTH_RECOVERY_URL'))
+  if (explicitRecoveryUrl) return explicitRecoveryUrl
+
+  const publicAppUrl = normalizeAbsoluteUrl(
+    Deno.env.get('OFIRONE_PUBLIC_APP_URL')
+    || Deno.env.get('PUBLIC_APP_URL')
+    || Deno.env.get('APP_URL'),
+  )
+  if (publicAppUrl) return `${publicAppUrl.replace(/\/+$/, '')}/login`
+
+  return ''
+}
+
 function isAuthEmailAlreadyRegistered(error: unknown) {
   const message = getErrorMessage(error).toLowerCase()
   return message.includes('already been registered')
@@ -448,9 +474,11 @@ async function processSubscriptionSignupPayment(params: {
   if (provisionData?.success !== false) {
     let resetLink: string | undefined
     try {
+      const redirectTo = getAuthRecoveryRedirectUrl()
       const { data: linkData } = await supabase.auth.admin.generateLink({
         type: 'recovery',
         email: String(currentSignup.admin_email || '').trim(),
+        options: redirectTo ? { redirectTo } : undefined,
       })
       const properties = (linkData?.properties || {}) as Record<string, unknown>
       resetLink = String(properties.action_link || '').trim() || undefined

@@ -40,9 +40,13 @@ RESEND_FROM_EMAIL=ventas@ofirone.com
 RESEND_FROM_NAME=OfirOne
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_URL=...
+OFIRONE_PUBLIC_APP_URL=https://ofirone.com
+# Opcional, si quieres controlar exactamente a donde llega el recovery:
+OFIRONE_AUTH_RECOVERY_URL=https://ofirone.com/login
 ```
 
 `OFIRONE_MP_ACCESS_TOKEN` es la credencial de la cuenta Mercado Pago de OfirOne, no la de los tenants.
+`OFIRONE_PUBLIC_APP_URL` se usa para que el correo "Crear contrasena" apunte al dominio productivo y no a `localhost`.
 
 Frontend:
 
