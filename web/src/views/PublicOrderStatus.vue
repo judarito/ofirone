@@ -138,6 +138,17 @@
           >
             Ir a la tienda
           </v-btn>
+          <v-btn
+            v-if="whatsappPhone"
+            :href="orderWhatsappUrl"
+            target="_blank"
+            rel="noreferrer"
+            color="success"
+            variant="tonal"
+            prepend-icon="mdi-whatsapp"
+          >
+            Contactar tienda
+          </v-btn>
         </div>
       </template>
 
@@ -162,6 +173,7 @@ const errorMessage = ref('')
 const syncingGateway = ref(false)
 const gatewaySyncAttempts = ref(0)
 const gatewaySyncMessage = ref('')
+const storeContact = ref(null)
 
 const GATEWAY_SYNC_DELAYS_MS = [0, 1200, 2500, 4500, 7000]
 
@@ -253,6 +265,15 @@ const paymentFlowSnapshot = computed(() => {
 
 const displayOrderStatus = computed(() => paymentFlowSnapshot.value.order)
 const displayPaymentStatus = computed(() => paymentFlowSnapshot.value.payment)
+const whatsappPhone = computed(() => normalizeWhatsappPhone(storeContact.value?.support_whatsapp))
+const orderWhatsappUrl = computed(() => {
+  const message = [
+    `Hola, quiero consultar por mi pedido #${order.value?.order_number || ''}.`,
+    `Total: ${formatMoney(order.value?.total)}.`,
+    `Estado de pago: ${paymentStatusLabel(String(order.value?.payment_status || '').toUpperCase())}.`,
+  ].join(' ')
+  return buildWhatsappUrl(message)
+})
 
 const orderTimeline = computed(() => {
   const orderStatus = String(order.value?.status || '').trim().toUpperCase()
@@ -344,6 +365,19 @@ function formatDate(dateStr) {
   return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(dateStr))
 }
 
+function normalizeWhatsappPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('57') && digits.length >= 12) return digits
+  if (digits.length === 10) return `57${digits}`
+  return digits
+}
+
+function buildWhatsappUrl(message) {
+  if (!whatsappPhone.value) return '#'
+  return `https://wa.me/${whatsappPhone.value}?text=${encodeURIComponent(message)}`
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -383,6 +417,17 @@ async function loadOrder() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadStoreContact() {
+  const slug = String(order.value?.store_slug || '').trim()
+  if (!slug) {
+    storeContact.value = null
+    return
+  }
+
+  const result = await onlineStoreService.getPublicStore(slug)
+  storeContact.value = result.success ? result.data : null
 }
 
 async function revalidateGatewayOrderIfNeeded() {
@@ -435,6 +480,7 @@ async function revalidateGatewayOrderIfNeeded() {
 
 onMounted(async () => {
   await loadOrder()
+  await loadStoreContact()
   await revalidateGatewayOrderIfNeeded()
   if (!isOrderPaid()) await loadOrder()
 })

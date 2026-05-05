@@ -260,6 +260,15 @@
                     +
                   </button>
                 </div>
+                <a
+                  v-if="whatsappPhone"
+                  class="storefront__product-whatsapp"
+                  :href="buildProductWhatsappUrl(product)"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Consultar por WhatsApp
+                </a>
               </v-card-text>
             </v-card>
           </div>
@@ -559,6 +568,18 @@
             Abrir
           </v-btn>
         </aside>
+
+        <a
+          v-if="whatsappPhone"
+          class="storefront__whatsapp-fab"
+          :class="{ 'storefront__whatsapp-fab--with-cart': currentSection === 'catalog' && cart.length > 0 }"
+          :href="storeWhatsappUrl"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <v-icon size="20">mdi-whatsapp</v-icon>
+          <span>Preguntar</span>
+        </a>
       </template>
       <input
         ref="paymentProofInput"
@@ -724,6 +745,13 @@ const checkoutAssurance = computed(() => {
     secondary: 'Reservamos el stock mientras el comercio revisa tu soporte.',
   }
 })
+
+const whatsappPhone = computed(() => normalizeWhatsappPhone(store.value?.support_whatsapp))
+const storeWhatsappUrl = computed(() => {
+  const storeName = store.value?.brand_name || 'la tienda'
+  const message = `Hola, quiero consultar por la tienda online ${storeName}.`
+  return buildWhatsappUrl(message)
+})
 const checkoutHeroLabel = computed(() => {
   if (manualPaymentEnabled.value && gatewayPaymentEnabled.value) return 'Manual o pasarela'
   if (gatewayPaymentEnabled.value) return 'Pasarela Mercado Pago'
@@ -748,6 +776,29 @@ function formatMoney(value) {
 function formatQty(value) {
   const qty = Number(value || 0)
   return Number.isInteger(qty) ? qty.toString() : qty.toFixed(3)
+}
+
+function normalizeWhatsappPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('57') && digits.length >= 12) return digits
+  if (digits.length === 10) return `57${digits}`
+  return digits
+}
+
+function buildWhatsappUrl(message) {
+  if (!whatsappPhone.value) return '#'
+  return `https://wa.me/${whatsappPhone.value}?text=${encodeURIComponent(message)}`
+}
+
+function buildProductWhatsappUrl(product) {
+  const parts = [
+    `Hola, quiero consultar por este producto: ${product.display_name || product.product_name || 'Producto'}.`,
+    product.variant_name ? `Variante: ${product.variant_name}.` : '',
+    product.sku ? `SKU: ${product.sku}.` : '',
+    `Precio: ${formatMoney(product.final_price)}.`,
+  ].filter(Boolean)
+  return buildWhatsappUrl(parts.join(' '))
 }
 
 function getFriendlyCheckoutError(error) {
@@ -1737,6 +1788,18 @@ watch(() => route.params.slug, () => {
   text-decoration: underline;
 }
 
+.storefront__product-whatsapp {
+  display: inline-flex;
+  margin-top: 14px;
+  color: #047857;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.storefront__product-whatsapp:hover {
+  text-decoration: underline;
+}
+
 .storefront__floating-cart {
   position: fixed;
   right: 22px;
@@ -1764,6 +1827,27 @@ watch(() => route.params.slug, () => {
   margin-top: 4px;
   font-size: 1.25rem;
   font-weight: 900;
+}
+
+.storefront__whatsapp-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 21;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: white;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 18px 38px rgb(22 163 74 / 0.3);
+}
+
+.storefront__whatsapp-fab--with-cart {
+  bottom: 104px;
 }
 
 @media (max-width: 900px) {
@@ -1817,6 +1901,15 @@ watch(() => route.params.slug, () => {
     right: 12px;
     bottom: 12px;
     justify-content: space-between;
+  }
+
+  .storefront__whatsapp-fab {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .storefront__whatsapp-fab--with-cart {
+    bottom: 92px;
   }
 }
 </style>
