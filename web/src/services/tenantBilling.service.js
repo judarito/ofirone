@@ -87,6 +87,7 @@ class TenantBillingService {
     queryCache.invalidateByTags(['billing-plans', 'superadmin-billing'], { tenantId: 'global' })
     queryCache.invalidate('billing-plans', { tenantId: 'global' })
     queryCache.invalidate('superadmin-billing-summary', { tenantId: 'global' })
+    queryCache.invalidate('superadmin-public-subscription-signups', { tenantId: 'global' })
   }
 
   async getTenantBillingSummary(tenantId, options = {}) {
@@ -335,6 +336,55 @@ class TenantBillingService {
       return { success: Boolean(data?.success !== false), data }
     } catch (error) {
       return { success: false, error: error.message }
+    }
+  }
+
+  async listPublicSubscriptionSignups(options = {}) {
+    try {
+      const data = await queryCache.getOrLoad(
+        'superadmin-public-subscription-signups',
+        async () => {
+          const { data, error } = await supabaseService.client.rpc('fn_superadmin_list_public_subscription_signups', {
+            p_limit: options.limit || 150,
+          })
+          if (error) throw error
+          return data || []
+        },
+        {
+          tenantId: 'global',
+          ttlMs: 30 * 1000,
+          swrMs: 90 * 1000,
+          storage: 'session',
+          forceRefresh: options.forceRefresh === true,
+          tags: ['superadmin-billing'],
+        }
+      )
+
+      return { success: true, data: data || [] }
+    } catch (error) {
+      return { success: false, data: [], error: error.message }
+    }
+  }
+
+  async retryPublicSubscriptionSignup(signupId) {
+    try {
+      const normalizedSignupId = String(signupId || '').trim()
+      if (!normalizedSignupId) throw new Error('signupId es requerido')
+
+      const { data, error } = await supabaseService.client.functions.invoke('mercadopago-webhook', {
+        body: {
+          external_reference: `subscription_signup:${normalizedSignupId}`,
+        },
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      queryCache.invalidate('superadmin-public-subscription-signups', { tenantId: 'global' })
+      queryCache.invalidate('superadmin-billing-summary', { tenantId: 'global' })
+      return { success: true, data }
+    } catch (error) {
+      return { success: false, error: error.message || 'No fue posible reintentar el alta publica.' }
     }
   }
 

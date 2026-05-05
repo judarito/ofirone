@@ -26,6 +26,10 @@
         <v-icon start>mdi-office-building-cog</v-icon>
         Suscripciones
       </v-tab>
+      <v-tab value="public-signups">
+        <v-icon start>mdi-store-plus</v-icon>
+        Altas públicas
+      </v-tab>
     </v-tabs>
 
     <v-window v-model="activeTab">
@@ -166,6 +170,96 @@
 
           <template #table-cell-days_to_expiry="{ item }">
             <span class="text-caption text-medium-emphasis">{{ getDaysLabel(item.days_to_expiry) }}</span>
+          </template>
+        </ListView>
+      </v-window-item>
+
+      <v-window-item value="public-signups">
+        <ListView
+          title="Altas públicas SaaS"
+          icon="mdi-store-plus"
+          :items="publicSignups"
+          :total-items="publicSignups.length"
+          :loading="loadingPublicSignups"
+          :page-size="12"
+          item-key="signup_id"
+          title-field="business_name"
+          subtitle-field="admin_email"
+          avatar-icon="mdi-store-plus"
+          avatar-color="indigo"
+          empty-message="No hay solicitudes públicas registradas"
+          :client-side="true"
+          :clickable="false"
+          :search-fields="['business_name', 'admin_email', 'tax_id', 'plan_name', 'status', 'mercado_pago_payment_id', 'error_message']"
+          :table-columns="publicSignupTableColumns"
+          view-storage-key="superadmin-public-subscription-signups"
+          :show-create-button="false"
+          :editable="false"
+          :deletable="false"
+        >
+          <template #content="{ item }">
+            <div class="mt-2 d-flex flex-wrap ga-2">
+              <v-chip :color="getPublicSignupStatusColor(item.status)" size="small" variant="flat">
+                {{ getPublicSignupStatusLabel(item.status) }}
+              </v-chip>
+              <v-chip v-if="item.plan_name" color="primary" size="small" variant="tonal">
+                {{ item.plan_name }}
+              </v-chip>
+              <v-chip v-if="item.paid_at" color="success" size="small" variant="tonal">
+                Pago recibido
+              </v-chip>
+              <v-chip v-if="item.tenant_id" color="success" size="small" variant="outlined">
+                Tenant creado
+              </v-chip>
+              <v-chip v-if="item.mercado_pago_payment_id" color="blue" size="small" variant="tonal">
+                MP {{ item.mercado_pago_payment_id }}
+              </v-chip>
+            </div>
+            <v-alert v-if="item.error_message" type="warning" variant="tonal" density="compact" class="mt-3">
+              {{ item.error_message }}
+            </v-alert>
+          </template>
+
+          <template #table-cell-status="{ item }">
+            <v-chip :color="getPublicSignupStatusColor(item.status)" size="x-small">
+              {{ getPublicSignupStatusLabel(item.status) }}
+            </v-chip>
+          </template>
+
+          <template #table-cell-total="{ item }">
+            {{ formatMoney(item.total) }}
+          </template>
+
+          <template #table-cell-created_at="{ item }">
+            <span class="text-caption text-medium-emphasis">{{ formatDateTime(item.created_at) }}</span>
+          </template>
+
+          <template #table-cell-paid_at="{ item }">
+            <span class="text-caption text-medium-emphasis">{{ item.paid_at ? formatDateTime(item.paid_at) : 'Sin pago' }}</span>
+          </template>
+
+          <template #actions="{ item }">
+            <div class="d-flex justify-end flex-wrap ga-1">
+              <v-btn
+                v-if="item.payment_url && !item.paid_at && item.status === 'PENDING_PAYMENT'"
+                :href="item.payment_url"
+                target="_blank"
+                rel="noopener"
+                icon="mdi-open-in-new"
+                variant="text"
+                size="small"
+                color="primary"
+              />
+              <v-btn
+                v-if="canRetryPublicSignup(item)"
+                icon="mdi-refresh"
+                variant="text"
+                size="small"
+                color="success"
+                :loading="retryingSignupId === item.signup_id"
+                @click.stop="retryPublicSignup(item)"
+              />
+            </div>
           </template>
         </ListView>
       </v-window-item>
@@ -519,13 +613,16 @@ const activeTab = ref('plans')
 const loadingPlans = ref(false)
 const loadingSummaries = ref(false)
 const loadingHistory = ref(false)
+const loadingPublicSignups = ref(false)
 const savingPlan = ref(false)
 const savingAssignment = ref(false)
 const savingStatus = ref(false)
+const retryingSignupId = ref(null)
 
 const plans = ref([])
 const tenantSummaries = ref([])
 const subscriptionHistory = ref([])
+const publicSignups = ref([])
 const selectedTenantSummary = ref(null)
 
 const planDialog = ref(false)
@@ -576,6 +673,14 @@ const historyTableColumns = [
   { title: 'Fin', key: 'current_period_end', width: '160px' },
 ]
 
+const publicSignupTableColumns = [
+  { title: 'Estado', key: 'status', width: '150px' },
+  { title: 'Plan', key: 'plan_name', width: '150px' },
+  { title: 'Total', key: 'total', width: '120px' },
+  { title: 'Creado', key: 'created_at', width: '170px' },
+  { title: 'Pago', key: 'paid_at', width: '170px' },
+]
+
 const createEmptyPlanForm = () => ({
   plan_id: null,
   code: '',
@@ -612,7 +717,7 @@ const createStatusForm = () => ({
 
 const statusForm = ref(createStatusForm())
 
-const loadingAny = computed(() => loadingPlans.value || loadingSummaries.value || loadingHistory.value || savingPlan.value || savingAssignment.value || savingStatus.value)
+const loadingAny = computed(() => loadingPlans.value || loadingSummaries.value || loadingHistory.value || loadingPublicSignups.value || savingPlan.value || savingAssignment.value || savingStatus.value || Boolean(retryingSignupId.value))
 
 const availablePlanPriceOptions = computed(() => {
   return plans.value.flatMap((plan) => (plan.prices || []).map((price) => ({
@@ -652,6 +757,19 @@ function formatDate(value) {
   })
 }
 
+function formatDateTime(value) {
+  if (!value) return 'Sin fecha'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Fecha inválida'
+  return date.toLocaleString('es-CO', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function getStatusLabel(status) {
   return getBillingStatusLabel(status)
 }
@@ -668,6 +786,36 @@ function getStatusColor(status) {
     case 'expired': return 'grey-darken-1'
     default: return 'grey'
   }
+}
+
+function getPublicSignupStatusLabel(status) {
+  switch (String(status || '').toUpperCase()) {
+    case 'PENDING_PAYMENT': return 'Pago pendiente'
+    case 'PAID': return 'Pagado'
+    case 'PROVISIONING': return 'Aprovisionando'
+    case 'PROVISIONED': return 'Aprovisionado'
+    case 'FAILED': return 'Revisión requerida'
+    case 'CANCELLED': return 'Cancelado'
+    default: return 'Sin estado'
+  }
+}
+
+function getPublicSignupStatusColor(status) {
+  switch (String(status || '').toUpperCase()) {
+    case 'PROVISIONED': return 'success'
+    case 'PAID':
+    case 'PROVISIONING': return 'info'
+    case 'PENDING_PAYMENT': return 'warning'
+    case 'FAILED': return 'error'
+    case 'CANCELLED': return 'grey'
+    default: return 'grey'
+  }
+}
+
+function canRetryPublicSignup(item) {
+  if (!item?.signup_id) return false
+  const status = String(item.status || '').toUpperCase()
+  return status === 'FAILED' || status === 'PAID' || status === 'PROVISIONING'
 }
 
 function getDaysColor(days) {
@@ -725,6 +873,20 @@ async function loadSummaries(options = {}) {
   }
 }
 
+async function loadPublicSignups(options = {}) {
+  loadingPublicSignups.value = true
+  try {
+    const result = await tenantBillingService.listPublicSubscriptionSignups(options)
+    if (result.success) {
+      publicSignups.value = result.data
+    } else {
+      showError(result.error || 'No fue posible cargar las altas públicas')
+    }
+  } finally {
+    loadingPublicSignups.value = false
+  }
+}
+
 async function loadHistory(tenantId) {
   if (!tenantId) {
     subscriptionHistory.value = []
@@ -749,10 +911,32 @@ async function refreshAll() {
   await Promise.all([
     loadPlans({ forceRefresh: true }),
     loadSummaries({ forceRefresh: true }),
+    loadPublicSignups({ forceRefresh: true }),
   ])
 
   if (selectedTenantSummary.value?.tenant_id) {
     await loadHistory(selectedTenantSummary.value.tenant_id)
+  }
+}
+
+async function retryPublicSignup(item) {
+  if (!item?.signup_id) return
+
+  retryingSignupId.value = item.signup_id
+  try {
+    const result = await tenantBillingService.retryPublicSubscriptionSignup(item.signup_id)
+    if (!result.success) {
+      showError(result.error || 'No fue posible reintentar el alta pública')
+      return
+    }
+
+    showSuccess('Reintento enviado correctamente')
+    await Promise.all([
+      loadPublicSignups({ forceRefresh: true }),
+      loadSummaries({ forceRefresh: true }),
+    ])
+  } finally {
+    retryingSignupId.value = null
   }
 }
 

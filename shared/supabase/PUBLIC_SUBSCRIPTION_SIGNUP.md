@@ -28,6 +28,10 @@ Estado: fase 1 implementada.
 - Paginas publicas:
   - `/planes`
   - `/suscripcion/estado/:signupId`
+- SuperAdmin:
+  - `Billing y Monetizacion > Altas publicas`
+  - Lista solicitudes `public_subscription_signups`
+  - Permite reintentar aprovisionamiento cuando el pago fue aprobado pero la creacion del tenant/usuario fallo
 
 ## Secrets Requeridos
 
@@ -79,6 +83,7 @@ supabase functions deploy mercadopago-webhook
 - Aprovisionamiento automatico del tenant.
 - Pantalla publica de estado.
 - Validacion previa de email administrador y NIT/identificacion para evitar cobros duplicados que terminen en revision.
+- Consola SuperAdmin para observar altas publicas y reintentar provisioning.
 
 No incluye todavia:
 

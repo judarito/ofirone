@@ -568,3 +568,78 @@ GRANT EXECUTE ON FUNCTION fn_attach_subscription_signup_preference(UUID, TEXT, J
 GRANT EXECUTE ON FUNCTION fn_get_public_subscription_signup_status(UUID) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION fn_mark_subscription_signup_payment(UUID, TEXT, TEXT, TEXT, JSONB) TO service_role;
 GRANT EXECUTE ON FUNCTION fn_provision_public_subscription_signup(UUID, UUID) TO service_role;
+
+CREATE OR REPLACE FUNCTION fn_superadmin_list_public_subscription_signups(
+  p_limit INTEGER DEFAULT 100
+) RETURNS TABLE (
+  signup_id UUID,
+  status TEXT,
+  plan_name TEXT,
+  plan_code TEXT,
+  billing_interval TEXT,
+  currency_code TEXT,
+  total NUMERIC,
+  business_name TEXT,
+  legal_name TEXT,
+  tax_id TEXT,
+  admin_full_name TEXT,
+  admin_email TEXT,
+  phone TEXT,
+  tenant_id UUID,
+  user_id UUID,
+  auth_user_id UUID,
+  mercado_pago_preference_id TEXT,
+  mercado_pago_payment_id TEXT,
+  mercado_pago_status TEXT,
+  mercado_pago_status_detail TEXT,
+  payment_url TEXT,
+  paid_at TIMESTAMPTZ,
+  provisioned_at TIMESTAMPTZ,
+  error_message TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT fn_is_super_admin() THEN
+    RAISE EXCEPTION 'No autorizado.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    s.signup_id,
+    s.status,
+    s.plan_name,
+    s.plan_code,
+    s.billing_interval,
+    s.currency_code,
+    s.total,
+    s.business_name,
+    s.legal_name,
+    s.tax_id,
+    s.admin_full_name,
+    s.admin_email,
+    s.phone,
+    s.tenant_id,
+    s.user_id,
+    s.auth_user_id,
+    s.mercado_pago_preference_id,
+    s.mercado_pago_payment_id,
+    s.mercado_pago_status,
+    s.mercado_pago_status_detail,
+    COALESCE(s.payment_payload->>'init_point', s.payment_payload->>'sandbox_init_point', s.payment_payload->>'payment_url') AS payment_url,
+    s.paid_at,
+    s.provisioned_at,
+    s.error_message,
+    s.created_at,
+    s.updated_at
+  FROM public_subscription_signups s
+  ORDER BY s.created_at DESC
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 100), 1), 500);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION fn_superadmin_list_public_subscription_signups(INTEGER) TO authenticated, service_role;
