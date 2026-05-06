@@ -10,3 +10,4 @@ subscription-create-preference/index.ts
 subscription-provision-signup/index.ts
 subscription-renewal-checkout/index.ts
 subscription-renewal-worker/index.ts
+online-order-cleanup-worker/index.ts
