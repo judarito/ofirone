@@ -684,7 +684,6 @@ class TenantBillingService {
       data: evaluation,
     }
   }
-}
 
   async changeSubscriptionPlanProrated(subscriptionId, newPlanPriceId) {
     try {
