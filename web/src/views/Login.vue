@@ -34,6 +34,18 @@
                       {{ t('login.operationalAI') }}
                     </v-chip>
                   </div>
+
+                  <div class="brand-cta mt-6">
+                    <v-btn
+                      to="/planes"
+                      variant="outlined"
+                      size="small"
+                      class="brand-cta-btn"
+                    >
+                      <v-icon start>mdi-store-plus</v-icon>
+                      Comprar un plan
+                    </v-btn>
+                  </div>
                 </div>
               </div>
 
@@ -164,6 +176,18 @@
                       <v-icon start>mdi-login</v-icon>
                       {{ t('login.enterSystem') }}
                     </v-btn>
+
+                    <div class="text-center mt-4">
+                      <v-btn
+                        to="/planes"
+                        variant="text"
+                        color="primary"
+                        size="small"
+                        prepend-icon="mdi-store-plus"
+                      >
+                        Comprar un plan
+                      </v-btn>
+                    </div>
 
                     <v-alert
                       v-if="loginError"
