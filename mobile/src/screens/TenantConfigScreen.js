@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import SearchableSelectField from '../components/SearchableSelectField';
 import { getTenantConfig, saveTenantConfig } from '../services/setup.service';
-import { getTenantBillingSummary } from '../services/tenantBilling.service';
+import { getTenantBillingSummary, getTenantPlanLimitUsage } from '../services/tenantBilling.service';
 import {
   getActiveResolution,
   getDefaultFeProviderConfig,
@@ -127,6 +127,14 @@ function getBillingStatusTone(status, isLightTheme) {
   }
 }
 
+const LIMIT_LABELS = {
+  users_active: 'Usuarios activos',
+  locations_max: 'Sedes activas',
+  cash_registers_max: 'Cajas activas',
+  products_max: 'Productos activos',
+  invoices_per_month: 'Facturas del mes',
+};
+
 export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'dark', onLocalThemeChange }) {
   const isLightTheme = themeMode === 'light';
   const [loading, setLoading] = useState(false);
@@ -136,6 +144,7 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
   const [billingError, setBillingError] = useState('');
   const [billingSource, setBillingSource] = useState('');
   const [billingSummary, setBillingSummary] = useState(null);
+  const [billingUsage, setBillingUsage] = useState({});
   const [tab, setTab] = useState('general');
   const [tenantForm, setTenantForm] = useState({});
   const [settingsForm, setSettingsForm] = useState({});
@@ -156,6 +165,13 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
     if (billingResult.success) {
       setBillingSummary(billingResult.data || null);
       setBillingSource(billingResult.source || '');
+      // Cargar uso de límites
+      if (billingResult.data && !offlineMode) {
+        const usageResult = await getTenantPlanLimitUsage(tenant.tenant_id);
+        if (usageResult.success) {
+          setBillingUsage(usageResult.data || {});
+        }
+      }
     } else {
       setBillingSummary(null);
       setBillingSource('');
@@ -411,6 +427,76 @@ export default function TenantConfigScreen({ tenant, offlineMode, themeMode = 'd
               ) : null}
               {billingSummary.banner_message ? (
                 <Text style={[styles.noticeText, isLightTheme && styles.noticeTextLight]}>{billingSummary.banner_message}</Text>
+              ) : null}
+
+              {/* Features activas */}
+              {billingSummary.feature_flags && typeof billingSummary.feature_flags === 'object' ? (
+                <View style={styles.billingChipRow}>
+                  {Object.entries(billingSummary.feature_flags).map(([code, enabled]) => (
+                    <View
+                      key={code}
+                      style={[
+                        styles.billingChip,
+                        isLightTheme && styles.billingChipLight,
+                        enabled ? styles.billingChipOn : styles.billingChipOff,
+                        isLightTheme && enabled && styles.billingChipOnLight,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.billingChipText,
+                          isLightTheme && styles.billingChipTextLight,
+                          enabled ? styles.billingChipTextOn : styles.billingChipTextOff,
+                        ]}
+                      >
+                        {code}: {enabled ? 'On' : 'Off'}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {/* Límites del plan */}
+              {billingSummary.plan_limits && typeof billingSummary.plan_limits === 'object' ? (
+                <View style={styles.billingLimitsSection}>
+                  <Text style={[styles.fieldLabel, isLightTheme && styles.fieldLabelLight, { marginBottom: 8 }]}>
+                    Límites del plan
+                  </Text>
+                  {Object.entries(billingSummary.plan_limits).map(([code, detail]) => {
+                    const limitValue = detail?.value ?? '—';
+                    const limitUnit = detail?.unit ?? '';
+                    const rawLimit = Number(limitValue);
+                    const hasFiniteLimit = Number.isFinite(rawLimit);
+                    const currentUsage = Number(billingUsage?.[code] || 0);
+                    const remaining = hasFiniteLimit ? Math.max(0, rawLimit - currentUsage) : null;
+                    const percent = hasFiniteLimit && rawLimit > 0
+                      ? Math.min(100, Math.round((currentUsage / rawLimit) * 100))
+                      : 0;
+                    const barColor = percent >= 100 ? '#ef4444' : percent >= 80 ? '#f59e0b' : '#22c55e';
+                    const label = LIMIT_LABELS[code] || code;
+
+                    return (
+                      <View key={code} style={styles.billingLimitRow}>
+                        <View style={styles.billingLimitHeader}>
+                          <Text style={[styles.billingLimitLabel, isLightTheme && styles.billingLimitLabelLight]}>
+                            {label}
+                          </Text>
+                          <Text style={[styles.billingLimitValue, isLightTheme && styles.billingLimitValueLight]}>
+                            {currentUsage} / {hasFiniteLimit ? rawLimit : 'sin límite'}
+                            {limitUnit ? ` ${limitUnit}` : ''}
+                          </Text>
+                        </View>
+                        {hasFiniteLimit ? (
+                          <View style={styles.billingLimitBar}>
+                            <View
+                              style={[styles.billingLimitFill, { width: `${percent}%`, backgroundColor: barColor }]}
+                            />
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
               ) : null}
             </>
           ) : (
@@ -1106,4 +1192,85 @@ const styles = StyleSheet.create({
   },
   primaryBtnLight: { backgroundColor: '#57d65a' },
   primaryBtnText: { color: '#062915', fontWeight: '700' },
+
+  // Billing features (chips)
+  billingChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  billingChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  billingChipLight: {
+    borderColor: '#d1d5db',
+  },
+  billingChipOn: {
+    backgroundColor: '#064e3b',
+    borderColor: '#059669',
+  },
+  billingChipOnLight: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#86efac',
+  },
+  billingChipOff: {
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+  },
+  billingChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  billingChipTextLight: {
+    color: '#374151',
+  },
+  billingChipTextOn: {
+    color: '#6ee7b7',
+  },
+  billingChipTextOff: {
+    color: '#64748b',
+  },
+  // Billing limits
+  billingLimitsSection: {
+    marginTop: 14,
+  },
+  billingLimitRow: {
+    marginBottom: 10,
+  },
+  billingLimitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  billingLimitLabel: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  billingLimitLabelLight: {
+    color: '#475569',
+  },
+  billingLimitValue: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  billingLimitValueLight: {
+    color: '#64748b',
+  },
+  billingLimitBar: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#1e293b',
+    overflow: 'hidden',
+  },
+  billingLimitFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
 });

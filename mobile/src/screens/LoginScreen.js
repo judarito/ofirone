@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   SafeAreaView,
@@ -114,6 +115,22 @@ export default function LoginScreen({
                 </Pressable>
               </View>
             ) : null}
+
+            <View style={styles.loginSignupRow}>
+              <View style={[styles.loginDivider, isLightTheme && styles.loginDividerLight]} />
+              <Text style={[styles.loginDividerText, isLightTheme && styles.loginDividerTextLight]}>o</Text>
+              <View style={[styles.loginDivider, isLightTheme && styles.loginDividerLight]} />
+            </View>
+
+            <Pressable
+              onPress={() => Linking.openURL('https://ofirone.com/planes')}
+              style={[styles.loginOutlineButton, isLightTheme && styles.loginOutlineButtonLight]}
+            >
+              <Ionicons name="storefront-outline" size={16} color={isLightTheme ? '#2563eb' : '#60a5fa'} style={{ marginRight: 6 }} />
+              <Text style={[styles.loginOutlineButtonText, isLightTheme && styles.loginOutlineButtonTextLight]}>
+                Comprar un plan
+              </Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -310,5 +327,49 @@ const styles = StyleSheet.create({
     color: '#93c5fd',
     textDecorationLine: 'underline',
     fontSize: 13,
+  },
+  loginSignupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 12,
+  },
+  loginDivider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#334155',
+  },
+  loginDividerLight: {
+    backgroundColor: '#cbd5e1',
+  },
+  loginDividerText: {
+    marginHorizontal: 10,
+    fontSize: 12,
+    color: '#64748b',
+  },
+  loginDividerTextLight: {
+    color: '#94a3b8',
+  },
+  loginOutlineButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: 'transparent',
+  },
+  loginOutlineButtonLight: {
+    borderColor: '#93c5fd',
+    backgroundColor: '#eff6ff',
+  },
+  loginOutlineButtonText: {
+    color: '#93c5fd',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loginOutlineButtonTextLight: {
+    color: '#2563eb',
   },
 });
