@@ -1,8 +1,8 @@
 # CONTEXTO_ULTIMO
 
-Fecha de actualizacion: 2026-04-22
+Fecha de actualizacion: 2026-05-05
 Owner: Equipo POSLite
-Ultimo cambio registrado: tienda online queda operativa con storefront publico, reservas por pago manual, tab `Ventas online` y comprobante adjunto con pasarela preparada como siguiente paso
+Ultimo cambio registrado: alta publica SaaS con Mercado Pago de OfirOne, aprovisionamiento automatico, consola operativa SuperAdmin y enforcement de limites por plan
 
 ## Regla de versionado de contexto (obligatoria)
 
@@ -28,6 +28,56 @@ mv CONTEXTO_ULTIMO.md CONTEXTO_2026-03-11.md
 ```
 
 ## Estado tecnico actual
+
+### Ajuste reciente de monetizacion (2026-05-05) — alta publica SaaS + SuperAdmin operativo + limites por plan
+
+- Web ya expone `/planes` para que un cliente compre una suscripcion OfirOne de forma autonoma.
+- La compra publica usa `subscription-create-preference` y la cuenta Mercado Pago de OfirOne via `OFIRONE_MP_ACCESS_TOKEN`.
+- El estado publico de la suscripcion vive en `/suscripcion/estado/:signupId`.
+- Backend compartido nuevo/actualizado:
+  - `../shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql`
+  - `../shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql`
+  - `../shared/supabase/functions/subscription-create-preference/index.ts`
+  - `../shared/supabase/functions/subscription-provision-signup/index.ts`
+  - `../shared/supabase/functions/mercadopago-webhook/index.ts`
+- `mercadopago-webhook` reconoce `external_reference = subscription_signup:<id>` y procesa pagos SaaS.
+- `subscription-provision-signup` soporta acciones SuperAdmin:
+  - `provision`
+  - `resend_access`
+  - `mark_reviewed`
+  - `cancel`
+- SuperAdmin web en `Billing y Monetizacion > Altas publicas` ahora permite:
+  - filtrar por estado;
+  - ver conteos;
+  - abrir detalle;
+  - ver timeline tecnico;
+  - revalidar Mercado Pago;
+  - aprovisionar manualmente;
+  - reenviar correo de acceso;
+  - marcar revisada con nota;
+  - cancelar solicitudes no aprovisionadas.
+- `TenantConfig > Suscripcion` ahora muestra consumo de limites del plan con barras visuales.
+- Servicios web agregan validacion previa amable antes de crear:
+  - usuarios activos;
+  - sedes activas;
+  - cajas activas;
+  - productos activos.
+- La base de datos sigue siendo la autoridad final con triggers para usuarios, sedes, cajas, productos y facturas por mes.
+- Secrets relevantes en Supabase:
+  - `OFIRONE_MP_ACCESS_TOKEN`
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL`
+  - `RESEND_FROM_NAME`
+  - `OFIRONE_PUBLIC_APP_URL`
+  - `OFIRONE_AUTH_RECOVERY_URL`
+- Variables frontend relevantes:
+  - `VITE_SUBSCRIPTION_CREATE_PREFERENCE_EDGE_FUNCTION=subscription-create-preference`
+  - `VITE_SUBSCRIPTION_PROVISION_EDGE_FUNCTION=subscription-provision-signup`
+  - `VITE_AUTH_RECOVERY_URL=https://ofirone.com`
+- Despliegue requerido tras cambios:
+  - `supabase functions deploy subscription-create-preference`
+  - `supabase functions deploy subscription-provision-signup`
+  - `supabase functions deploy mercadopago-webhook`
 
 ### Ajuste reciente de ventas online (2026-04-22) — storefront publico + reserva de stock + operacion desde ventas
 

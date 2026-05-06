@@ -13,6 +13,8 @@ Este directorio es la fuente canónica del backend compartido entre `web` y `mob
   - `mercadopago-webhook`
   - `online-order-email`
   - `notification-dispatcher`
+  - `subscription-create-preference`
+  - `subscription-provision-signup`
   - `tenant-mercadopago-config`
 
 Manifiestos:
@@ -37,22 +39,44 @@ Manifiestos:
 - `notification-dispatcher` es la unica Edge Function objetivo para enviar correos.
 - La deduplicacion se hace con `channel + dedupe_key`, evitando correos repetidos y sobrecostos.
 - `online-order-email` queda como compatibilidad, pero el flujo nuevo debe encolar en `notification_outbox`.
+- Excepcion actual: los correos de bienvenida/acceso de alta publica SaaS se envian desde `subscription-provision-signup`, porque requieren generar recovery links de Supabase Auth en tiempo real. Se auditan y deduplican con `public_subscription_signup_events`.
 
 ## Alta Publica SaaS
 
 - La ruta publica `/planes` permite comprar el primer periodo de una suscripcion OfirOne.
 - `subscription-create-preference` usa la cuenta Mercado Pago de OfirOne (`OFIRONE_MP_ACCESS_TOKEN`), no credenciales de tenants.
 - `mercadopago-webhook` detecta `external_reference = subscription_signup:<id>` y aprovisiona tenant + suscripcion.
+- `subscription-provision-signup` tambien funciona como consola operativa SuperAdmin para:
+  - aprovisionar manualmente solicitudes pagadas;
+  - reenviar acceso;
+  - marcar solicitudes revisadas;
+  - cancelar solicitudes no aprovisionadas.
+- `Billing y Monetizacion > Altas publicas` es el lugar operativo para revisar solicitudes, errores, timeline y acciones.
 - Detalle operativo: [PUBLIC_SUBSCRIPTION_SIGNUP.md](/home/juan/Documentos/Dev/Proyectos/ofirone/shared/supabase/PUBLIC_SUBSCRIPTION_SIGNUP.md)
 
 Secrets requeridos:
 
 ```bash
+OFIRONE_MP_ACCESS_TOKEN=...
 RESEND_API_KEY=...
 RESEND_FROM_EMAIL=ventas@ofirone.com
 RESEND_FROM_NAME=OfirOne
-PUBLIC_APP_URL=https://ofirone.com
+OFIRONE_PUBLIC_APP_URL=https://ofirone.com
+OFIRONE_AUTH_RECOVERY_URL=https://ofirone.com/login
 ```
+
+## Billing y limites por plan
+
+- La base comercial vive en `ADD_TENANT_BILLING_MONETIZATION.sql`.
+- El enforcement real vive en `ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql`.
+- La base de datos bloquea excesos de:
+  - usuarios activos;
+  - sedes activas;
+  - cajas activas;
+  - productos activos;
+  - facturas por mes.
+- El frontend web hace validacion previa amable antes de crear usuarios, sedes, cajas y productos.
+- `TenantConfig > Suscripcion` muestra consumo actual contra limites del plan.
 
 ## Qué no se unificó todavía
 

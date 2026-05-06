@@ -5,6 +5,41 @@ Proyecto: POSLite / OfirOne — monorepo web + mobile + shared
 
 ---
 
+## Actualizacion reciente (2026-05-05) — alta publica SaaS, SuperAdmin operativo y limites por plan
+
+- Se implemento la venta publica de suscripciones OfirOne desde `/planes`.
+- El flujo usa la cuenta Mercado Pago de OfirOne:
+  - Edge Function `subscription-create-preference`
+  - secret `OFIRONE_MP_ACCESS_TOKEN`
+  - external reference `subscription_signup:<signupId>`
+- `mercadopago-webhook` ahora detecta pagos de suscripciones, marca `public_subscription_signups`, aprovisiona tenant y crea la suscripcion interna.
+- Nueva Edge Function compartida:
+  - `shared/supabase/functions/subscription-provision-signup/index.ts`
+  - tambien enlazada en `web/supabase/functions` y `mobile/supabase/functions`
+- `subscription-provision-signup` soporta acciones SuperAdmin:
+  - `provision`
+  - `resend_access`
+  - `mark_reviewed`
+  - `cancel`
+- SuperAdmin web ahora tiene consola operativa en `Billing y Monetizacion > Altas publicas`:
+  - filtros por estado;
+  - conteos rapidos;
+  - detalle de solicitud;
+  - timeline tecnico;
+  - revalidar Mercado Pago;
+  - aprovisionar manualmente;
+  - reenviar acceso;
+  - marcar revisada;
+  - cancelar duplicadas/fallidas no aprovisionadas.
+- Se agrego enforcement de limites por plan:
+  - migracion `shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql`
+  - bloquea en base de datos usuarios activos, sedes activas, cajas activas, productos activos y facturas por mes.
+- Web agrega validacion previa amable antes de crear usuarios, sedes, cajas y productos.
+- `TenantConfig > Suscripcion` muestra barras de consumo de limites del plan.
+- Documentacion viva:
+  - `shared/supabase/PUBLIC_SUBSCRIPTION_SIGNUP.md`
+  - `shared/supabase/README.md`
+
 ## Actualizacion reciente (2026-05-04) — Mercado Pago + emails centralizados con Resend
 
 - Se integro Mercado Pago para tienda online en modo multi-tenant:

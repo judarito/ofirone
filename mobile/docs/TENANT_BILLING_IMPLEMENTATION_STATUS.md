@@ -1,8 +1,42 @@
 # Estado de Implementacion de Billing por Tenant
 
-Fecha: 2026-03-21
+Fecha: 2026-05-05
 Proyecto: POSLite Mobile / OfirOne
-Estado: Primera base SQL implementada
+Estado: Base SQL implementada, alta publica SaaS operativa desde web, enforcement backend compartido
+
+## Actualizacion 2026-05-05
+
+Se agrego el flujo publico de suscripciones SaaS y el enforcement real de limites por plan en backend compartido.
+
+Backend compartido relevante:
+
+- `shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql`
+- `shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql`
+- `shared/supabase/functions/subscription-create-preference/index.ts`
+- `shared/supabase/functions/subscription-provision-signup/index.ts`
+- `shared/supabase/functions/mercadopago-webhook/index.ts`
+
+Capacidades ya operativas desde web:
+
+- Ruta publica `/planes` para comprar el primer periodo.
+- Pago con Mercado Pago usando la cuenta de OfirOne.
+- Aprovisionamiento automatico de tenant, usuario interno y suscripcion.
+- SuperAdmin web con consola `Billing y Monetizacion > Altas publicas`.
+- Acciones SuperAdmin: aprovisionar, revalidar Mercado Pago, reenviar acceso, marcar revisada y cancelar.
+
+Enforcement backend:
+
+- Usuarios activos.
+- Sedes activas.
+- Cajas activas.
+- Productos activos.
+- Facturas por mes.
+
+Estado mobile:
+
+- Mobile hereda el backend compartido y los limites en base de datos.
+- La consola SuperAdmin de billing sigue marcada como `web-only`.
+- La UI mobile aun no implementa validaciones previas amables para todos los limites; si se excede un limite, la base de datos puede devolver el bloqueo.
 
 ## Actualizacion 2026-04-03
 
@@ -120,19 +154,20 @@ Referencia SQL:
 
 ## Lo que aun no hace
 
-Esta base no implementa todavia:
+Esta base no implementa todavia en mobile:
 
-- checkout real con gateway
-- webhooks de pagos
 - renovacion automatica
-- asignacion automatica de plan al crear tenant
-- enforcement en pantallas mobile
+- pantalla mobile de compra publica de planes
+- consola SuperAdmin mobile de altas publicas
+- validacion previa amable en todas las pantallas mobile
 
 ## Referencias
 
 - diseno funcional: `docs/TENANT_BILLING_MONETIZATION_DESIGN.md`
 - contexto vivo: `docs/CONTEXTO_MOBILE.md`
 - migracion base: `migrations/ADD_TENANT_BILLING_MONETIZATION.sql`
+- migracion de enforcement: `shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql`
+- alta publica SaaS: `shared/supabase/PUBLIC_SUBSCRIPTION_SIGNUP.md`
 - permisos base existentes: `migrations/InitPermissions.sql`
 - helpers de RLS existentes: `migrations/RLS_Security.sql`
 - helper de app user y patron `security definer`: `migrations/ADD_IN_APP_NOTIFICATION_CENTER.sql`

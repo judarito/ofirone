@@ -1,6 +1,6 @@
 # Alta Publica De Suscripciones
 
-Estado: fase 1 implementada.
+Estado: fase 1 implementada + consola operativa SuperAdmin.
 
 ## Flujo
 
@@ -19,6 +19,8 @@ Estado: fase 1 implementada.
    - marca la solicitud como `PROVISIONED`;
    - envía correo para crear contraseña si Resend está configurado.
 
+Si el webhook no puede completar el aprovisionamiento, la solicitud queda en `FAILED` y se gestiona desde SuperAdmin sin tocar base de datos manualmente.
+
 ## Componentes
 
 - Migracion: `shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql`
@@ -32,9 +34,14 @@ Estado: fase 1 implementada.
 - SuperAdmin:
   - `Billing y Monetizacion > Altas publicas`
   - Lista solicitudes `public_subscription_signups`
+  - Permite filtrar por estado: `PENDING_PAYMENT`, `PAID`, `PROVISIONING`, `PROVISIONED`, `FAILED`, `CANCELLED`
+  - Muestra conteos rápidos por estado
   - Muestra timeline tecnico desde `public_subscription_signup_events`
   - Permite aprovisionar manualmente solicitudes pagadas sin consultar Mercado Pago
   - Permite revalidar Mercado Pago cuando se necesita resincronizar el pago
+  - Permite reenviar correo de acceso para solicitudes aprovisionadas
+  - Permite marcar solicitudes como revisadas con nota interna
+  - Permite cancelar solicitudes pendientes/fallidas/duplicadas sin borrar datos
 
 ## Secrets Requeridos
 
@@ -62,6 +69,26 @@ VITE_SUBSCRIPTION_CREATE_PREFERENCE_EDGE_FUNCTION=subscription-create-preference
 VITE_SUBSCRIPTION_PROVISION_EDGE_FUNCTION=subscription-provision-signup
 ```
 
+## Edge Function `subscription-provision-signup`
+
+Esta function valida que el usuario autenticado sea SuperAdmin y soporta acciones operativas sobre una solicitud:
+
+```json
+{ "signup_id": "...", "action": "provision" }
+{ "signup_id": "...", "action": "resend_access", "note": "Cliente pidió nuevo acceso" }
+{ "signup_id": "...", "action": "mark_reviewed", "note": "Revisado por soporte" }
+{ "signup_id": "...", "action": "cancel", "note": "Solicitud duplicada" }
+```
+
+Acciones:
+
+- `provision`: crea/recupera Auth user, ejecuta `fn_provision_public_subscription_signup`, crea tenant, usuario interno, suscripcion y correo de bienvenida.
+- `resend_access`: genera un nuevo recovery link y reenvia el correo de acceso. Esta accion puede generar un correo nuevo cada vez que el SuperAdmin la confirma.
+- `mark_reviewed`: registra evento de auditoria sin cambiar pago ni tenant.
+- `cancel`: cambia la solicitud a `CANCELLED` si aun no fue aprovisionada.
+
+Los correos de bienvenida/acceso del alta publica se registran en `public_subscription_signup_events`. El envio automatico inicial usa `event_key = welcome-email` para evitar duplicados. Los reenvios manuales usan keys unicas para dejar trazabilidad de cada reenvio solicitado por soporte.
+
 ## Despliegue
 
 Ejecutar migracion:
@@ -88,11 +115,15 @@ supabase functions deploy mercadopago-webhook
 - Aprovisionamiento automatico del tenant.
 - Pantalla publica de estado.
 - Validacion previa de email administrador y NIT/identificacion para evitar cobros duplicados que terminen en revision.
-- Consola SuperAdmin para observar altas publicas y reintentar provisioning.
+- Consola SuperAdmin para observar, filtrar, revalidar, aprovisionar, revisar, cancelar y reenviar acceso.
 - Eventos idempotentes por etapa para evitar repetir correo de bienvenida y facilitar diagnostico.
+- Enforcement de limites por plan desde base de datos para usuarios, sedes, cajas, productos y facturas por mes.
+- Validacion amable en frontend antes de crear usuarios, sedes, cajas y productos.
+- Visualizacion de consumo de limites en `Configuracion > Suscripcion`.
 
 No incluye todavia:
 
 - Recurrencia automatica de Mercado Pago.
 - Portal de cancelacion autoservicio.
 - Upgrade/downgrade automatico.
+- Envio de correos de alta publica mediante `notification_outbox`; por ahora el acceso SaaS se envia desde `subscription-provision-signup` por necesitar recovery link inmediato.

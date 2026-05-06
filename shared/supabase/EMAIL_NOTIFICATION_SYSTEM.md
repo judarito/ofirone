@@ -14,6 +14,7 @@ Centralizar el envio de correos transaccionales y operativos para `web` y `mobil
 - Edge Function de envio: `notification-dispatcher`
 - Proveedor actual: Resend
 - Compatibilidad legacy: `online-order-email` sigue existiendo, pero el flujo objetivo es `notification_outbox -> notification-dispatcher`
+- Excepcion actual: `subscription-provision-signup` envia directamente el correo de bienvenida/acceso de altas publicas SaaS porque necesita generar un recovery link de Supabase Auth en la misma operacion. Ese flujo deduplica/audita con `public_subscription_signup_events`.
 
 ## Deduplicacion
 
@@ -52,6 +53,10 @@ Esto garantiza que un mismo evento logico se encole una sola vez aunque lo inten
 - Usuarios creados.
 - Importaciones masivas finalizadas.
 - Cambios de estado de suscripcion del tenant.
+- Alta publica SaaS:
+  - bienvenida/acceso inicial desde `subscription-provision-signup`;
+  - reenvio manual de acceso desde SuperAdmin;
+  - auditoria en `public_subscription_signup_events`.
 
 ## Variables y Secrets
 
@@ -101,6 +106,22 @@ supabase functions invoke notification-dispatcher --body '{"limit":10}'
 Tambien puede llamarse desde la app despues de acciones criticas, como confirmar/rechazar pedidos online.
 
 Recomendacion para produccion: programar `notification-dispatcher` con Supabase Cron cada 1 minuto para procesar cualquier correo pendiente o reintento.
+
+## Alta Publica SaaS y Correos De Acceso
+
+El alta publica tiene una necesidad especial: generar un enlace de recuperacion de Supabase Auth para que el administrador cree su contrasena. Por eso, hasta migrar ese caso a un job especializado, el correo de acceso se envia desde:
+
+```txt
+shared/supabase/functions/subscription-provision-signup/index.ts
+```
+
+Reglas actuales:
+
+- El correo automatico inicial usa evento `welcome-email` para evitar duplicados.
+- El SuperAdmin puede reenviar acceso manualmente desde `Billing y Monetizacion > Altas publicas`.
+- Cada reenvio manual registra un evento unico `access_email_resent`.
+- Reenviar acceso es intencionalmente no idempotente: si soporte lo confirma, se envia un nuevo correo.
+- El resto de correos transaccionales debe seguir usando `notification_outbox`.
 
 ## Templates
 
@@ -165,4 +186,4 @@ Este sistema solo cubre email. Los canales internos siguen separados:
 - `notification_push_queue` / `push-dispatcher`: push remoto.
 - `notification_outbox` / `notification-dispatcher`: email.
 
-Los eventos de negocio pueden alimentar uno o varios canales, pero el envio de email debe pasar por `notification_outbox`.
+Los eventos de negocio pueden alimentar uno o varios canales, pero el envio de email debe pasar por `notification_outbox`, salvo la excepcion documentada de alta publica SaaS para generar y enviar recovery links inmediatos.
