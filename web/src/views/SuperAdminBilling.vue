@@ -30,6 +30,10 @@
         <v-icon start>mdi-store-plus</v-icon>
         Altas públicas
       </v-tab>
+      <v-tab value="payments">
+        <v-icon start>mdi-cash-multiple</v-icon>
+        Pagos
+      </v-tab>
     </v-tabs>
 
     <v-window v-model="activeTab">
@@ -346,6 +350,113 @@
                 @click.stop="openPublicSignupActionDialog(item, 'cancel')"
               />
             </div>
+          </template>
+        </ListView>
+      </v-window-item>
+
+      <v-window-item value="payments">
+        <v-card variant="outlined" class="mb-4">
+          <v-card-text>
+            <div class="d-flex align-center justify-space-between flex-wrap ga-3">
+              <div>
+                <div class="text-subtitle-1 font-weight-bold">Pagos recibidos</div>
+                <div class="text-body-2 text-medium-emphasis">
+                  Todos los pagos registrados con filtros por estado y búsqueda.
+                </div>
+              </div>
+              <v-btn
+                color="indigo"
+                variant="tonal"
+                prepend-icon="mdi-refresh"
+                :loading="loadingPayments"
+                @click="loadPayments({ forceRefresh: true })"
+              >
+                Actualizar
+              </v-btn>
+            </div>
+            <div class="d-flex flex-wrap ga-2 mt-4">
+              <v-select
+                v-model="paymentFilter.status"
+                :items="paymentStatusFilterOptions"
+                item-title="title"
+                item-value="value"
+                label="Estado"
+                variant="outlined"
+                density="compact"
+                hide-details
+                style="max-width: 180px;"
+              />
+              <v-text-field
+                v-model="paymentFilter.tenantSearch"
+                label="Buscar tenant o factura"
+                variant="outlined"
+                density="compact"
+                hide-details
+                prepend-inner-icon="mdi-magnify"
+                style="max-width: 320px;"
+              />
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <ListView
+          title="Pagos"
+          icon="mdi-cash-multiple"
+          :items="allPayments"
+          :total-items="allPayments.length"
+          :loading="loadingPayments"
+          :page-size="15"
+          item-key="payment_id"
+          title-field="invoice_number"
+          avatar-icon="mdi-cash"
+          avatar-color="success"
+          empty-message="No hay pagos registrados"
+          :show-create-button="false"
+          :editable="false"
+          :deletable="false"
+          :client-side="true"
+          :search-fields="['tenant_name', 'invoice_number', 'provider', 'note']"
+          :table-columns="paymentsTableColumns"
+          view-storage-key="superadmin-billing-payments"
+        >
+          <template #title="{ item }">
+            {{ item.tenant_name || 'Sin tenant' }}
+          </template>
+          <template #subtitle="{ item }">
+            Factura {{ item.invoice_number || '—' }} · {{ item.invoice_type || '—' }}
+          </template>
+          <template #content="{ item }">
+            <div class="mt-2 d-flex flex-wrap ga-2">
+              <v-chip :color="item.status === 'paid' ? 'success' : 'warning'" size="small" variant="flat">
+                {{ item.status === 'paid' ? 'Pagado' : item.status }}
+              </v-chip>
+              <v-chip size="small" variant="tonal" color="primary">
+                {{ formatMoney(item.amount) }}
+              </v-chip>
+              <v-chip size="small" variant="tonal">{{ item.provider || '—' }}</v-chip>
+              <v-chip v-if="item.plan_name" size="small" variant="outlined">{{ item.plan_name }}</v-chip>
+              <v-chip v-if="item.note" size="small" variant="text">{{ item.note }}</v-chip>
+            </div>
+          </template>
+          <template #table-cell-tenant_name="{ item }">
+            {{ item.tenant_name || '—' }}
+          </template>
+          <template #table-cell-invoice_number="{ item }">
+            {{ item.invoice_number || '—' }}
+          </template>
+          <template #table-cell-status="{ item }">
+            <v-chip size="x-small" :color="item.status === 'paid' ? 'success' : 'warning'">
+              {{ item.status }}
+            </v-chip>
+          </template>
+          <template #table-cell-amount="{ item }">
+            {{ formatMoney(item.amount) }}
+          </template>
+          <template #table-cell-provider="{ item }">
+            {{ item.provider || '—' }}
+          </template>
+          <template #table-cell-paid_at="{ item }">
+            {{ item.paid_at ? formatDateTime(item.paid_at) : '—' }}
           </template>
         </ListView>
       </v-window-item>
@@ -685,6 +796,17 @@
                   >
                     Actualizar estado
                   </v-btn>
+                  <v-btn
+                    v-if="selectedTenantSummary?.subscription_id"
+                    color="primary"
+                    variant="tonal"
+                    prepend-icon="mdi-link-variant"
+                    :loading="creatingRenewalLink"
+                    class="ml-2"
+                    @click="createRenewalLink"
+                  >
+                    Reenviar link de renovación
+                  </v-btn>
                 </v-card-actions>
               </v-card>
             </v-col>
@@ -928,6 +1050,7 @@ const savingPlan = ref(false)
 const savingAssignment = ref(false)
 const savingStatus = ref(false)
 const savingManualPayment = ref(false)
+const creatingRenewalLink = ref(false)
 const retryingSignupId = ref(null)
 const provisioningSignupId = ref(null)
 const actionSignupId = ref(null)
@@ -1064,6 +1187,26 @@ const createManualPaymentForm = () => ({
 })
 
 const manualPaymentForm = ref(createManualPaymentForm())
+
+const loadingPayments = ref(false)
+const allPayments = ref([])
+const paymentFilter = ref({ status: null, tenantSearch: '' })
+
+const paymentStatusFilterOptions = [
+  { title: 'Todos', value: null },
+  { title: 'Pagado', value: 'paid' },
+  { title: 'Pendiente', value: 'pending' },
+  { title: 'Fallido', value: 'failed' },
+]
+
+const paymentsTableColumns = [
+  { title: 'Tenant', key: 'tenant_name', width: '180px' },
+  { title: 'Factura', key: 'invoice_number', width: '160px' },
+  { title: 'Estado', key: 'status', width: '100px' },
+  { title: 'Monto', key: 'amount', width: '130px' },
+  { title: 'Método', key: 'provider', width: '140px' },
+  { title: 'Fecha', key: 'paid_at', width: '170px' },
+]
 
 const loadingAny = computed(() => loadingPlans.value || loadingSummaries.value || loadingHistory.value || loadingPublicSignups.value || loadingPublicSignupEvents.value || savingPlan.value || savingAssignment.value || savingStatus.value || Boolean(retryingSignupId.value) || Boolean(provisioningSignupId.value) || Boolean(actionSignupId.value))
 
@@ -1654,7 +1797,53 @@ async function recordManualPayment() {
   }
 }
 
+async function createRenewalLink() {
+  if (!selectedTenantSummary.value?.subscription_id) {
+    showError('El tenant no tiene una suscripción activa')
+    return
+  }
+
+  creatingRenewalLink.value = true
+  try {
+    const result = await tenantBillingService.superadminCreateRenewalLink(
+      selectedTenantSummary.value.subscription_id,
+    )
+    if (!result.success) {
+      showError(result.error || 'No fue posible crear el link')
+      return
+    }
+    const url = result.data?.payment_url || result.data?.init_point || result.data?.sandbox_init_point
+    if (url) {
+      await navigator.clipboard.writeText(url)
+      showSuccess('Link de renovación copiado al portapapeles')
+    } else {
+      showError('No se recibió URL de pago de Mercado Pago')
+    }
+  } finally {
+    creatingRenewalLink.value = false
+  }
+}
+
+async function loadPayments(options = {}) {
+  loadingPayments.value = true
+  try {
+    const result = await tenantBillingService.superadminListAllPayments({
+      forceRefresh: options.forceRefresh === true,
+      status: paymentFilter.value.status,
+      tenantSearch: paymentFilter.value.tenantSearch || null,
+    })
+    if (result.success) {
+      allPayments.value = result.data
+    } else {
+      showError(result.error || 'No fue posible cargar los pagos')
+    }
+  } finally {
+    loadingPayments.value = false
+  }
+}
+
 onMounted(async () => {
   await refreshAll()
+  loadPayments()
 })
 </script>

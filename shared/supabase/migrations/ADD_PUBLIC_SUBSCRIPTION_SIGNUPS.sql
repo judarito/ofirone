@@ -706,7 +706,7 @@ BEGIN
     s.plan_name,
     s.plan_code,
     s.billing_interval,
-    s.currency_code,
+    s.currency_code::TEXT,
     s.total,
     s.business_name,
     s.legal_name,

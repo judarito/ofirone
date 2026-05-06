@@ -61,6 +61,19 @@ class SubscriptionSignupService {
       return { success: false, data: null, error: error.message || 'No se pudo consultar la solicitud.' }
     }
   }
+
+  async retrySignup(signupId) {
+    try {
+      const { data, error } = await supabase.functions.invoke('mercadopago-webhook', {
+        body: { external_reference: `subscription_signup:${signupId}` },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return { success: true, data }
+    } catch (error) {
+      return { success: false, error: error.message || 'No se pudo reintentar la validación del pago.' }
+    }
+  }
 }
 
 export default new SubscriptionSignupService()

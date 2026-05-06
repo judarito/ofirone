@@ -686,4 +686,62 @@ class TenantBillingService {
   }
 }
 
+  async changeSubscriptionPlanProrated(subscriptionId, newPlanPriceId) {
+    try {
+      const { data, error } = await supabaseService.client.rpc('fn_change_subscription_plan_prorated', {
+        p_subscription_id: subscriptionId,
+        p_new_plan_price_id: newPlanPriceId,
+      })
+
+      if (error) throw error
+      this.invalidateBillingCaches()
+      return { success: Boolean(data?.success !== false), data }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  async superadminListAllPayments(options = {}) {
+    try {
+      const data = await queryCache.getOrLoad(
+        'superadmin-all-payments',
+        async () => {
+          const { data, error } = await supabaseService.client.rpc('fn_superadmin_list_all_payments', {
+            p_limit: options.limit || 100,
+            p_status: options.status || null,
+            p_tenant_search: options.tenantSearch || null,
+          })
+          if (error) throw error
+          return data?.payments || []
+        },
+        {
+          tenantId: 'global',
+          ttlMs: 30 * 1000,
+          swrMs: 60 * 1000,
+          storage: 'session',
+          forceRefresh: options.forceRefresh === true,
+          tags: ['superadmin-billing'],
+        }
+      )
+      return { success: true, data: data || [] }
+    } catch (error) {
+      return { success: false, data: [], error: error.message }
+    }
+  }
+
+  async superadminCreateRenewalLink(subscriptionId) {
+    try {
+      const origin = window.location.origin || ''
+      const { data, error } = await supabaseService.client.functions.invoke(SUBSCRIPTION_RENEWAL_CHECKOUT_FUNCTION, {
+        body: { subscription_id: subscriptionId, origin },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return { success: true, data }
+    } catch (error) {
+      return { success: false, error: error.message || 'No fue posible crear el link de renovacion.' }
+    }
+  }
+}
+
 export default new TenantBillingService()

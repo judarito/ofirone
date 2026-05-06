@@ -55,6 +55,16 @@
                 Continuar pago
               </v-btn>
               <v-btn
+                v-if="showRetryPayment"
+                color="primary"
+                variant="flat"
+                prepend-icon="mdi-refresh"
+                :loading="retrying"
+                @click="retryPayment"
+              >
+                Reintentar pago
+              </v-btn>
+              <v-btn
                 v-if="signup.status === 'PROVISIONED'"
                 to="/login"
                 color="primary"
@@ -164,6 +174,33 @@ const showContinuePayment = computed(() => {
     && !paymentWasApproved.value
     && Boolean(signup.value?.payment_url)
 })
+
+const showRetryPayment = computed(() => {
+  const status = String(signup.value?.status || '').toUpperCase()
+  return status === 'FAILED' && paymentWasApproved.value
+})
+
+const retrying = ref(false)
+
+async function retryPayment() {
+  const signupId = String(route.params.signupId || '').trim()
+  if (!signupId) return
+
+  retrying.value = true
+  try {
+    const result = await subscriptionSignupService.retrySignup(signupId)
+    if (!result.success) {
+      errorMessage.value = result.error || 'No se pudo reintentar la validación.'
+      return
+    }
+    await sleep(1500)
+    await loadStatus()
+  } catch (error) {
+    errorMessage.value = error.message || 'Error al reintentar.'
+  } finally {
+    retrying.value = false
+  }
+}
 
 function formatMoney(value) {
   return new Intl.NumberFormat('es-CO', {

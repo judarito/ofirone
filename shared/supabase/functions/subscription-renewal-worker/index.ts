@@ -62,12 +62,27 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { data, error } = await serviceClient.rpc('fn_process_tenant_subscription_expirations', {
+    const { data: expirationResult, error: expError } = await serviceClient.rpc('fn_process_tenant_subscription_expirations', {
       p_limit: limit,
     })
-    if (error) throw error
+    if (expError) throw expError
 
-    return jsonResponse({ success: true, build_id: FUNCTION_BUILD_ID, result: data })
+    let remindersResult = { success: true, processed: 0 }
+    try {
+      const { data: remData, error: remError } = await serviceClient.rpc('fn_enqueue_pre_expiry_reminders', {
+        p_limit: limit,
+      })
+      if (!remError) remindersResult = remData || { success: true, processed: 0 }
+    } catch (_reminderError) {
+      console.warn('[subscription-renewal-worker] Pre-expiry reminders skipped:', getErrorMessage(_reminderError))
+    }
+
+    return jsonResponse({
+      success: true,
+      build_id: FUNCTION_BUILD_ID,
+      expirations: expirationResult,
+      reminders: remindersResult,
+    })
   } catch (error) {
     return jsonResponse({ error: getErrorMessage(error), build_id: FUNCTION_BUILD_ID }, 500)
   }
