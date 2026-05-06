@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const FUNCTION_BUILD_ID = 'mp-webhook-multi-lookup-v2'
+const FUNCTION_BUILD_ID = 'mp-webhook-multi-lookup-v3'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -164,7 +164,7 @@ function summarizeLookupPayload(payload: unknown) {
 
 function paymentExternalReference(payment: Record<string, unknown> | null, fallback = '') {
   const metadata = payment?.metadata as Record<string, unknown> | undefined
-  return String(payment?.external_reference || metadata?.online_order_id || metadata?.signup_id || fallback || '').trim()
+  return String(payment?.external_reference || metadata?.online_order_id || metadata?.signup_id || metadata?.invoice_id || fallback || '').trim()
 }
 
 function getSubscriptionMercadoPagoAccessToken() {
@@ -187,6 +187,18 @@ function parseSubscriptionSignupId(reference: string, payment: Record<string, un
     ? payment.metadata as Record<string, unknown>
     : {}
   return String(metadata?.signup_id || '').trim()
+}
+
+function parseSubscriptionRenewalInvoiceId(reference: string, payment: Record<string, unknown> | null = null) {
+  const normalized = String(reference || '').trim()
+  if (normalized.startsWith('subscription_renewal:')) {
+    return normalized.replace('subscription_renewal:', '').trim()
+  }
+
+  const metadata = payment?.metadata && typeof payment.metadata === 'object'
+    ? payment.metadata as Record<string, unknown>
+    : {}
+  return String(metadata?.invoice_id || '').trim()
 }
 
 function generateTemporaryPassword() {
@@ -597,6 +609,56 @@ async function processSubscriptionSignupPayment(params: {
   }
 }
 
+async function processSubscriptionRenewalPayment(params: {
+  supabase: ReturnType<typeof createClient>
+  payment: Record<string, unknown>
+  paymentId: string
+  externalReference: string
+}) {
+  const { supabase, payment, paymentId, externalReference } = params
+  const invoiceId = parseSubscriptionRenewalInvoiceId(externalReference, payment)
+  if (!invoiceId) {
+    return { processed: false, reason: 'missing_subscription_renewal_invoice_id' }
+  }
+
+  const gatewayPayload = {
+    mercado_pago: {
+      id: payment?.id || paymentId || null,
+      status: payment?.status || null,
+      status_detail: payment?.status_detail || null,
+      transaction_amount: payment?.transaction_amount || null,
+      currency_id: payment?.currency_id || null,
+      payment_method_id: payment?.payment_method_id || null,
+      payment_type_id: payment?.payment_type_id || null,
+      date_created: payment?.date_created || null,
+      date_approved: payment?.date_approved || null,
+      live_mode: payment?.live_mode ?? null,
+      external_reference: externalReference,
+      metadata: payment?.metadata || null,
+      payer: payment?.payer || null,
+    },
+  }
+
+  const { data, error } = await supabase.rpc('fn_mark_tenant_subscription_renewal_paid', {
+    p_invoice_id: invoiceId,
+    p_provider_payment_id: String(payment?.id || paymentId || '').trim() || null,
+    p_provider_status: String(payment?.status || 'pending'),
+    p_payment_payload: gatewayPayload,
+  })
+
+  if (error) throw new Error(`No se pudo marcar la renovacion: ${getErrorMessage(error)}`)
+  if (data?.success === false) {
+    throw new Error(String(data?.message || 'No se pudo marcar la renovacion.'))
+  }
+
+  return {
+    processed: true,
+    invoice_id: invoiceId,
+    status: String(payment?.status || 'pending'),
+    renewal: data,
+  }
+}
+
 async function dispatchQueuedNotifications(supabaseUrl: string, serviceRoleKey: string) {
   const response = await fetch(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/notification-dispatcher`, {
     method: 'POST',
@@ -682,7 +744,7 @@ serve(async (req) => {
       }
 
       const candidateSubscriptionReference = paymentExternalReference(subscriptionPayment, externalReference)
-      if (!subscriptionPayment && externalReference.startsWith('subscription_signup:')) {
+      if (!subscriptionPayment && (externalReference.startsWith('subscription_signup:') || externalReference.startsWith('subscription_renewal:'))) {
         const result = await searchLatestPaymentByReference(subscriptionAccessToken, externalReference)
         subscriptionLookupDebug.push({
           step: 'subscription_payment_search_by_external_reference',
@@ -695,6 +757,35 @@ serve(async (req) => {
       }
 
       const resolvedSubscriptionReference = paymentExternalReference(subscriptionPayment, externalReference)
+      if (resolvedSubscriptionReference.startsWith('subscription_renewal:') || parseSubscriptionRenewalInvoiceId(resolvedSubscriptionReference, subscriptionPayment)) {
+        if (!subscriptionPayment) {
+          return jsonResponse({
+            error: 'No se pudo consultar el pago de renovacion en Mercado Pago.',
+            build_id: FUNCTION_BUILD_ID,
+            payment_id: paymentId || null,
+            external_reference: externalReference || null,
+            preference_id: preferenceId || null,
+            lookup_debug: subscriptionLookupDebug,
+          }, 404)
+        }
+
+        const renewalResult = await processSubscriptionRenewalPayment({
+          supabase,
+          payment: subscriptionPayment,
+          paymentId,
+          externalReference: resolvedSubscriptionReference,
+        })
+
+        return jsonResponse({
+          ok: true,
+          build_id: FUNCTION_BUILD_ID,
+          payment_id: String(subscriptionPayment?.id || paymentId || '').trim() || null,
+          external_reference: resolvedSubscriptionReference || null,
+          renewal: renewalResult,
+          lookup_debug: subscriptionLookupDebug,
+        })
+      }
+
       if (resolvedSubscriptionReference.startsWith('subscription_signup:') || parseSubscriptionSignupId(resolvedSubscriptionReference, subscriptionPayment)) {
         if (!subscriptionPayment) {
           return jsonResponse({
@@ -725,7 +816,7 @@ serve(async (req) => {
       }
     }
 
-    if (externalReference.startsWith('subscription_signup:')) {
+    if (externalReference.startsWith('subscription_signup:') || externalReference.startsWith('subscription_renewal:')) {
       return jsonResponse({
         error: 'Webhook de suscripcion recibido, pero falta configurar OFIRONE_MP_ACCESS_TOKEN.',
         build_id: FUNCTION_BUILD_ID,

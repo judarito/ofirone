@@ -165,6 +165,29 @@
                   {{ billingSummary.banner_message }}
                 </v-alert>
 
+                <div class="mt-4 d-flex flex-wrap ga-2">
+                  <v-btn
+                    v-if="billingSummary.subscription_id"
+                    color="primary"
+                    variant="elevated"
+                    prepend-icon="mdi-credit-card-refresh-outline"
+                    :loading="renewalCheckoutLoading"
+                    @click="startSubscriptionRenewal"
+                  >
+                    Renovar suscripción
+                  </v-btn>
+                  <v-btn
+                    v-if="billingSummary.subscription_id"
+                    color="secondary"
+                    variant="tonal"
+                    prepend-icon="mdi-swap-horizontal-bold"
+                    :loading="changePlanLoading"
+                    @click="changePlanDialog = true"
+                  >
+                    Cambiar plan
+                  </v-btn>
+                </div>
+
                 <v-row class="mt-2">
                   <v-col cols="12" md="6">
                     <v-card variant="outlined">
@@ -227,6 +250,51 @@
                     </v-card>
                   </v-col>
                 </v-row>
+
+                <!-- Historial de pagos -->
+                <v-card variant="outlined" class="mt-4">
+                  <v-card-title class="text-subtitle-1 d-flex align-center justify-space-between">
+                    Historial de pagos
+                    <v-btn
+                      icon="mdi-refresh"
+                      variant="text"
+                      size="small"
+                      :loading="paymentHistoryLoading"
+                      @click="loadPaymentHistory"
+                    />
+                  </v-card-title>
+                  <v-divider />
+                  <v-card-text>
+                    <v-skeleton-loader v-if="paymentHistoryLoading" type="list-item-three-line, list-item-three-line" />
+                    <div v-else-if="paymentHistory.length === 0" class="text-body-2 text-medium-emphasis">
+                      Sin pagos registrados.
+                    </div>
+                    <v-list v-else density="compact" class="pa-0">
+                      <v-list-item
+                        v-for="payment in paymentHistory"
+                        :key="payment.payment_id"
+                      >
+                        <template #prepend>
+                          <v-icon :color="payment.status === 'paid' ? 'success' : 'warning'" size="small">
+                            {{ payment.status === 'paid' ? 'mdi-check-circle' : 'mdi-clock-outline' }}
+                          </v-icon>
+                        </template>
+                        <v-list-item-title class="text-body-2">
+                          {{ formatPaymentInvoice(payment) }}
+                        </v-list-item-title>
+                        <v-list-item-subtitle class="text-caption">
+                          {{ formatPaymentDate(payment.paid_at) }} · {{ payment.provider || '—' }}
+                          <span v-if="payment.note"> — {{ payment.note }}</span>
+                        </v-list-item-subtitle>
+                        <template #append>
+                          <v-chip size="x-small" :color="payment.status === 'paid' ? 'success' : 'warning'" variant="tonal">
+                            {{ formatPaymentAmount(payment.amount) }}
+                          </v-chip>
+                        </template>
+                      </v-list-item>
+                    </v-list>
+                  </v-card-text>
+                </v-card>
               </template>
             </v-window-item>
 
@@ -913,6 +981,66 @@
       </v-card-text>
     </v-card>
 
+    <v-dialog v-model="changePlanDialog" max-width="560">
+      <v-card>
+        <v-card-title class="d-flex align-center justify-space-between ga-3">
+          <span class="d-flex align-center ga-2">
+            <v-icon color="secondary">mdi-swap-horizontal-bold</v-icon>
+            Cambiar de plan
+          </span>
+          <v-btn icon="mdi-close" variant="text" @click="changePlanDialog = false" />
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <p class="text-body-2 text-medium-emphasis mb-4">
+            Plan actual: <strong>{{ billingSummary?.plan_name || billingSummary?.plan_code || '—' }}</strong>
+          </p>
+
+          <v-select
+            v-model="changePlanForm.plan_price_id"
+            :items="availablePlanPriceOptions"
+            item-title="label"
+            item-value="plan_price_id"
+            label="Nuevo plan"
+            variant="outlined"
+            class="mb-3"
+          />
+
+          <v-select
+            v-model="changePlanForm.apply_from"
+            :items="changePlanTimingOptions"
+            item-title="title"
+            item-value="value"
+            label="Aplicar desde"
+            variant="outlined"
+            class="mb-3"
+          />
+
+          <v-alert type="info" variant="tonal" density="compact">
+            <template v-if="changePlanForm.apply_from === 'next_period'">
+              El cambio se aplicará al final del periodo actual. No hay cobro adicional inmediato.
+            </template>
+            <template v-else>
+              El cambio se aplica de inmediato y se recalculará el cobro proporcional en la siguiente factura.
+            </template>
+          </v-alert>
+        </v-card-text>
+        <v-card-actions class="px-6 pb-4">
+          <v-spacer />
+          <v-btn variant="text" @click="changePlanDialog = false">Cancelar</v-btn>
+          <v-btn
+            color="secondary"
+            variant="elevated"
+            :loading="changePlanLoading"
+            :disabled="!changePlanForm.plan_price_id"
+            @click="confirmChangePlan"
+          >
+            Confirmar cambio
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">{{ snackbarMessage }}</v-snackbar>
   </div>
 </template>
@@ -966,6 +1094,13 @@ const snackbarMessage = ref('')
 const snackbarColor = ref('success')
 const billingUsage = ref({})
 const billingUsageLoading = ref(false)
+const renewalCheckoutLoading = ref(false)
+const changePlanLoading = ref(false)
+const changePlanDialog = ref(false)
+const changePlanForm = ref({ plan_price_id: null, apply_from: 'next_period' })
+const paymentHistory = ref([])
+const paymentHistoryLoading = ref(false)
+const availablePlans = ref([])
 const rules = { required: v => !!v || 'Campo requerido' }
 
 const BILLING_LIMIT_LABELS = {
@@ -1233,6 +1368,102 @@ const loadBillingUsage = async (options = {}) => {
   }
 }
 
+const startSubscriptionRenewal = async () => {
+  if (!billingSummary.value?.subscription_id) {
+    showMsg('No hay una suscripción activa para renovar.', 'warning')
+    return
+  }
+
+  renewalCheckoutLoading.value = true
+  try {
+    const result = await tenantBillingService.createSubscriptionRenewalCheckout(billingSummary.value.subscription_id)
+    if (!result.success) {
+      showMsg(result.error || 'No fue posible crear el link de renovación.', 'error')
+      return
+    }
+
+    const paymentUrl = result.data?.payment_url || result.data?.init_point || result.data?.sandbox_init_point
+    if (!paymentUrl) {
+      showMsg('Mercado Pago no devolvió URL de pago.', 'error')
+      return
+    }
+
+    window.location.href = paymentUrl
+  } finally {
+    renewalCheckoutLoading.value = false
+  }
+}
+
+const changePlanTimingOptions = [
+  { title: 'Siguiente periodo (recomendado)', value: 'next_period' },
+  { title: 'Inmediato', value: 'immediate' },
+]
+
+const availablePlanPriceOptions = computed(() => {
+  return availablePlans.value.map((p) => ({
+    plan_price_id: p.plan_price_id,
+    label: p.label,
+  }))
+})
+
+const loadAvailablePlans = async () => {
+  const result = await tenantBillingService.getAvailablePlanPrices()
+  if (result.success) {
+    availablePlans.value = result.data
+  }
+}
+
+const confirmChangePlan = async () => {
+  if (!billingSummary.value?.subscription_id || !changePlanForm.value.plan_price_id) return
+
+  changePlanLoading.value = true
+  try {
+    const result = await tenantBillingService.changeSubscriptionPlan(
+      billingSummary.value.subscription_id,
+      changePlanForm.value.plan_price_id,
+      changePlanForm.value.apply_from,
+    )
+    if (!result.success) {
+      showMsg(result.error || 'No fue posible cambiar de plan.', 'error')
+      return
+    }
+    showMsg('Plan cambiado correctamente.')
+    changePlanDialog.value = false
+    changePlanForm.value = { plan_price_id: null, apply_from: 'next_period' }
+    await loadBillingSummary(true)
+  } finally {
+    changePlanLoading.value = false
+  }
+}
+
+const loadPaymentHistory = async () => {
+  paymentHistoryLoading.value = true
+  try {
+    const result = await tenantBillingService.getTenantPaymentHistory(tenantId.value)
+    if (result.success) {
+      paymentHistory.value = result.data
+    }
+  } finally {
+    paymentHistoryLoading.value = false
+  }
+}
+
+const formatPaymentInvoice = (payment) => {
+  const type = payment.invoice_type === 'subscription_renewal' ? 'Renovación' : 'Factura'
+  return `${type} #${payment.invoice_number || '—'}`
+}
+
+const formatPaymentDate = (value) => {
+  if (!value) return 'Sin fecha'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Fecha inválida'
+  return date.toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+const formatPaymentAmount = (amount) => {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(amount || 0))
+}
+
 const loadData = async () => {
   if (!tenantId.value) return
 
@@ -1411,6 +1642,8 @@ onMounted(async () => {
   await loadBillingSummary()
   await loadBillingUsage()
   await loadSetupReadiness()
+  loadPaymentHistory()
+  loadAvailablePlans()
   const queryTab = String(route.query.tab || '').trim()
   if (allowedTabs.includes(queryTab)) {
     tab.value = queryTab

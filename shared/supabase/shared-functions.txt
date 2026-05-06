@@ -8,3 +8,5 @@ notification-dispatcher/index.ts
 tenant-mercadopago-config/index.ts
 subscription-create-preference/index.ts
 subscription-provision-signup/index.ts
+subscription-renewal-checkout/index.ts
+subscription-renewal-worker/index.ts

@@ -21,6 +21,7 @@ const STATUS_LABELS = {
 }
 
 const SUBSCRIPTION_PROVISION_FUNCTION = import.meta.env.VITE_SUBSCRIPTION_PROVISION_EDGE_FUNCTION || 'subscription-provision-signup'
+const SUBSCRIPTION_RENEWAL_CHECKOUT_FUNCTION = import.meta.env.VITE_SUBSCRIPTION_RENEWAL_CHECKOUT_EDGE_FUNCTION || 'subscription-renewal-checkout'
 
 function normalizeJsonObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -303,6 +304,28 @@ class TenantBillingService {
     }
   }
 
+  async createSubscriptionRenewalCheckout(subscriptionId, options = {}) {
+    try {
+      const normalizedSubscriptionId = String(subscriptionId || '').trim()
+      if (!normalizedSubscriptionId) throw new Error('subscription_id es requerido')
+
+      const origin = String(options.origin || window.location.origin || '').trim()
+      const { data, error } = await supabaseService.client.functions.invoke(SUBSCRIPTION_RENEWAL_CHECKOUT_FUNCTION, {
+        body: {
+          subscription_id: normalizedSubscriptionId,
+          origin,
+        },
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      return { success: true, data }
+    } catch (error) {
+      return { success: false, error: error.message || 'No fue posible crear el link de renovacion.' }
+    }
+  }
+
   async assignTenantPlan(payload) {
     try {
       const { data, error } = await supabaseService.client.rpc('fn_superadmin_assign_tenant_plan', {
@@ -339,6 +362,87 @@ class TenantBillingService {
     } catch (error) {
       return { success: false, error: error.message }
     }
+  }
+
+  async changeSubscriptionPlan(subscriptionId, newPlanPriceId, applyFrom = 'next_period') {
+    try {
+      const { data, error } = await supabaseService.client.rpc('fn_change_subscription_plan', {
+        p_subscription_id: subscriptionId,
+        p_new_plan_price_id: newPlanPriceId,
+        p_apply_from: applyFrom,
+      })
+
+      if (error) throw error
+      this.invalidateBillingCaches()
+      return { success: Boolean(data?.success !== false), data }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  async getTenantPaymentHistory(tenantId = null, limit = 50) {
+    try {
+      const { data, error } = await supabaseService.client.rpc('fn_get_tenant_payment_history', {
+        p_tenant_id: tenantId || null,
+        p_limit: limit,
+      })
+
+      if (error) throw error
+      return { success: true, data: data?.payments || [] }
+    } catch (error) {
+      return { success: false, data: [], error: error.message }
+    }
+  }
+
+  async superadminRecordManualPayment(payload) {
+    try {
+      const { data, error } = await supabaseService.client.rpc('fn_superadmin_record_manual_payment', {
+        p_invoice_id: payload.invoice_id,
+        p_amount: payload.amount || null,
+        p_currency_code: payload.currency_code || 'COP',
+        p_provider: payload.provider || 'MANUAL',
+        p_provider_reference: payload.provider_reference || null,
+        p_note: payload.note || null,
+      })
+
+      if (error) throw error
+      this.invalidateBillingCaches(payload.tenant_id || null)
+      return { success: Boolean(data?.success !== false), data }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  async getAvailablePlanPrices() {
+    try {
+      const result = await this.getBillingPlans()
+      if (!result.success) throw new Error(result.error)
+
+      return {
+        success: true,
+        data: result.data.flatMap((plan) =>
+          (plan.prices || [])
+            .filter((p) => p.is_active)
+            .map((p) => ({
+              plan_price_id: p.plan_price_id,
+              plan_id: plan.plan_id,
+              label: `${plan.name} · ${this._intervalLabel(p.billing_interval || p.billingInterval)} · ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: p.currency_code || 'COP', maximumFractionDigits: 0 }).format(p.amount)}`,
+              plan_name: plan.name,
+              plan_code: plan.code,
+              billing_interval: p.billing_interval || p.billingInterval,
+              amount: p.amount,
+              currency_code: p.currency_code,
+            })),
+        ),
+      }
+    } catch (error) {
+      return { success: false, data: [], error: error.message }
+    }
+  }
+
+  _intervalLabel(interval) {
+    const map = { monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }
+    return map[interval] || interval || '—'
   }
 
   async listPublicSubscriptionSignups(options = {}) {

@@ -589,6 +589,66 @@
                 </v-card-actions>
               </v-card>
 
+              <v-card variant="outlined" class="mb-4">
+                <v-card-title class="text-subtitle-1">Registrar pago manual</v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-text-field
+                    v-model="manualPaymentForm.invoice_id"
+                    label="ID de factura (UUID)"
+                    variant="outlined"
+                    density="compact"
+                    class="mb-3"
+                    hint="Pega el invoice_id de la factura a marcar como pagada."
+                    persistent-hint
+                  />
+                  <v-text-field
+                    v-model.number="manualPaymentForm.amount"
+                    type="number"
+                    label="Monto"
+                    variant="outlined"
+                    density="compact"
+                    class="mb-3"
+                  />
+                  <v-select
+                    v-model="manualPaymentForm.provider"
+                    :items="manualPaymentProviders"
+                    item-title="title"
+                    item-value="value"
+                    label="Método"
+                    variant="outlined"
+                    density="compact"
+                    class="mb-3"
+                  />
+                  <v-text-field
+                    v-model="manualPaymentForm.provider_reference"
+                    label="Referencia / comprobante"
+                    variant="outlined"
+                    density="compact"
+                    class="mb-3"
+                  />
+                  <v-textarea
+                    v-model="manualPaymentForm.note"
+                    rows="2"
+                    label="Nota"
+                    variant="outlined"
+                    density="compact"
+                  />
+                </v-card-text>
+                <v-card-actions class="px-4 pb-4">
+                  <v-spacer />
+                  <v-btn
+                    color="success"
+                    variant="elevated"
+                    :disabled="!manualPaymentForm.invoice_id"
+                    :loading="savingManualPayment"
+                    @click="recordManualPayment"
+                  >
+                    Registrar pago
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+
               <v-card variant="outlined">
                 <v-card-title class="text-subtitle-1">Cambiar estado</v-card-title>
                 <v-divider />
@@ -867,6 +927,7 @@ const loadingPublicSignups = ref(false)
 const savingPlan = ref(false)
 const savingAssignment = ref(false)
 const savingStatus = ref(false)
+const savingManualPayment = ref(false)
 const retryingSignupId = ref(null)
 const provisioningSignupId = ref(null)
 const actionSignupId = ref(null)
@@ -987,6 +1048,22 @@ const createStatusForm = () => ({
 })
 
 const statusForm = ref(createStatusForm())
+
+const manualPaymentProviders = [
+  { title: 'Transferencia bancaria', value: 'BANK_TRANSFER' },
+  { title: 'Efectivo', value: 'CASH' },
+  { title: 'Otro', value: 'OTHER' },
+]
+
+const createManualPaymentForm = () => ({
+  invoice_id: '',
+  amount: null,
+  provider: 'BANK_TRANSFER',
+  provider_reference: '',
+  note: '',
+})
+
+const manualPaymentForm = ref(createManualPaymentForm())
 
 const loadingAny = computed(() => loadingPlans.value || loadingSummaries.value || loadingHistory.value || loadingPublicSignups.value || loadingPublicSignupEvents.value || savingPlan.value || savingAssignment.value || savingStatus.value || Boolean(retryingSignupId.value) || Boolean(provisioningSignupId.value) || Boolean(actionSignupId.value))
 
@@ -1539,6 +1616,41 @@ async function updateStatus() {
     await loadHistory(selectedTenantSummary.value.tenant_id)
   } finally {
     savingStatus.value = false
+  }
+}
+
+async function recordManualPayment() {
+  if (!manualPaymentForm.value.invoice_id) {
+    showError('El ID de factura es requerido')
+    return
+  }
+
+  savingManualPayment.value = true
+  try {
+    const result = await tenantBillingService.superadminRecordManualPayment({
+      invoice_id: manualPaymentForm.value.invoice_id,
+      amount: manualPaymentForm.value.amount || null,
+      currency_code: 'COP',
+      provider: manualPaymentForm.value.provider,
+      provider_reference: manualPaymentForm.value.provider_reference || null,
+      note: manualPaymentForm.value.note || null,
+      tenant_id: selectedTenantSummary.value?.tenant_id || null,
+    })
+
+    if (!result.success) {
+      showError(result.error || 'No fue posible registrar el pago manual')
+      return
+    }
+
+    showSuccess('Pago manual registrado correctamente')
+    manualPaymentForm.value = createManualPaymentForm()
+    await loadSummaries({ forceRefresh: true })
+    if (selectedTenantSummary.value?.tenant_id) {
+      selectedTenantSummary.value = tenantSummaries.value.find((entry) => entry.tenant_id === selectedTenantSummary.value.tenant_id) || selectedTenantSummary.value
+      await loadHistory(selectedTenantSummary.value.tenant_id)
+    }
+  } finally {
+    savingManualPayment.value = false
   }
 }
 
