@@ -1,0 +1,1 @@
+../../../../shared/supabase/functions/subscription-provision-signup/index.ts

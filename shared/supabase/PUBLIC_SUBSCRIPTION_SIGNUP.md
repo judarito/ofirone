@@ -23,6 +23,7 @@ Estado: fase 1 implementada.
 
 - Migracion: `shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql`
 - Edge Function: `subscription-create-preference`
+- Edge Function: `subscription-provision-signup`
 - Webhook extendido: `mercadopago-webhook`
 - Servicio web: `web/src/services/subscriptionSignup.service.js`
 - Paginas publicas:
@@ -31,7 +32,9 @@ Estado: fase 1 implementada.
 - SuperAdmin:
   - `Billing y Monetizacion > Altas publicas`
   - Lista solicitudes `public_subscription_signups`
-  - Permite reintentar aprovisionamiento cuando el pago fue aprobado pero la creacion del tenant/usuario fallo
+  - Muestra timeline tecnico desde `public_subscription_signup_events`
+  - Permite aprovisionar manualmente solicitudes pagadas sin consultar Mercado Pago
+  - Permite revalidar Mercado Pago cuando se necesita resincronizar el pago
 
 ## Secrets Requeridos
 
@@ -56,6 +59,7 @@ Frontend:
 
 ```env
 VITE_SUBSCRIPTION_CREATE_PREFERENCE_EDGE_FUNCTION=subscription-create-preference
+VITE_SUBSCRIPTION_PROVISION_EDGE_FUNCTION=subscription-provision-signup
 ```
 
 ## Despliegue
@@ -71,6 +75,7 @@ Desplegar functions:
 ```bash
 cd web
 supabase functions deploy subscription-create-preference
+supabase functions deploy subscription-provision-signup
 supabase functions deploy mercadopago-webhook
 ```
 
@@ -84,6 +89,7 @@ supabase functions deploy mercadopago-webhook
 - Pantalla publica de estado.
 - Validacion previa de email administrador y NIT/identificacion para evitar cobros duplicados que terminen en revision.
 - Consola SuperAdmin para observar altas publicas y reintentar provisioning.
+- Eventos idempotentes por etapa para evitar repetir correo de bienvenida y facilitar diagnostico.
 
 No incluye todavia:
 

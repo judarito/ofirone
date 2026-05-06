@@ -282,6 +282,28 @@ async function createSubscriptionAuthUser(params: {
   return { userId, error: null }
 }
 
+async function logSubscriptionSignupEvent(supabase: ReturnType<typeof createClient>, params: {
+  signupId: string
+  type: string
+  status?: string
+  source?: string
+  message?: string
+  payload?: Record<string, unknown>
+  key?: string
+}) {
+  await supabase.rpc('fn_log_public_subscription_signup_event', {
+    p_signup_id: params.signupId,
+    p_event_type: params.type,
+    p_event_source: params.source || 'payment_webhook',
+    p_event_status: params.status || 'info',
+    p_message: params.message || null,
+    p_payload: params.payload || {},
+    p_event_key: params.key || null,
+  }).catch((error) => {
+    console.warn('[mercadopago-webhook] No se pudo registrar evento de suscripcion', getErrorMessage(error))
+  })
+}
+
 async function sendSubscriptionWelcomeEmail(params: {
   email: string
   name: string
@@ -378,6 +400,14 @@ async function processSubscriptionSignupPayment(params: {
 
   const signup = markData?.signup || {}
   const status = String(signup?.status || '').toUpperCase()
+  await logSubscriptionSignupEvent(supabase, {
+    signupId,
+    type: status === 'PAID' ? 'payment_approved' : 'payment_updated',
+    status: status === 'PAID' ? 'success' : 'info',
+    message: `Mercado Pago reporto estado ${String(payment?.status || 'pending')}.`,
+    payload: gatewayPayload,
+    key: `payment-${String(payment?.id || paymentId || 'unknown')}`,
+  })
   if (status !== 'PAID') {
     return { processed: true, signup_id: signupId, status, provision: null }
   }
@@ -413,6 +443,13 @@ async function processSubscriptionSignupPayment(params: {
       }
 
       if (!authUserId) {
+        await logSubscriptionSignupEvent(supabase, {
+          signupId,
+          type: 'auth_user_failed',
+          status: 'error',
+          message: authError.message,
+          key: 'auth-user',
+        })
         await supabase
           .from('public_subscription_signups')
           .update({
@@ -429,6 +466,13 @@ async function processSubscriptionSignupPayment(params: {
     }
 
     if (!authUserId) {
+      await logSubscriptionSignupEvent(supabase, {
+        signupId,
+        type: 'auth_user_failed',
+        status: 'error',
+        message: 'Supabase Auth no devolvió el identificador del usuario administrador.',
+        key: 'auth-user',
+      })
       await supabase
         .from('public_subscription_signups')
         .update({
@@ -438,6 +482,15 @@ async function processSubscriptionSignupPayment(params: {
         .eq('signup_id', signupId)
       throw new Error('Supabase Auth no devolvió el identificador del usuario administrador.')
     }
+
+    await logSubscriptionSignupEvent(supabase, {
+      signupId,
+      type: 'auth_user_ready',
+      status: 'success',
+      message: 'Usuario Auth listo para aprovisionamiento.',
+      payload: { auth_user_id: authUserId },
+      key: 'auth-user',
+    })
   }
 
   const { data: existingAppUser, error: existingAppUserError } = await supabase
@@ -452,6 +505,14 @@ async function processSubscriptionSignupPayment(params: {
 
   if (existingAppUser) {
     const message = 'El email ya pertenece a una cuenta existente de OfirOne. El pago fue aprobado, pero la activacion requiere revision manual o usar un email administrador diferente.'
+    await logSubscriptionSignupEvent(supabase, {
+      signupId,
+      type: 'app_user_conflict',
+      status: 'error',
+      message,
+      payload: existingAppUser,
+      key: 'app-user-conflict',
+    })
     await supabase
       .from('public_subscription_signups')
       .update({
@@ -469,9 +530,34 @@ async function processSubscriptionSignupPayment(params: {
   })
 
   if (provisionError) throw new Error(`No se pudo aprovisionar la suscripcion: ${getErrorMessage(provisionError)}`)
+  await logSubscriptionSignupEvent(supabase, {
+    signupId,
+    type: provisionData?.success === false ? 'tenant_provision_failed' : 'tenant_provisioned',
+    status: provisionData?.success === false ? 'error' : 'success',
+    message: provisionData?.success === false ? String(provisionData?.message || 'No se pudo aprovisionar el tenant.') : 'Tenant, usuario interno y suscripcion creados.',
+    payload: provisionData || {},
+    key: 'tenant-provision',
+  })
 
   let welcomeEmail: Record<string, unknown> | null = null
   if (provisionData?.success !== false) {
+    const { data: previousWelcomeEmail } = await supabase
+      .from('public_subscription_signup_events')
+      .select('event_id')
+      .eq('signup_id', signupId)
+      .eq('event_key', 'welcome-email')
+      .maybeSingle()
+
+    if (previousWelcomeEmail) {
+      return {
+        processed: true,
+        signup_id: signupId,
+        status,
+        provision: provisionData || null,
+        welcome_email: { skipped: 'already_sent' },
+      }
+    }
+
     let resetLink: string | undefined
     try {
       const redirectTo = getAuthRecoveryRedirectUrl()
@@ -491,6 +577,14 @@ async function processSubscriptionSignupPayment(params: {
       name: String(currentSignup.admin_full_name || '').trim(),
       businessName: String(currentSignup.business_name || '').trim(),
       resetLink,
+    })
+    await logSubscriptionSignupEvent(supabase, {
+      signupId,
+      type: 'welcome_email_sent',
+      status: welcomeEmail?.ok ? 'success' : 'warning',
+      message: welcomeEmail?.ok ? 'Correo de bienvenida enviado.' : 'Correo de bienvenida omitido o no confirmado.',
+      payload: welcomeEmail || {},
+      key: 'welcome-email',
     })
   }
 

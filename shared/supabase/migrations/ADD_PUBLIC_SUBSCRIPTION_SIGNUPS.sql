@@ -79,6 +79,90 @@ WITH CHECK (auth.role() = 'service_role');
 
 GRANT SELECT, INSERT, UPDATE ON public_subscription_signups TO service_role;
 
+CREATE TABLE IF NOT EXISTS public_subscription_signup_events (
+  event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signup_id UUID NOT NULL REFERENCES public_subscription_signups(signup_id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  event_source TEXT NOT NULL DEFAULT 'system',
+  event_status TEXT NOT NULL DEFAULT 'info'
+    CHECK (event_status IN ('info', 'success', 'warning', 'error')),
+  event_key TEXT,
+  message TEXT,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_public_subscription_signup_events_signup
+  ON public_subscription_signup_events(signup_id, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_public_subscription_signup_events_key
+  ON public_subscription_signup_events(signup_id, event_key)
+  WHERE event_key IS NOT NULL;
+
+ALTER TABLE public_subscription_signup_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS public_subscription_signup_events_service_role_all ON public_subscription_signup_events;
+CREATE POLICY public_subscription_signup_events_service_role_all
+ON public_subscription_signup_events
+FOR ALL
+USING (auth.role() = 'service_role')
+WITH CHECK (auth.role() = 'service_role');
+
+GRANT SELECT, INSERT, UPDATE ON public_subscription_signup_events TO service_role;
+
+CREATE OR REPLACE FUNCTION fn_log_public_subscription_signup_event(
+  p_signup_id UUID,
+  p_event_type TEXT,
+  p_event_source TEXT DEFAULT 'system',
+  p_event_status TEXT DEFAULT 'info',
+  p_message TEXT DEFAULT NULL,
+  p_payload JSONB DEFAULT '{}'::jsonb,
+  p_event_key TEXT DEFAULT NULL
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_event public_subscription_signup_events%ROWTYPE;
+BEGIN
+  IF p_signup_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'message', 'signup_id requerido.');
+  END IF;
+
+  INSERT INTO public_subscription_signup_events (
+    signup_id,
+    event_type,
+    event_source,
+    event_status,
+    event_key,
+    message,
+    payload
+  ) VALUES (
+    p_signup_id,
+    NULLIF(trim(COALESCE(p_event_type, '')), ''),
+    COALESCE(NULLIF(trim(COALESCE(p_event_source, '')), ''), 'system'),
+    CASE
+      WHEN p_event_status IN ('info', 'success', 'warning', 'error') THEN p_event_status
+      ELSE 'info'
+    END,
+    NULLIF(trim(COALESCE(p_event_key, '')), ''),
+    NULLIF(trim(COALESCE(p_message, '')), ''),
+    COALESCE(p_payload, '{}'::jsonb)
+  )
+  ON CONFLICT (signup_id, event_key) WHERE event_key IS NOT NULL
+  DO UPDATE SET
+    event_type = EXCLUDED.event_type,
+    event_source = EXCLUDED.event_source,
+    event_status = EXCLUDED.event_status,
+    message = EXCLUDED.message,
+    payload = public_subscription_signup_events.payload || EXCLUDED.payload
+  RETURNING * INTO v_event;
+
+  RETURN jsonb_build_object('success', true, 'event', to_jsonb(v_event));
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION fn_list_public_subscription_plans()
 RETURNS JSONB
 LANGUAGE SQL
@@ -569,6 +653,8 @@ GRANT EXECUTE ON FUNCTION fn_get_public_subscription_signup_status(UUID) TO anon
 GRANT EXECUTE ON FUNCTION fn_mark_subscription_signup_payment(UUID, TEXT, TEXT, TEXT, JSONB) TO service_role;
 GRANT EXECUTE ON FUNCTION fn_provision_public_subscription_signup(UUID, UUID) TO service_role;
 
+DROP FUNCTION IF EXISTS fn_superadmin_list_public_subscription_signups(INTEGER);
+
 CREATE OR REPLACE FUNCTION fn_superadmin_list_public_subscription_signups(
   p_limit INTEGER DEFAULT 100
 ) RETURNS TABLE (
@@ -596,6 +682,11 @@ CREATE OR REPLACE FUNCTION fn_superadmin_list_public_subscription_signups(
   paid_at TIMESTAMPTZ,
   provisioned_at TIMESTAMPTZ,
   error_message TEXT,
+  events_count BIGINT,
+  last_event_type TEXT,
+  last_event_status TEXT,
+  last_event_message TEXT,
+  last_event_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ
 )
@@ -634,12 +725,72 @@ BEGIN
     s.paid_at,
     s.provisioned_at,
     s.error_message,
+    COALESCE(events.events_count, 0) AS events_count,
+    last_event.event_type AS last_event_type,
+    last_event.event_status AS last_event_status,
+    last_event.message AS last_event_message,
+    last_event.created_at AS last_event_at,
     s.created_at,
     s.updated_at
   FROM public_subscription_signups s
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*) AS events_count
+    FROM public_subscription_signup_events e
+    WHERE e.signup_id = s.signup_id
+  ) events ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT e.event_type, e.event_status, e.message, e.created_at
+    FROM public_subscription_signup_events e
+    WHERE e.signup_id = s.signup_id
+    ORDER BY e.created_at DESC
+    LIMIT 1
+  ) last_event ON TRUE
   ORDER BY s.created_at DESC
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 100), 1), 500);
 END;
 $$;
 
+DROP FUNCTION IF EXISTS fn_superadmin_list_public_subscription_signup_events(UUID);
+
+CREATE OR REPLACE FUNCTION fn_superadmin_list_public_subscription_signup_events(
+  p_signup_id UUID
+) RETURNS TABLE (
+  event_id UUID,
+  signup_id UUID,
+  event_type TEXT,
+  event_source TEXT,
+  event_status TEXT,
+  event_key TEXT,
+  message TEXT,
+  payload JSONB,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT fn_is_super_admin() THEN
+    RAISE EXCEPTION 'No autorizado.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    e.event_id,
+    e.signup_id,
+    e.event_type,
+    e.event_source,
+    e.event_status,
+    e.event_key,
+    e.message,
+    e.payload,
+    e.created_at
+  FROM public_subscription_signup_events e
+  WHERE e.signup_id = p_signup_id
+  ORDER BY e.created_at DESC;
+END;
+$$;
+
 GRANT EXECUTE ON FUNCTION fn_superadmin_list_public_subscription_signups(INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION fn_superadmin_list_public_subscription_signup_events(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION fn_log_public_subscription_signup_event(UUID, TEXT, TEXT, TEXT, TEXT, JSONB, TEXT) TO service_role;

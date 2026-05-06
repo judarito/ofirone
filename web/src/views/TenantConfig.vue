@@ -194,12 +194,32 @@
                       <v-card-title class="text-subtitle-1">Límites del plan</v-card-title>
                       <v-divider />
                       <v-card-text>
-                        <v-list density="compact" v-if="billingLimits.length">
-                          <v-list-item v-for="limit in billingLimits" :key="limit.code">
-                            <v-list-item-title>{{ limit.code }}</v-list-item-title>
-                            <v-list-item-subtitle>{{ limit.value }} {{ limit.unit }}</v-list-item-subtitle>
-                          </v-list-item>
-                        </v-list>
+                        <v-skeleton-loader v-if="billingUsageLoading" type="list-item-three-line, list-item-three-line" />
+                        <div v-else-if="billingLimitRows.length" class="d-flex flex-column ga-4">
+                          <div v-for="limit in billingLimitRows" :key="limit.code">
+                            <div class="d-flex justify-space-between align-center ga-3 mb-1">
+                              <div>
+                                <div class="text-body-2 font-weight-medium">{{ limit.label }}</div>
+                                <div class="text-caption text-medium-emphasis">
+                                  {{ limit.currentLabel }} usados de {{ limit.limitLabel }}
+                                </div>
+                              </div>
+                              <v-chip
+                                :color="limit.color"
+                                size="small"
+                                variant="tonal"
+                              >
+                                {{ limit.remainingLabel }}
+                              </v-chip>
+                            </div>
+                            <v-progress-linear
+                              :model-value="limit.percent"
+                              :color="limit.color"
+                              height="8"
+                              rounded
+                            />
+                          </div>
+                        </div>
                         <div v-else class="text-body-2 text-medium-emphasis">
                           No hay límites configurados.
                         </div>
@@ -909,6 +929,7 @@ import { useTenantBilling } from '@/composables/useTenantBilling'
 import OnlineStoreSettingsCard from '@/components/OnlineStoreSettingsCard.vue'
 import tenantSettingsService from '@/services/tenantSettings.service'
 import electronicInvoicingService from '@/services/electronicInvoicing.service'
+import tenantBillingService from '@/services/tenantBilling.service'
 import { useI18n } from '@/i18n'
 import { TAX_REGIME_OPTIONS_WEB } from '../../../shared/constants/thirdParty'
 
@@ -943,7 +964,17 @@ const saving = ref(false)
 const snackbar = ref(false)
 const snackbarMessage = ref('')
 const snackbarColor = ref('success')
+const billingUsage = ref({})
+const billingUsageLoading = ref(false)
 const rules = { required: v => !!v || 'Campo requerido' }
+
+const BILLING_LIMIT_LABELS = {
+  users_active: 'Usuarios activos',
+  locations_max: 'Sedes activas',
+  cash_registers_max: 'Cajas activas',
+  products_max: 'Productos activos',
+  invoices_per_month: 'Facturas del mes',
+}
 
 const currencies = ['COP', 'USD', 'EUR', 'MXN', 'PEN', 'ARS', 'CLP', 'BRL']
 
@@ -1146,6 +1177,29 @@ const billingLimits = computed(() => {
     }))
     .sort((a, b) => a.code.localeCompare(b.code))
 })
+const billingLimitRows = computed(() => {
+  return billingLimits.value.map((limit) => {
+    const rawLimit = Number(limit.value)
+    const rawCurrent = Number(billingUsage.value?.[limit.code] || 0)
+    const hasFiniteLimit = Number.isFinite(rawLimit)
+    const current = Number.isFinite(rawCurrent) ? rawCurrent : 0
+    const remaining = hasFiniteLimit ? Math.max(0, rawLimit - current) : null
+    const percent = hasFiniteLimit && rawLimit > 0
+      ? Math.min(100, Math.round((current / rawLimit) * 100))
+      : 0
+    const color = percent >= 100 ? 'error' : percent >= 80 ? 'warning' : 'success'
+
+    return {
+      ...limit,
+      label: BILLING_LIMIT_LABELS[limit.code] || limit.code,
+      percent,
+      color,
+      currentLabel: formatPlainNumber(current),
+      limitLabel: hasFiniteLimit ? formatPlainNumber(rawLimit) : 'sin límite',
+      remainingLabel: remaining == null ? 'Sin límite' : `${formatPlainNumber(remaining)} libres`,
+    }
+  })
+})
 const setupHintMessage = computed(() => {
   if (setupHintKey.value.startsWith('accounting')) {
     return accountingProcess.value?.nextStep?.description || 'Completa los campos contables esenciales y guarda antes de volver al asistente.'
@@ -1157,6 +1211,27 @@ const setupHintMessage = computed(() => {
 })
 
 const showMsg = (msg, color = 'success') => { snackbarMessage.value = msg; snackbarColor.value = color; snackbar.value = true }
+
+const formatPlainNumber = (value) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return '0'
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(parsed)
+}
+
+const loadBillingUsage = async (options = {}) => {
+  if (!tenantId.value) {
+    billingUsage.value = {}
+    return
+  }
+
+  billingUsageLoading.value = true
+  try {
+    const result = await tenantBillingService.getTenantPlanLimitUsage(tenantId.value, options)
+    billingUsage.value = result.success ? (result.data || {}) : {}
+  } finally {
+    billingUsageLoading.value = false
+  }
+}
 
 const loadData = async () => {
   if (!tenantId.value) return
@@ -1334,6 +1409,7 @@ const confirmClearAllCache = () => {
 onMounted(async () => {
   await loadData()
   await loadBillingSummary()
+  await loadBillingUsage()
   await loadSetupReadiness()
   const queryTab = String(route.query.tab || '').trim()
   if (allowedTabs.includes(queryTab)) {
@@ -1347,6 +1423,15 @@ watch(
     const normalized = String(nextTab || '').trim()
     if (allowedTabs.includes(normalized)) {
       tab.value = normalized
+    }
+  }
+)
+
+watch(
+  () => tenantId.value,
+  async (nextTenantId, previousTenantId) => {
+    if (nextTenantId && nextTenantId !== previousTenantId) {
+      await loadBillingUsage({ forceRefresh: true })
     }
   }
 )

@@ -1,9 +1,11 @@
 import { supabase } from '@/plugins/supabase'
 import { humanizeAppError } from '@/utils/appErrors'
+import tenantBillingService from './tenantBilling.service'
 import {
   changeTenantUserPasswordWithAuth,
   createTenantUserWithAuth,
 } from '../../../shared/utils/tenantUserAdmin'
+import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
 
 /**
  * Obtener usuarios del tenant con paginación
@@ -145,7 +147,18 @@ export async function getUserById(tenantId, userId) {
  */
 export async function createUser({ tenantId = null, email, password, full_name, roleIds = [], is_active = true }) {
   try {
-    return await createTenantUserWithAuth(supabase, {
+    if (tenantId && is_active !== false) {
+      const limitAccess = await tenantBillingService.ensurePlanLimit(
+        tenantId,
+        BILLING_LIMIT_CODES.USERS_ACTIVE,
+        { limitLabel: 'usuarios activos' }
+      )
+      if (!limitAccess.success) {
+        throw new Error(limitAccess.error)
+      }
+    }
+
+    const result = await createTenantUserWithAuth(supabase, {
       tenantId,
       email,
       password,
@@ -153,6 +166,8 @@ export async function createUser({ tenantId = null, email, password, full_name, 
       roleIds,
       is_active,
     })
+    tenantBillingService.invalidateBillingCaches(tenantId)
+    return result
   } catch (error) {
     console.error('Error en createUser:', error)
     throw new Error(humanizeAppError(error, { defaultMessage: 'No se pudo crear el usuario.' }))
@@ -223,6 +238,7 @@ export async function updateUser(tenantId, userId, { full_name, is_active, roleI
       }
     }
 
+    tenantBillingService.invalidateBillingCaches(tenantId)
     return { success: true }
   } catch (error) {
     console.error('Error en updateUser:', error)
@@ -247,6 +263,7 @@ export async function deleteUser(tenantId, userId) {
     throw error
   }
 
+  tenantBillingService.invalidateBillingCaches(tenantId)
   return { success: true }
 }
 

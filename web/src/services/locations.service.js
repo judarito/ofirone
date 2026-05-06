@@ -1,5 +1,7 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import tenantBillingService from './tenantBilling.service'
+import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
 
 const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000
 
@@ -61,6 +63,17 @@ class LocationsService {
   // Crear sede
   async createLocation(tenantId, location) {
     try {
+      if (location.is_active !== false) {
+        const limitAccess = await tenantBillingService.ensurePlanLimit(
+          tenantId,
+          BILLING_LIMIT_CODES.LOCATIONS_MAX,
+          { limitLabel: 'sedes activas' }
+        )
+        if (!limitAccess.success) {
+          return { success: false, error: limitAccess.error }
+        }
+      }
+
       const { data, error } = await supabaseService.insert(this.table, {
         tenant_id: tenantId,
         name: location.name,
@@ -71,6 +84,7 @@ class LocationsService {
 
       if (error) throw error
       queryCache.invalidateByTags(['locations'], { tenantId })
+      tenantBillingService.invalidateBillingCaches(tenantId)
 
       return { success: true, data: data[0] }
     } catch (error) {
@@ -100,6 +114,7 @@ class LocationsService {
 
       if (error) throw error
       queryCache.invalidateByTags(['locations'], { tenantId })
+      tenantBillingService.invalidateBillingCaches(tenantId)
 
       return { success: true, data: data[0] }
     } catch (error) {
@@ -118,6 +133,7 @@ class LocationsService {
 
       if (error) throw error
       queryCache.invalidateByTags(['locations'], { tenantId })
+      tenantBillingService.invalidateBillingCaches(tenantId)
 
       return { success: true }
     } catch (error) {

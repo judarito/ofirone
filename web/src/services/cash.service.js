@@ -1,5 +1,7 @@
 import supabaseService from './supabase.service'
 import { serviceErrorResult } from '@/utils/appErrors'
+import tenantBillingService from './tenantBilling.service'
+import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
 
 class CashService {
   constructor() {
@@ -52,6 +54,17 @@ class CashService {
 
   async createCashRegister(tenantId, register) {
     try {
+      if (register.is_active !== false) {
+        const limitAccess = await tenantBillingService.ensurePlanLimit(
+          tenantId,
+          BILLING_LIMIT_CODES.CASH_REGISTERS_MAX,
+          { limitLabel: 'cajas activas' }
+        )
+        if (!limitAccess.success) {
+          return { success: false, error: limitAccess.error }
+        }
+      }
+
       const { data, error } = await supabaseService.insert(this.registersTable, {
         tenant_id: tenantId,
         location_id: register.location_id,
@@ -59,6 +72,7 @@ class CashService {
         is_active: register.is_active !== false
       })
       if (error) throw error
+      tenantBillingService.invalidateBillingCaches(tenantId)
       return { success: true, data: data[0] }
     } catch (error) {
       return serviceErrorResult(error)
@@ -73,6 +87,7 @@ class CashService {
         is_active: updates.is_active
       }, { tenant_id: tenantId, cash_register_id: registerId })
       if (error) throw error
+      tenantBillingService.invalidateBillingCaches(tenantId)
       return { success: true, data: data[0] }
     } catch (error) {
       return serviceErrorResult(error)
@@ -85,6 +100,7 @@ class CashService {
         tenant_id: tenantId, cash_register_id: registerId
       })
       if (error) throw error
+      tenantBillingService.invalidateBillingCaches(tenantId)
       return { success: true }
     } catch (error) {
       return serviceErrorResult(error)

@@ -20,6 +20,8 @@ const STATUS_LABELS = {
   expired: 'Expirado',
 }
 
+const SUBSCRIPTION_PROVISION_FUNCTION = import.meta.env.VITE_SUBSCRIPTION_PROVISION_EDGE_FUNCTION || 'subscription-provision-signup'
+
 function normalizeJsonObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
@@ -385,6 +387,78 @@ class TenantBillingService {
       return { success: true, data }
     } catch (error) {
       return { success: false, error: error.message || 'No fue posible reintentar el alta publica.' }
+    }
+  }
+
+  async provisionPublicSubscriptionSignup(signupId) {
+    try {
+      const normalizedSignupId = String(signupId || '').trim()
+      if (!normalizedSignupId) throw new Error('signupId es requerido')
+
+      const { data, error } = await supabaseService.client.functions.invoke(SUBSCRIPTION_PROVISION_FUNCTION, {
+        body: {
+          signup_id: normalizedSignupId,
+        },
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      queryCache.invalidate('superadmin-public-subscription-signups', { tenantId: 'global' })
+      queryCache.invalidate('superadmin-billing-summary', { tenantId: 'global' })
+      return { success: true, data }
+    } catch (error) {
+      return { success: false, error: error.message || 'No fue posible aprovisionar el alta publica.' }
+    }
+  }
+
+  async managePublicSubscriptionSignup(signupId, action, options = {}) {
+    try {
+      const normalizedSignupId = String(signupId || '').trim()
+      const normalizedAction = String(action || '').trim().toLowerCase()
+      if (!normalizedSignupId) throw new Error('signupId es requerido')
+      if (!normalizedAction) throw new Error('action es requerido')
+
+      const { data, error } = await supabaseService.client.functions.invoke(SUBSCRIPTION_PROVISION_FUNCTION, {
+        body: {
+          signup_id: normalizedSignupId,
+          action: normalizedAction,
+          note: String(options.note || '').trim() || undefined,
+        },
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      queryCache.invalidate('superadmin-public-subscription-signups', { tenantId: 'global' })
+      queryCache.invalidate('superadmin-billing-summary', { tenantId: 'global' })
+      return { success: true, data }
+    } catch (error) {
+      return { success: false, error: error.message || 'No fue posible ejecutar la acción del alta pública.' }
+    }
+  }
+
+  async cancelPublicSubscriptionSignup(signupId, note = '') {
+    return this.managePublicSubscriptionSignup(signupId, 'cancel', { note })
+  }
+
+  async markPublicSubscriptionSignupReviewed(signupId, note = '') {
+    return this.managePublicSubscriptionSignup(signupId, 'mark_reviewed', { note })
+  }
+
+  async resendPublicSubscriptionSignupAccess(signupId, note = '') {
+    return this.managePublicSubscriptionSignup(signupId, 'resend_access', { note })
+  }
+
+  async listPublicSubscriptionSignupEvents(signupId) {
+    try {
+      const { data, error } = await supabaseService.client.rpc('fn_superadmin_list_public_subscription_signup_events', {
+        p_signup_id: signupId,
+      })
+      if (error) throw error
+      return { success: true, data: data || [] }
+    } catch (error) {
+      return { success: false, data: [], error: error.message }
     }
   }
 

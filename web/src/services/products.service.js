@@ -1,6 +1,8 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
 import { serviceErrorResult } from '@/utils/appErrors'
+import tenantBillingService from './tenantBilling.service'
+import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
 import { attachProductMediaSummary } from './productMedia.service'
 
 const VARIANT_SEARCH_TTL_MS = 45 * 1000
@@ -205,6 +207,17 @@ class ProductsService {
 
   async createProduct(tenantId, product) {
     try {
+      if (product.is_active !== false) {
+        const limitAccess = await tenantBillingService.ensurePlanLimit(
+          tenantId,
+          BILLING_LIMIT_CODES.PRODUCTS_MAX,
+          { limitLabel: 'productos activos' }
+        )
+        if (!limitAccess.success) {
+          return { success: false, error: limitAccess.error }
+        }
+      }
+
       const { data, error } = await supabaseService.insert(this.table, {
         tenant_id: tenantId,
         name: product.name,
@@ -228,10 +241,12 @@ class ProductsService {
       const productWithVariants = await this.getProductById(tenantId, data[0].product_id)
       if (productWithVariants.success) {
         queryCache.invalidateByTags(['products', 'product-variants'], { tenantId })
+        tenantBillingService.invalidateBillingCaches(tenantId)
         return { success: true, data: productWithVariants.data }
       }
       
       queryCache.invalidateByTags(['products', 'product-variants'], { tenantId })
+      tenantBillingService.invalidateBillingCaches(tenantId)
       return { success: true, data: data[0] }
     } catch (error) {
       return serviceErrorResult(error)
@@ -272,6 +287,7 @@ class ProductsService {
       }
       
       queryCache.invalidateByTags(['products', 'product-variants'], { tenantId })
+      tenantBillingService.invalidateBillingCaches(tenantId)
       return { success: true, data: data[0] }
     } catch (error) {
       return serviceErrorResult(error)
@@ -285,6 +301,7 @@ class ProductsService {
       })
       if (error) throw error
       queryCache.invalidateByTags(['products', 'product-variants'], { tenantId })
+      tenantBillingService.invalidateBillingCaches(tenantId)
       return { success: true }
     } catch (error) {
       return serviceErrorResult(error)

@@ -175,11 +175,47 @@
       </v-window-item>
 
       <v-window-item value="public-signups">
+        <v-card variant="outlined" class="mb-4">
+          <v-card-text>
+            <div class="d-flex align-center justify-space-between flex-wrap ga-3">
+              <div>
+                <div class="text-subtitle-1 font-weight-bold">Consola de altas públicas</div>
+                <div class="text-body-2 text-medium-emphasis">
+                  Filtra solicitudes, revisa errores y ejecuta acciones operativas sin entrar a base de datos.
+                </div>
+              </div>
+              <v-select
+                v-model="publicSignupStatusFilter"
+                :items="publicSignupStatusFilterOptions"
+                item-title="title"
+                item-value="value"
+                label="Estado"
+                variant="outlined"
+                density="compact"
+                hide-details
+                style="max-width: 260px;"
+              />
+            </div>
+            <div class="d-flex flex-wrap ga-2 mt-4">
+              <v-chip
+                v-for="stat in publicSignupStats"
+                :key="stat.status"
+                :color="stat.color"
+                variant="tonal"
+                size="small"
+                @click="publicSignupStatusFilter = stat.status"
+              >
+                {{ stat.label }}: {{ stat.count }}
+              </v-chip>
+            </div>
+          </v-card-text>
+        </v-card>
+
         <ListView
           title="Altas públicas SaaS"
           icon="mdi-store-plus"
-          :items="publicSignups"
-          :total-items="publicSignups.length"
+          :items="filteredPublicSignups"
+          :total-items="filteredPublicSignups.length"
           :loading="loadingPublicSignups"
           :page-size="12"
           item-key="signup_id"
@@ -189,13 +225,14 @@
           avatar-color="indigo"
           empty-message="No hay solicitudes públicas registradas"
           :client-side="true"
-          :clickable="false"
+          :clickable="true"
           :search-fields="['business_name', 'admin_email', 'tax_id', 'plan_name', 'status', 'mercado_pago_payment_id', 'error_message']"
           :table-columns="publicSignupTableColumns"
           view-storage-key="superadmin-public-subscription-signups"
           :show-create-button="false"
           :editable="false"
           :deletable="false"
+          @item-click="openPublicSignupDialog"
         >
           <template #content="{ item }">
             <div class="mt-2 d-flex flex-wrap ga-2">
@@ -214,6 +251,12 @@
               <v-chip v-if="item.mercado_pago_payment_id" color="blue" size="small" variant="tonal">
                 MP {{ item.mercado_pago_payment_id }}
               </v-chip>
+              <v-chip v-if="item.events_count" color="grey" size="small" variant="outlined">
+                {{ item.events_count }} eventos
+              </v-chip>
+            </div>
+            <div v-if="item.last_event_message" class="text-caption text-medium-emphasis mt-2">
+              Último evento: {{ item.last_event_message }}
             </div>
             <v-alert v-if="item.error_message" type="warning" variant="tonal" density="compact" class="mt-3">
               {{ item.error_message }}
@@ -241,6 +284,13 @@
           <template #actions="{ item }">
             <div class="d-flex justify-end flex-wrap ga-1">
               <v-btn
+                icon="mdi-eye"
+                variant="text"
+                size="small"
+                color="primary"
+                @click.stop="openPublicSignupDialog(item)"
+              />
+              <v-btn
                 v-if="item.payment_url && !item.paid_at && item.status === 'PENDING_PAYMENT'"
                 :href="item.payment_url"
                 target="_blank"
@@ -251,13 +301,49 @@
                 color="primary"
               />
               <v-btn
+                v-if="canProvisionPublicSignup(item)"
+                icon="mdi-account-cog"
+                variant="text"
+                size="small"
+                color="success"
+                :loading="provisioningSignupId === item.signup_id"
+                @click.stop="provisionPublicSignup(item)"
+              />
+              <v-btn
                 v-if="canRetryPublicSignup(item)"
                 icon="mdi-refresh"
                 variant="text"
                 size="small"
-                color="success"
+                color="info"
                 :loading="retryingSignupId === item.signup_id"
                 @click.stop="retryPublicSignup(item)"
+              />
+              <v-btn
+                v-if="canResendAccessPublicSignup(item)"
+                icon="mdi-email-sync-outline"
+                variant="text"
+                size="small"
+                color="success"
+                :loading="actionSignupId === item.signup_id && actionDialogAction === 'resend_access'"
+                @click.stop="openPublicSignupActionDialog(item, 'resend_access')"
+              />
+              <v-btn
+                v-if="canMarkReviewedPublicSignup(item)"
+                icon="mdi-check-decagram-outline"
+                variant="text"
+                size="small"
+                color="warning"
+                :loading="actionSignupId === item.signup_id && actionDialogAction === 'mark_reviewed'"
+                @click.stop="openPublicSignupActionDialog(item, 'mark_reviewed')"
+              />
+              <v-btn
+                v-if="canCancelPublicSignup(item)"
+                icon="mdi-cancel"
+                variant="text"
+                size="small"
+                color="error"
+                :loading="actionSignupId === item.signup_id && actionDialogAction === 'cancel'"
+                @click.stop="openPublicSignupActionDialog(item, 'cancel')"
               />
             </div>
           </template>
@@ -598,6 +684,170 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="publicSignupDialog" max-width="980" scrollable>
+      <v-card>
+        <v-card-title class="d-flex align-center justify-space-between ga-3">
+          <span class="d-flex align-center ga-2">
+            <v-icon color="indigo">mdi-store-plus</v-icon>
+            {{ selectedPublicSignup?.business_name || 'Alta pública' }}
+          </span>
+          <v-btn icon="mdi-close" variant="text" @click="publicSignupDialog = false" />
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <v-row v-if="selectedPublicSignup">
+            <v-col cols="12" md="5">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-1">Resumen</v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <div class="d-flex flex-wrap ga-2 mb-3">
+                    <v-chip :color="getPublicSignupStatusColor(selectedPublicSignup.status)" size="small" variant="flat">
+                      {{ getPublicSignupStatusLabel(selectedPublicSignup.status) }}
+                    </v-chip>
+                    <v-chip color="primary" size="small" variant="tonal">{{ selectedPublicSignup.plan_name }}</v-chip>
+                  </div>
+                  <div class="text-body-2 mb-2"><strong>Email:</strong> {{ selectedPublicSignup.admin_email }}</div>
+                  <div class="text-body-2 mb-2"><strong>Responsable:</strong> {{ selectedPublicSignup.admin_full_name }}</div>
+                  <div class="text-body-2 mb-2"><strong>NIT:</strong> {{ selectedPublicSignup.tax_id || '—' }}</div>
+                  <div class="text-body-2 mb-2"><strong>Total:</strong> {{ formatMoney(selectedPublicSignup.total) }}</div>
+                  <div class="text-body-2 mb-2"><strong>Pago:</strong> {{ selectedPublicSignup.paid_at ? formatDateTime(selectedPublicSignup.paid_at) : 'Sin pago' }}</div>
+                  <div class="text-body-2 mb-2"><strong>Tenant:</strong> {{ selectedPublicSignup.tenant_id || 'Sin tenant' }}</div>
+                  <v-alert v-if="selectedPublicSignup.error_message" type="warning" variant="tonal" class="mt-3">
+                    {{ selectedPublicSignup.error_message }}
+                  </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-4 pb-4">
+                  <v-btn
+                    v-if="canProvisionPublicSignup(selectedPublicSignup)"
+                    color="success"
+                    variant="elevated"
+                    prepend-icon="mdi-account-cog"
+                    :loading="provisioningSignupId === selectedPublicSignup.signup_id"
+                    @click="provisionPublicSignup(selectedPublicSignup)"
+                  >
+                    Aprovisionar
+                  </v-btn>
+                  <v-btn
+                    v-if="canRetryPublicSignup(selectedPublicSignup)"
+                    color="info"
+                    variant="tonal"
+                    prepend-icon="mdi-refresh"
+                    :loading="retryingSignupId === selectedPublicSignup.signup_id"
+                    @click="retryPublicSignup(selectedPublicSignup)"
+                  >
+                    Revalidar MP
+                  </v-btn>
+                  <v-btn
+                    v-if="canResendAccessPublicSignup(selectedPublicSignup)"
+                    color="success"
+                    variant="tonal"
+                    prepend-icon="mdi-email-sync-outline"
+                    :loading="actionSignupId === selectedPublicSignup.signup_id && actionDialogAction === 'resend_access'"
+                    @click="openPublicSignupActionDialog(selectedPublicSignup, 'resend_access')"
+                  >
+                    Reenviar acceso
+                  </v-btn>
+                  <v-btn
+                    v-if="canMarkReviewedPublicSignup(selectedPublicSignup)"
+                    color="warning"
+                    variant="tonal"
+                    prepend-icon="mdi-check-decagram-outline"
+                    :loading="actionSignupId === selectedPublicSignup.signup_id && actionDialogAction === 'mark_reviewed'"
+                    @click="openPublicSignupActionDialog(selectedPublicSignup, 'mark_reviewed')"
+                  >
+                    Marcar revisada
+                  </v-btn>
+                  <v-btn
+                    v-if="canCancelPublicSignup(selectedPublicSignup)"
+                    color="error"
+                    variant="tonal"
+                    prepend-icon="mdi-cancel"
+                    :loading="actionSignupId === selectedPublicSignup.signup_id && actionDialogAction === 'cancel'"
+                    @click="openPublicSignupActionDialog(selectedPublicSignup, 'cancel')"
+                  >
+                    Cancelar
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" md="7">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-1 d-flex align-center justify-space-between">
+                  Timeline técnico
+                  <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loadingPublicSignupEvents" @click="loadPublicSignupEvents(selectedPublicSignup.signup_id)" />
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <div v-if="loadingPublicSignupEvents" class="d-flex align-center ga-2 text-medium-emphasis py-4">
+                    <v-progress-circular indeterminate size="20" />
+                    Cargando eventos...
+                  </div>
+                  <div v-else-if="publicSignupEvents.length === 0" class="text-medium-emphasis py-4">
+                    Sin eventos registrados todavía.
+                  </div>
+                  <v-timeline v-else density="compact" side="end">
+                    <v-timeline-item
+                      v-for="event in publicSignupEvents"
+                      :key="event.event_id"
+                      :dot-color="getEventStatusColor(event.event_status)"
+                      size="small"
+                    >
+                      <div class="text-subtitle-2">{{ event.event_type }}</div>
+                      <div class="text-caption text-medium-emphasis">{{ formatDateTime(event.created_at) }} · {{ event.event_source }}</div>
+                      <div v-if="event.message" class="text-body-2 mt-1">{{ event.message }}</div>
+                    </v-timeline-item>
+                  </v-timeline>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="publicSignupActionDialog" max-width="560">
+      <v-card>
+        <v-card-title class="d-flex align-center justify-space-between ga-3">
+          <span class="d-flex align-center ga-2">
+            <v-icon :color="publicSignupActionMeta.color">{{ publicSignupActionMeta.icon }}</v-icon>
+            {{ publicSignupActionMeta.title }}
+          </span>
+          <v-btn icon="mdi-close" variant="text" @click="publicSignupActionDialog = false" />
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <v-alert :type="publicSignupActionMeta.alertType" variant="tonal" class="mb-4">
+            {{ publicSignupActionMeta.description }}
+          </v-alert>
+          <div class="text-body-2 mb-3">
+            <strong>Solicitud:</strong> {{ actionPublicSignup?.business_name || '—' }} · {{ actionPublicSignup?.admin_email || '—' }}
+          </div>
+          <v-textarea
+            v-model="publicSignupActionNote"
+            label="Nota interna"
+            variant="outlined"
+            rows="3"
+            auto-grow
+            :placeholder="publicSignupActionMeta.placeholder"
+          />
+        </v-card-text>
+        <v-card-actions class="px-6 pb-4">
+          <v-spacer />
+          <v-btn variant="text" @click="publicSignupActionDialog = false">Cerrar</v-btn>
+          <v-btn
+            :color="publicSignupActionMeta.color"
+            variant="elevated"
+            :loading="Boolean(actionSignupId)"
+            @click="confirmPublicSignupAction"
+          >
+            Confirmar
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -618,15 +868,26 @@ const savingPlan = ref(false)
 const savingAssignment = ref(false)
 const savingStatus = ref(false)
 const retryingSignupId = ref(null)
+const provisioningSignupId = ref(null)
+const actionSignupId = ref(null)
+const actionDialogAction = ref('')
+const loadingPublicSignupEvents = ref(false)
 
 const plans = ref([])
 const tenantSummaries = ref([])
 const subscriptionHistory = ref([])
 const publicSignups = ref([])
+const publicSignupEvents = ref([])
 const selectedTenantSummary = ref(null)
+const selectedPublicSignup = ref(null)
+const publicSignupStatusFilter = ref('ALL')
+const publicSignupActionDialog = ref(false)
+const actionPublicSignup = ref(null)
+const publicSignupActionNote = ref('')
 
 const planDialog = ref(false)
 const tenantDialog = ref(false)
+const publicSignupDialog = ref(false)
 
 const billingIntervalOptions = [
   { title: 'Mensual', value: 'monthly' },
@@ -681,6 +942,16 @@ const publicSignupTableColumns = [
   { title: 'Pago', key: 'paid_at', width: '170px' },
 ]
 
+const publicSignupStatusFilterOptions = [
+  { title: 'Todos', value: 'ALL' },
+  { title: 'Pago pendiente', value: 'PENDING_PAYMENT' },
+  { title: 'Pagado', value: 'PAID' },
+  { title: 'Aprovisionando', value: 'PROVISIONING' },
+  { title: 'Aprovisionado', value: 'PROVISIONED' },
+  { title: 'Revisión requerida', value: 'FAILED' },
+  { title: 'Cancelado', value: 'CANCELLED' },
+]
+
 const createEmptyPlanForm = () => ({
   plan_id: null,
   code: '',
@@ -717,13 +988,75 @@ const createStatusForm = () => ({
 
 const statusForm = ref(createStatusForm())
 
-const loadingAny = computed(() => loadingPlans.value || loadingSummaries.value || loadingHistory.value || loadingPublicSignups.value || savingPlan.value || savingAssignment.value || savingStatus.value || Boolean(retryingSignupId.value))
+const loadingAny = computed(() => loadingPlans.value || loadingSummaries.value || loadingHistory.value || loadingPublicSignups.value || loadingPublicSignupEvents.value || savingPlan.value || savingAssignment.value || savingStatus.value || Boolean(retryingSignupId.value) || Boolean(provisioningSignupId.value) || Boolean(actionSignupId.value))
 
 const availablePlanPriceOptions = computed(() => {
   return plans.value.flatMap((plan) => (plan.prices || []).map((price) => ({
     value: price.plan_price_id,
     label: `${plan.name} · ${intervalLabel(price.billing_interval)} · ${formatMoney(price.amount)} ${price.currency_code || 'COP'}`,
   })))
+})
+
+const filteredPublicSignups = computed(() => {
+  const status = String(publicSignupStatusFilter.value || 'ALL').toUpperCase()
+  if (status === 'ALL') return publicSignups.value
+  return publicSignups.value.filter((item) => String(item.status || '').toUpperCase() === status)
+})
+
+const publicSignupStats = computed(() => {
+  return publicSignupStatusFilterOptions.map((option) => {
+    const status = String(option.value || '').toUpperCase()
+    const count = status === 'ALL'
+      ? publicSignups.value.length
+      : publicSignups.value.filter((item) => String(item.status || '').toUpperCase() === status).length
+    return {
+      status: option.value,
+      label: option.title,
+      count,
+      color: status === 'ALL' ? 'indigo' : getPublicSignupStatusColor(status),
+    }
+  })
+})
+
+const publicSignupActionMeta = computed(() => {
+  switch (actionDialogAction.value) {
+    case 'resend_access':
+      return {
+        title: 'Reenviar acceso',
+        icon: 'mdi-email-sync-outline',
+        color: 'success',
+        alertType: 'info',
+        description: 'Se generará un nuevo enlace de recuperación y se enviará al email administrador. Esta acción sí envía un correo.',
+        placeholder: 'Ej: Cliente pidió nuevo acceso por WhatsApp.',
+      }
+    case 'mark_reviewed':
+      return {
+        title: 'Marcar revisada',
+        icon: 'mdi-check-decagram-outline',
+        color: 'warning',
+        alertType: 'warning',
+        description: 'No cambia el estado del pago ni crea tenant. Solo deja trazabilidad de que soporte revisó esta solicitud.',
+        placeholder: 'Ej: Se confirmó que el error requiere email administrador diferente.',
+      }
+    case 'cancel':
+      return {
+        title: 'Cancelar solicitud',
+        icon: 'mdi-cancel',
+        color: 'error',
+        alertType: 'error',
+        description: 'La solicitud quedará cancelada y no podrá aprovisionarse desde esta consola. No elimina datos ni revierte pagos.',
+        placeholder: 'Ej: Solicitud duplicada creada por el cliente.',
+      }
+    default:
+      return {
+        title: 'Acción',
+        icon: 'mdi-cog',
+        color: 'primary',
+        alertType: 'info',
+        description: 'Confirma la acción operativa.',
+        placeholder: 'Nota interna',
+      }
+  }
 })
 
 function toDateTimeLocal(value) {
@@ -812,10 +1145,39 @@ function getPublicSignupStatusColor(status) {
   }
 }
 
+function getEventStatusColor(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'success': return 'success'
+    case 'warning': return 'warning'
+    case 'error': return 'error'
+    default: return 'info'
+  }
+}
+
+function canProvisionPublicSignup(item) {
+  if (!item?.signup_id || item.tenant_id || String(item.status || '').toUpperCase() === 'PROVISIONED') return false
+  return Boolean(item.paid_at) || ['PAID', 'PROVISIONING', 'FAILED'].includes(String(item.status || '').toUpperCase())
+}
+
 function canRetryPublicSignup(item) {
   if (!item?.signup_id) return false
   const status = String(item.status || '').toUpperCase()
-  return status === 'FAILED' || status === 'PAID' || status === 'PROVISIONING'
+  return !item.tenant_id && (status === 'FAILED' || status === 'PAID' || status === 'PROVISIONING')
+}
+
+function canResendAccessPublicSignup(item) {
+  if (!item?.signup_id) return false
+  return Boolean(item.tenant_id) || String(item.status || '').toUpperCase() === 'PROVISIONED'
+}
+
+function canMarkReviewedPublicSignup(item) {
+  if (!item?.signup_id) return false
+  return ['FAILED', 'PAID', 'PROVISIONING'].includes(String(item.status || '').toUpperCase())
+}
+
+function canCancelPublicSignup(item) {
+  if (!item?.signup_id || item.tenant_id) return false
+  return ['PENDING_PAYMENT', 'FAILED', 'PAID'].includes(String(item.status || '').toUpperCase())
 }
 
 function getDaysColor(days) {
@@ -887,6 +1249,26 @@ async function loadPublicSignups(options = {}) {
   }
 }
 
+async function loadPublicSignupEvents(signupId) {
+  if (!signupId) {
+    publicSignupEvents.value = []
+    return
+  }
+
+  loadingPublicSignupEvents.value = true
+  try {
+    const result = await tenantBillingService.listPublicSubscriptionSignupEvents(signupId)
+    if (result.success) {
+      publicSignupEvents.value = result.data
+    } else {
+      publicSignupEvents.value = []
+      showError(result.error || 'No fue posible cargar los eventos del alta')
+    }
+  } finally {
+    loadingPublicSignupEvents.value = false
+  }
+}
+
 async function loadHistory(tenantId) {
   if (!tenantId) {
     subscriptionHistory.value = []
@@ -938,6 +1320,85 @@ async function retryPublicSignup(item) {
   } finally {
     retryingSignupId.value = null
   }
+}
+
+async function provisionPublicSignup(item) {
+  if (!item?.signup_id) return
+
+  provisioningSignupId.value = item.signup_id
+  try {
+    const result = await tenantBillingService.provisionPublicSubscriptionSignup(item.signup_id)
+    if (!result.success) {
+      showError(result.error || 'No fue posible aprovisionar el alta pública')
+      return
+    }
+
+    showSuccess('Aprovisionamiento ejecutado correctamente')
+    await Promise.all([
+      loadPublicSignups({ forceRefresh: true }),
+      loadSummaries({ forceRefresh: true }),
+      loadPublicSignupEvents(item.signup_id),
+    ])
+    selectedPublicSignup.value = publicSignups.value.find((entry) => entry.signup_id === item.signup_id) || selectedPublicSignup.value
+  } finally {
+    provisioningSignupId.value = null
+  }
+}
+
+function openPublicSignupActionDialog(item, action) {
+  actionPublicSignup.value = item
+  actionDialogAction.value = action
+  publicSignupActionNote.value = ''
+  publicSignupActionDialog.value = true
+}
+
+async function confirmPublicSignupAction() {
+  if (!actionPublicSignup.value?.signup_id || !actionDialogAction.value) return
+
+  const signupId = actionPublicSignup.value.signup_id
+  actionSignupId.value = signupId
+  try {
+    let result
+    if (actionDialogAction.value === 'resend_access') {
+      result = await tenantBillingService.resendPublicSubscriptionSignupAccess(signupId, publicSignupActionNote.value)
+    } else if (actionDialogAction.value === 'mark_reviewed') {
+      result = await tenantBillingService.markPublicSubscriptionSignupReviewed(signupId, publicSignupActionNote.value)
+    } else if (actionDialogAction.value === 'cancel') {
+      result = await tenantBillingService.cancelPublicSubscriptionSignup(signupId, publicSignupActionNote.value)
+    } else {
+      showError('Acción no soportada')
+      return
+    }
+
+    if (!result.success) {
+      showError(result.error || 'No fue posible ejecutar la acción')
+      return
+    }
+
+    const successMessage = {
+      resend_access: 'Correo de acceso reenviado',
+      mark_reviewed: 'Solicitud marcada como revisada',
+      cancel: 'Solicitud cancelada',
+    }[actionDialogAction.value] || 'Acción ejecutada'
+
+    showSuccess(successMessage)
+    publicSignupActionDialog.value = false
+    await Promise.all([
+      loadPublicSignups({ forceRefresh: true }),
+      loadSummaries({ forceRefresh: true }),
+      loadPublicSignupEvents(signupId),
+    ])
+    selectedPublicSignup.value = publicSignups.value.find((entry) => entry.signup_id === signupId) || selectedPublicSignup.value
+  } finally {
+    actionSignupId.value = null
+  }
+}
+
+async function openPublicSignupDialog(item) {
+  selectedPublicSignup.value = item
+  publicSignupEvents.value = []
+  publicSignupDialog.value = true
+  await loadPublicSignupEvents(item.signup_id)
 }
 
 function openPlanDialog(plan = null) {
