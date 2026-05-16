@@ -1,5 +1,5 @@
 <template>
-  <div class="ofir-page superadmin-billing-page">
+  <div class="ofir-page superadmin-billing-page" data-testid="superadmin-billing-page">
     <v-card class="mb-4" variant="tonal" color="indigo">
       <v-card-text class="d-flex align-center justify-space-between flex-wrap ga-3">
         <div>
@@ -17,20 +17,20 @@
       </v-card-text>
     </v-card>
 
-    <v-tabs v-model="activeTab" color="indigo" class="mb-4">
-      <v-tab value="plans">
+    <v-tabs v-model="activeTab" color="indigo" class="mb-4" data-testid="superadmin-billing-tabs">
+      <v-tab value="plans" data-testid="superadmin-billing-tab-plans">
         <v-icon start>mdi-shape-outline</v-icon>
         Planes
       </v-tab>
-      <v-tab value="subscriptions">
+      <v-tab value="subscriptions" data-testid="superadmin-billing-tab-subscriptions">
         <v-icon start>mdi-office-building-cog</v-icon>
         Suscripciones
       </v-tab>
-      <v-tab value="public-signups">
+      <v-tab value="public-signups" data-testid="superadmin-billing-tab-public-signups">
         <v-icon start>mdi-store-plus</v-icon>
         Altas públicas
       </v-tab>
-      <v-tab value="payments">
+      <v-tab value="payments" data-testid="superadmin-billing-tab-payments">
         <v-icon start>mdi-cash-multiple</v-icon>
         Pagos
       </v-tab>

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="cash-sessions-page">
     <ListView
       title="Sesiones de Caja"
       icon="mdi-cash-register"
@@ -55,9 +55,9 @@
       <template #actions="{ item }">
         <!-- Botones en desktop - al lado derecho -->
         <div class="d-none d-sm-flex ga-1">
-          <v-btn v-if="item.status === 'OPEN'" size="small" color="primary" variant="tonal" prepend-icon="mdi-swap-vertical" @click.stop="openMovementDialog(item)">Movimiento</v-btn>
-          <v-btn v-if="item.status === 'OPEN'" size="small" color="error" variant="tonal" prepend-icon="mdi-lock" @click.stop="openCloseDialog(item)">{{ t('common.close') }}</v-btn>
-          <v-btn v-if="isAdmin && item.status === 'OPEN' && isExpired(item)" size="small" color="deep-orange" variant="flat" prepend-icon="mdi-lock-alert" @click.stop="confirmForceClose(item)">Forzar cierre</v-btn>
+          <v-btn v-if="item.status === 'OPEN'" size="small" color="primary" variant="tonal" prepend-icon="mdi-swap-vertical" :data-testid="buildTestId('cash-session-movement', item.cash_session_id)" @click.stop="openMovementDialog(item)">Movimiento</v-btn>
+          <v-btn v-if="item.status === 'OPEN'" size="small" color="error" variant="tonal" prepend-icon="mdi-lock" :data-testid="buildTestId('cash-session-close', item.cash_session_id)" @click.stop="openCloseDialog(item)">{{ t('common.close') }}</v-btn>
+          <v-btn v-if="isAdmin && item.status === 'OPEN' && isExpired(item)" size="small" color="deep-orange" variant="flat" prepend-icon="mdi-lock-alert" :data-testid="buildTestId('cash-session-force-close', item.cash_session_id)" @click.stop="confirmForceClose(item)">Forzar cierre</v-btn>
         </div>
       </template>
     </ListView>
@@ -346,6 +346,7 @@ import { humanizeAppError } from '@/utils/appErrors'
 import { formatMoney, formatDateTimeFull as formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
 import { getCashSessionState } from '../../../shared/utils/cashSessionUtils'
+import { buildTestId } from '@/utils/testIds'
 
 const { t } = useI18n()
 

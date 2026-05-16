@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="boms-page">
     <ListView
       title="Listas de Materiales (BOMs)"
       icon="mdi-file-tree"

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="superadmin-roles-menus-page">
     <v-card class="mb-4" variant="tonal" color="deep-purple">
       <v-card-text class="d-flex align-center gap-3">
         <v-icon size="36" color="deep-purple">mdi-shield-crown</v-icon>

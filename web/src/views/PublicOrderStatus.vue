@@ -1,5 +1,5 @@
 <template>
-  <div class="order-status">
+  <div class="order-status" data-testid="public-order-status-page">
     <div class="order-status__container">
       <div v-if="loading" class="d-flex align-center justify-center ga-3 py-16 text-medium-emphasis">
         <v-progress-circular indeterminate color="primary" />

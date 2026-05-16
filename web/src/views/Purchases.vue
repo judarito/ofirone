@@ -1,5 +1,5 @@
 <template>
-  <div class="ofir-page purchases-page">
+  <div class="ofir-page purchases-page" data-testid="purchases-page">
     <!-- Botones de acciones - Responsive -->
     <v-row dense class="mb-3 purchases-actions">
       <v-col cols="12" sm="auto">

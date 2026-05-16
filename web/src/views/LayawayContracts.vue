@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="layaway-contracts-page">
     <!-- Filtros de estado -->
     <v-card flat class="mb-3">
       <v-card-text class="pa-2">

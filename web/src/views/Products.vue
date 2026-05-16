@@ -1,12 +1,12 @@
 <template>
-  <div class="ofir-page products-page">
+  <div class="ofir-page products-page" data-testid="products-page">
     <!-- Tabs para separar productos y componentes -->
-    <v-tabs v-model="currentTab" class="mb-3" color="primary">
-      <v-tab value="products">
+    <v-tabs v-model="currentTab" class="mb-3" color="primary" data-testid="products-tabs">
+      <v-tab value="products" data-testid="products-tab-products">
         <v-icon start>mdi-package-variant-closed</v-icon>
         Productos para Venta
       </v-tab>
-      <v-tab value="components">
+      <v-tab value="components" data-testid="products-tab-components">
         <v-icon start>mdi-cog</v-icon>
         Insumos/Componentes
       </v-tab>
@@ -28,6 +28,7 @@
           size="small"
           :color="action.color"
           :variant="action.variant || 'tonal'"
+          :data-testid="buildTestId('products-hint-action', action.label)"
           @click="action.onClick"
         >
           {{ action.label }}
@@ -40,15 +41,16 @@
         color="success"
         prepend-icon="mdi-microsoft-excel"
         :loading="exportingCatalog"
+        data-testid="products-export-catalog"
         @click="downloadCatalogExcel"
       >
         Descargar Catalogo Excel
       </v-btn>
     </div>
 
-    <v-window v-model="currentTab">
+    <v-window v-model="currentTab" data-testid="products-window">
       <!-- Tab: Productos para Venta -->
-      <v-window-item value="products">
+      <v-window-item value="products" data-testid="products-window-products">
         <ListView
           title="Productos para Venta"
           icon="mdi-package-variant-closed"
@@ -106,6 +108,7 @@
                     size="small"
                     color="primary"
                     v-bind="props"
+                    :data-testid="buildTestId('products-variants-button', item.product_id)"
                     @click.stop="openVariantDialogFromList(item)"
                   ></v-btn>
                 </template>
@@ -114,6 +117,7 @@
                 icon="mdi-pencil"
                 variant="text"
                 size="small"
+                :data-testid="buildTestId('products-edit-button', item.product_id)"
                 @click.stop="openEditDialog(item)"
               ></v-btn>
               <v-btn
@@ -121,6 +125,7 @@
                 variant="text"
                 size="small"
                 color="error"
+                :data-testid="buildTestId('products-delete-button', item.product_id)"
                 @click.stop="confirmDelete(item)"
               ></v-btn>
             </div>
@@ -129,7 +134,7 @@
       </v-window-item>
 
       <!-- Tab: Insumos/Componentes -->
-      <v-window-item value="components">
+      <v-window-item value="components" data-testid="products-window-components">
         <ListView
           title="Insumos/Componentes"
           icon="mdi-cog"
@@ -187,6 +192,7 @@
                     size="small"
                     color="primary"
                     v-bind="props"
+                    :data-testid="buildTestId('components-variants-button', item.product_id)"
                     @click.stop="openVariantDialogFromList(item)"
                   ></v-btn>
                 </template>
@@ -195,6 +201,7 @@
                 icon="mdi-pencil"
                 variant="text"
                 size="small"
+                :data-testid="buildTestId('components-edit-button', item.product_id)"
                 @click.stop="openEditDialog(item)"
               ></v-btn>
               <v-btn
@@ -202,6 +209,7 @@
                 variant="text"
                 size="small"
                 color="error"
+                :data-testid="buildTestId('components-delete-button', item.product_id)"
                 @click.stop="confirmDelete(item)"
               ></v-btn>
             </div>
@@ -845,6 +853,7 @@ import manufacturingService from '@/services/manufacturing.service'
 import unitsOfMeasureService from '@/services/unitsOfMeasure.service'
 import { humanizeAppError } from '@/utils/appErrors'
 import { generateSKU } from '@/utils/skuGenerator'
+import { buildTestId } from '@/utils/testIds'
 import { utils, writeFileXLSX } from 'xlsx'
 import { useI18n } from '@/i18n'
 

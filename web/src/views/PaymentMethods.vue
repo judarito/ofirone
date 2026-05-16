@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="payment-methods-page">
     <ListView
       :title="t('paymentMethods.title')"
       icon="mdi-credit-card"

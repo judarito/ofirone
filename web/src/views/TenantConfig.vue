@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="tenant-config-page">
     <v-card>
       <v-card-title class="d-flex align-center">
         <v-icon start color="deep-purple">mdi-cog</v-icon>

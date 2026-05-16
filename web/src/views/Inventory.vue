@@ -1,5 +1,5 @@
 <template>
-  <div class="fill-width ofir-page inventory-page">
+  <div class="fill-width ofir-page inventory-page" data-testid="inventory-page">
     <ContextHelpCard
       class="mb-4"
       context-key="inventory"

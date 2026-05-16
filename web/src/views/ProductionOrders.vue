@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="production-orders-page">
     <ListView
       title="Órdenes de Producción"
       icon="mdi-factory"
@@ -82,6 +82,7 @@
                 size="small"
                 color="success"
                 v-bind="props"
+                :data-testid="buildTestId('production-order-start', item.production_order_id)"
                 @click.stop="startOrder(item)"
               ></v-btn>
             </template>
@@ -95,6 +96,7 @@
                 size="small"
                 color="primary"
                 v-bind="props"
+                :data-testid="buildTestId('production-order-complete', item.production_order_id)"
                 @click.stop="openCompleteDialog(item)"
               ></v-btn>
             </template>
@@ -107,6 +109,7 @@
                 variant="text"
                 size="small"
                 v-bind="props"
+                :data-testid="buildTestId('production-order-view', item.production_order_id)"
                 @click.stop="openDetailDialog(item)"
               ></v-btn>
             </template>
@@ -120,6 +123,7 @@
                 size="small"
                 color="error"
                 v-bind="props"
+                :data-testid="buildTestId('production-order-cancel', item.production_order_id)"
                 @click.stop="confirmCancel(item)"
               ></v-btn>
             </template>
@@ -473,6 +477,7 @@ import ListView from '@/components/ListView.vue'
 import manufacturingService from '@/services/manufacturing.service'
 import locationsService from '@/services/locations.service'
 import { humanizeAppError } from '@/utils/appErrors'
+import { buildTestId } from '@/utils/testIds'
 import {
   getBomEstimatedCost,
   normalizeAvailabilityResult,

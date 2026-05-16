@@ -1,5 +1,5 @@
 <template>
-  <div class="subscription-status">
+  <div class="subscription-status" data-testid="public-subscription-status-page">
     <div class="subscription-status__shell">
       <div v-if="loading" class="d-flex align-center justify-center ga-3 py-16 text-medium-emphasis">
         <v-progress-circular indeterminate color="primary" />

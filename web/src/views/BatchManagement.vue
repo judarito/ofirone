@@ -1,16 +1,16 @@
 <template>
-  <div>
-    <v-tabs v-model="tab" color="primary" class="mb-4">
-      <v-tab value="batches">
+  <div data-testid="batch-management-page">
+    <v-tabs v-model="tab" color="primary" class="mb-4" data-testid="batch-management-tabs">
+      <v-tab value="batches" data-testid="batch-management-tab-batches">
         <v-icon start>mdi-barcode</v-icon>
         Lotes
       </v-tab>
-      <v-tab value="alerts">
+      <v-tab value="alerts" data-testid="batch-management-tab-alerts">
         <v-icon start>mdi-alert-circle</v-icon>
         Alertas
         <v-badge v-if="criticalAlerts > 0" :content="criticalAlerts" color="error" class="ml-2"></v-badge>
       </v-tab>
-      <v-tab value="reports">
+      <v-tab value="reports" data-testid="batch-management-tab-reports">
         <v-icon start>mdi-chart-line</v-icon>
         Reportes
       </v-tab>
@@ -24,7 +24,7 @@
             <v-icon start color="blue">mdi-barcode</v-icon>
             Gestión de Lotes
             <v-spacer></v-spacer>
-            <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
+            <v-btn color="primary" prepend-icon="mdi-plus" data-testid="batch-create-button" @click="openCreateDialog">
               Nuevo Lote (Ajuste Manual)
             </v-btn>
           </v-card-title>
@@ -164,12 +164,14 @@
                   icon="mdi-pencil"
                   variant="text"
                   size="small"
+                  :data-testid="buildTestId('batch-edit', item.batch_id)"
                   @click.stop="openEditDialog(item)"
                 ></v-btn>
                 <v-btn
                   icon="mdi-eye"
                   variant="text"
                   size="small"
+                  :data-testid="buildTestId('batch-traceability', item.batch_id)"
                   @click.stop="viewTraceability(item)"
                 ></v-btn>
               </template>
@@ -376,6 +378,7 @@ import locationsService from '@/services/locations.service'
 import productsService from '@/services/products.service'
 import ExpirationAlerts from '@/components/ExpirationAlerts.vue'
 import { useI18n } from '@/i18n'
+import { buildTestId } from '@/utils/testIds'
 
 const { t } = useI18n()
 

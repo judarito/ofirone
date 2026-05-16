@@ -1,10 +1,10 @@
 <template>
-  <div class="ofir-page sales-page">
+  <div class="ofir-page sales-page" data-testid="sales-page">
     <!-- Tabs -->
-    <v-tabs v-model="tab" color="primary" class="mb-4">
-      <v-tab value="sales">Historial de Ventas</v-tab>
-      <v-tab value="online">Ventas online</v-tab>
-      <v-tab value="returns">Devoluciones</v-tab>
+    <v-tabs v-model="tab" color="primary" class="mb-4" data-testid="sales-tabs">
+      <v-tab value="sales" data-testid="sales-tab-history">Historial de Ventas</v-tab>
+      <v-tab value="online" data-testid="sales-tab-online">Ventas online</v-tab>
+      <v-tab value="returns" data-testid="sales-tab-returns">Devoluciones</v-tab>
     </v-tabs>
 
     <v-window v-model="tab">
@@ -59,6 +59,7 @@
                   color="primary"
                   variant="tonal"
                   prepend-icon="mdi-refresh"
+                  data-testid="sales-refresh-filters"
                   @click="applyFilters"
                   block
                 >
@@ -135,17 +136,17 @@
             </div>
             <!-- Botones en móvil - debajo del contenido -->
             <div v-if="item.status === 'COMPLETED'" class="d-flex d-sm-none flex-wrap ga-2 mt-2">
-              <v-btn size="small" color="primary" variant="text" prepend-icon="mdi-printer" @click.stop="handlePrintSale(item)" :loading="printing">Imprimir</v-btn>
-              <v-btn size="small" color="warning" variant="tonal" @click.stop="openReturnDialog(item)">Devolver</v-btn>
-              <v-btn size="small" color="error" variant="tonal" @click.stop="confirmVoid(item)">Anular</v-btn>
+              <v-btn size="small" color="primary" variant="text" prepend-icon="mdi-printer" :data-testid="buildTestId('sales-print-mobile', item.sale_id)" @click.stop="handlePrintSale(item)" :loading="printing">Imprimir</v-btn>
+              <v-btn size="small" color="warning" variant="tonal" :data-testid="buildTestId('sales-return-mobile', item.sale_id)" @click.stop="openReturnDialog(item)">Devolver</v-btn>
+              <v-btn size="small" color="error" variant="tonal" :data-testid="buildTestId('sales-void-mobile', item.sale_id)" @click.stop="confirmVoid(item)">Anular</v-btn>
             </div>
           </template>
           <template #actions="{ item }">
             <!-- Botones en desktop - al lado derecho -->
             <div class="d-none d-sm-flex ga-1">
-              <v-btn size="x-small" color="primary" variant="text" icon="mdi-printer" @click.stop="handlePrintSale(item)" :loading="printing" title="Imprimir Factura"></v-btn>
-              <v-btn v-if="item.status === 'COMPLETED'" size="x-small" color="warning" variant="tonal" @click.stop="openReturnDialog(item)">Devolver</v-btn>
-              <v-btn v-if="item.status === 'COMPLETED'" size="x-small" color="error" variant="tonal" @click.stop="confirmVoid(item)">Anular</v-btn>
+              <v-btn size="x-small" color="primary" variant="text" icon="mdi-printer" :data-testid="buildTestId('sales-print', item.sale_id)" @click.stop="handlePrintSale(item)" :loading="printing" title="Imprimir Factura"></v-btn>
+              <v-btn v-if="item.status === 'COMPLETED'" size="x-small" color="warning" variant="tonal" :data-testid="buildTestId('sales-return', item.sale_id)" @click.stop="openReturnDialog(item)">Devolver</v-btn>
+              <v-btn v-if="item.status === 'COMPLETED'" size="x-small" color="error" variant="tonal" :data-testid="buildTestId('sales-void', item.sale_id)" @click.stop="confirmVoid(item)">Anular</v-btn>
             </div>
           </template>
         </ListView>
@@ -1004,6 +1005,7 @@ import electronicInvoicingService from '@/services/electronicInvoicing.service'
 import onlineStoreService from '@/services/onlineStore.service'
 import { formatMoney, formatDateTimeFull as formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
+import { buildTestId } from '@/utils/testIds'
 
 const { t } = useI18n()
 const route = useRoute()

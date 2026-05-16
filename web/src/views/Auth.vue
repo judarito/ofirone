@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="auth-page">
     <v-card>
       <v-card-title class="text-h4 primary white--text">
         <v-icon left color="white" size="large">mdi-login</v-icon>

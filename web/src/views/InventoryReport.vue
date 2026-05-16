@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="inventory-report-page">
     <!-- Breadcrumb -->
     <v-breadcrumbs :items="breadcrumbs" class="pa-0 mb-4">
       <template #divider><v-icon>mdi-chevron-right</v-icon></template>

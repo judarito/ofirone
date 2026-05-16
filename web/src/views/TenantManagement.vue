@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="tenant-management-page">
     <!-- Estado de carga inicial -->
     <div v-if="!isInitialized || isResolving" class="text-center pa-4">
       <v-progress-circular indeterminate color="primary"></v-progress-circular>
@@ -33,9 +33,9 @@
         <span class="text-white">Gestión de Tenants</span>
       </v-card-title>
 
-      <v-tabs v-model="tab" color="primary" class="mt-2">
-        <v-tab value="create">Crear Tenant</v-tab>
-        <v-tab value="list">Lista de Tenants</v-tab>
+      <v-tabs v-model="tab" color="primary" class="mt-2" data-testid="tenant-management-tabs">
+        <v-tab value="create" data-testid="tenant-management-tab-create">Crear Tenant</v-tab>
+        <v-tab value="list" data-testid="tenant-management-tab-list">Lista de Tenants</v-tab>
       </v-tabs>
 
       <v-window v-model="tab">
@@ -60,6 +60,7 @@
                     density="comfortable"
                     :rules="[rules.required]"
                     prepend-inner-icon="mdi-store"
+                    data-testid="tenant-name-input"
                   ></v-text-field>
                 </v-col>
 
@@ -93,6 +94,7 @@
                     density="comfortable"
                     :rules="[rules.required, rules.email]"
                     prepend-inner-icon="mdi-email"
+                    data-testid="tenant-email-input"
                   ></v-text-field>
                 </v-col>
 
@@ -146,6 +148,7 @@
                     density="comfortable"
                     :rules="[rules.required]"
                     prepend-inner-icon="mdi-account"
+                    data-testid="tenant-admin-name-input"
                   ></v-text-field>
                 </v-col>
 
@@ -158,6 +161,7 @@
                     density="comfortable"
                     :rules="[rules.required, rules.email]"
                     prepend-inner-icon="mdi-email-outline"
+                    data-testid="tenant-admin-email-input"
                   ></v-text-field>
                 </v-col>
 
@@ -171,6 +175,7 @@
                     :rules="[rules.required, rules.minLength(8)]"
                     prepend-inner-icon="mdi-lock"
                     :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                    data-testid="tenant-admin-password-input"
                     @click:append-inner="showPassword = !showPassword"
                   ></v-text-field>
                 </v-col>
@@ -215,6 +220,7 @@
           <v-card-actions class="pa-4">
             <v-btn
               variant="text"
+              data-testid="tenant-reset-form"
               @click="resetForm"
             >
               Limpiar
@@ -225,6 +231,7 @@
               variant="elevated"
               size="large"
               :loading="creating"
+              data-testid="tenant-create-submit"
               @click="createTenant"
               prepend-icon="mdi-plus"
             >
@@ -266,6 +273,7 @@
                     color="primary"
                     variant="tonal"
                     prepend-icon="mdi-refresh"
+                    data-testid="tenant-list-refresh"
                     @click="loadTenants"
                     :loading="loadingTenants"
                   >
@@ -312,6 +320,7 @@
                   size="small"
                   variant="text"
                   color="primary"
+                  :data-testid="buildTestId('tenant-view-config', item.tenant_id)"
                   @click.stop="viewTenantTemplate(item.tenant_id)"
                 >
                   Ver Config
@@ -376,6 +385,7 @@ import ListView from '@/components/ListView.vue'
 import tenantsService from '@/services/tenants.service'
 import { humanizeAppError } from '@/utils/appErrors'
 import { useI18n } from '@/i18n'
+import { buildTestId } from '@/utils/testIds'
 
 const { t } = useI18n()
 

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="tax-rules-page">
     <!-- Filtros -->
     <v-card flat class="mb-3">
       <v-card-text class="pa-2">

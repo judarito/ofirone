@@ -1,5 +1,5 @@
 <template>
-  <div class="help-center ofir-page">
+  <div class="help-center ofir-page" data-testid="help-center-page">
     <v-card class="help-center__hero mb-4">
       <v-card-text class="pa-6">
         <div class="d-flex flex-column flex-lg-row justify-space-between ga-6">

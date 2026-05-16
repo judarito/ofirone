@@ -1,5 +1,5 @@
 <template>
-  <div class="ofir-page customers-page">
+  <div class="ofir-page customers-page" data-testid="customers-page">
     <ListView
       :title="t('customers.title')"
       icon="mdi-account-group"

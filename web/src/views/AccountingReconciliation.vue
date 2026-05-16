@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="accounting-reconciliation-page">
     <div class="mb-3">
       <v-btn color="primary" variant="tonal" prepend-icon="mdi-arrow-left" @click="goBackToAccounting">
         Volver a Contabilidad

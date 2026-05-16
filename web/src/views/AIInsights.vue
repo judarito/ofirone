@@ -1,5 +1,5 @@
 <template>
-  <div class="ai-insights-page ofir-page">
+  <div class="ai-insights-page ofir-page" data-testid="ai-insights-page">
     <v-card class="ai-insights-hero mb-4" elevation="0">
       <v-card-text class="pa-5 pa-md-6">
         <div class="d-flex flex-column flex-lg-row justify-space-between ga-5">

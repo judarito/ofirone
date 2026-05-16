@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="financial-report-page">
     <div v-if="isFromAccounting" class="mb-3">
       <v-btn
         color="primary"

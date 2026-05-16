@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="bulk-imports-page">
     <v-alert
       v-if="bulkImportHintVisible"
       type="info"
@@ -23,6 +23,7 @@
           variant="tonal"
           prepend-icon="mdi-camera-outline"
           :loading="processingPhoto"
+          data-testid="bulk-imports-photo-upload"
           @click="openPhotoPicker"
         >
           Tomar o subir foto
@@ -36,6 +37,7 @@
           accept="image/*"
           capture="environment"
           class="d-none"
+          data-testid="bulk-imports-photo-input"
           @change="handlePhotoSelected"
         />
 
@@ -269,6 +271,7 @@
             icon
             variant="text"
             density="comfortable"
+            :data-testid="buildTestId('bulk-imports-errors', item.import_id)"
             @click.stop="loadErrors(item.import_id)"
           >
             <v-icon>mdi-alert-circle-outline</v-icon>
@@ -458,6 +461,7 @@ import {
   countValidProductPhotoRows,
 } from '@/utils/productPhotoBulkImport'
 import { useI18n } from '@/i18n'
+import { buildTestId } from '@/utils/testIds'
 
 const { t } = useI18n()
 const route = useRoute()

@@ -1,7 +1,10 @@
 <template>
-  <div class="list-view ofir-list-view">
-    <v-card flat class="ofir-list-view__card">
-      <v-card-title class="ofir-list-view__title d-flex flex-column flex-sm-row align-start align-sm-center pa-2 pa-sm-4">
+  <div class="list-view ofir-list-view" :data-testid="testIdBase">
+    <v-card flat class="ofir-list-view__card" :data-testid="buildTestId(testIdBase, 'card')">
+      <v-card-title
+        class="ofir-list-view__title d-flex flex-column flex-sm-row align-start align-sm-center pa-2 pa-sm-4"
+        :data-testid="buildTestId(testIdBase, 'toolbar')"
+      >
         <div class="d-flex align-center mb-2 mb-sm-0">
           <v-icon :icon="icon" class="mr-2"></v-icon>
           <span class="text-h6">{{ title }}</span>
@@ -21,6 +24,7 @@
           class="ofir-list-view__search mb-2 mb-sm-0 mr-sm-2"
           style="max-width: 100%; width: 100%;"
           :style="{ 'max-width': $vuetify.display.smAndUp ? '300px' : '100%' }"
+          :data-testid="buildTestId(testIdBase, 'search-input')"
           @update:model-value="debouncedSearch"
         ></v-text-field>
 
@@ -31,9 +35,22 @@
           density="comfortable"
           color="primary"
           class="ofir-list-view__mode-toggle mb-2 mb-sm-0 mr-sm-2"
+          :data-testid="buildTestId(testIdBase, 'view-toggle')"
         >
-          <v-btn value="list" icon="mdi-format-list-bulleted" size="small" :title="'Vista lista'"></v-btn>
-          <v-btn value="table" icon="mdi-table" size="small" :title="'Vista tabla'"></v-btn>
+          <v-btn
+            value="list"
+            icon="mdi-format-list-bulleted"
+            size="small"
+            :title="'Vista lista'"
+            :data-testid="buildTestId(testIdBase, 'view-list')"
+          ></v-btn>
+          <v-btn
+            value="table"
+            icon="mdi-table"
+            size="small"
+            :title="'Vista tabla'"
+            :data-testid="buildTestId(testIdBase, 'view-table')"
+          ></v-btn>
         </v-btn-toggle>
 
         <!-- Botón crear -->
@@ -43,6 +60,7 @@
           color="primary"
           prepend-icon="mdi-plus"
           :block="$vuetify.display.xs"
+          :data-testid="buildTestId(testIdBase, 'create-button')"
           @click="$emit('create')"
         >
           {{ createButtonText }}
@@ -51,7 +69,11 @@
 
       <v-divider class="ofir-list-view__divider"></v-divider>
 
-      <v-card-text v-if="$slots.filters" class="ofir-list-view__filters py-3">
+      <v-card-text
+        v-if="$slots.filters"
+        class="ofir-list-view__filters py-3"
+        :data-testid="buildTestId(testIdBase, 'filters')"
+      >
         <slot name="filters"></slot>
       </v-card-text>
 
@@ -63,18 +85,21 @@
         indeterminate
         color="primary"
         class="ofir-list-view__loading"
+        :data-testid="buildTestId(testIdBase, 'loading')"
       ></v-progress-linear>
 
       <v-list
         v-if="!loading && displayItems.length > 0 && viewMode === 'list'"
         lines="two"
         class="ofir-list-view__list"
+        :data-testid="buildTestId(testIdBase, 'list')"
       >
         <template v-for="(item, index) in displayItems" :key="item[itemKey]">
           <v-list-item
             @click="$emit('item-click', item)"
             class="ofir-list-view__item"
             :class="{ 'cursor-pointer': clickable }"
+            :data-testid="getItemContainerTestId(item)"
           >
             <!-- Avatar/Icono -->
             <template v-slot:prepend v-if="$slots.avatar || avatarIcon">
@@ -105,25 +130,29 @@
 
             <!-- Acciones -->
             <template v-slot:append v-if="showActions || $slots.actions">
-              <slot name="actions" :item="item">
-                <div class="d-flex flex-column flex-sm-row ga-1">
-                  <v-btn
-                    v-if="editable"
-                    icon="mdi-pencil"
-                    variant="text"
-                    size="small"
-                    @click.stop="$emit('edit', item)"
-                  ></v-btn>
-                  <v-btn
-                    v-if="deletable"
-                    icon="mdi-delete"
-                    variant="text"
-                    size="small"
-                    color="error"
-                    @click.stop="$emit('delete', item)"
-                  ></v-btn>
-                </div>
-              </slot>
+              <div :data-testid="getItemActionsContainerTestId(item)">
+                <slot name="actions" :item="item">
+                  <div class="d-flex flex-column flex-sm-row ga-1">
+                    <v-btn
+                      v-if="editable"
+                      icon="mdi-pencil"
+                      variant="text"
+                      size="small"
+                      :data-testid="getItemActionTestId('edit', item)"
+                      @click.stop="$emit('edit', item)"
+                    ></v-btn>
+                    <v-btn
+                      v-if="deletable"
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      :data-testid="getItemActionTestId('delete', item)"
+                      @click.stop="$emit('delete', item)"
+                    ></v-btn>
+                  </div>
+                </slot>
+              </div>
             </template>
           </v-list-item>
 
@@ -134,11 +163,13 @@
       <div
         v-else-if="!loading && displayItems.length > 0 && viewMode === 'table'"
         class="ofir-list-view__table-container"
+        :data-testid="buildTestId(testIdBase, 'table-container')"
       >
         <v-table
           class="ofir-list-view__table"
           :class="{ 'ofir-list-view__table--explicit': hasExplicitTableColumns }"
           density="comfortable"
+          :data-testid="buildTestId(testIdBase, 'table')"
         >
           <thead>
             <tr>
@@ -160,6 +191,7 @@
               :key="item[itemKey]"
               class="ofir-list-view__table-row"
               :class="{ 'cursor-pointer': clickable }"
+              :data-testid="getItemContainerTestId(item)"
               @click="handleRowClick(item)"
             >
               <td class="ofir-list-view__table-main">
@@ -196,25 +228,29 @@
                 </slot>
               </td>
               <td v-if="showRowActions" class="text-right" @click.stop>
-                <slot name="actions" :item="item">
-                  <div class="d-flex justify-end flex-wrap ga-1">
-                    <v-btn
-                      v-if="editable"
-                      icon="mdi-pencil"
-                      variant="text"
-                      size="small"
-                      @click.stop="$emit('edit', item)"
-                    ></v-btn>
-                    <v-btn
-                      v-if="deletable"
-                      icon="mdi-delete"
-                      variant="text"
-                      size="small"
-                      color="error"
-                      @click.stop="$emit('delete', item)"
-                    ></v-btn>
-                  </div>
-                </slot>
+                <div :data-testid="getItemActionsContainerTestId(item)">
+                  <slot name="actions" :item="item">
+                    <div class="d-flex justify-end flex-wrap ga-1">
+                      <v-btn
+                        v-if="editable"
+                        icon="mdi-pencil"
+                        variant="text"
+                        size="small"
+                        :data-testid="getItemActionTestId('edit', item)"
+                        @click.stop="$emit('edit', item)"
+                      ></v-btn>
+                      <v-btn
+                        v-if="deletable"
+                        icon="mdi-delete"
+                        variant="text"
+                        size="small"
+                        color="error"
+                        :data-testid="getItemActionTestId('delete', item)"
+                        @click.stop="$emit('delete', item)"
+                      ></v-btn>
+                    </div>
+                  </slot>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -222,7 +258,7 @@
       </div>
 
       <!-- Sin datos -->
-      <v-card-text v-if="!loading && displayItems.length === 0">
+      <v-card-text v-if="!loading && displayItems.length === 0" :data-testid="buildTestId(testIdBase, 'empty-state')">
         <v-alert type="info" variant="tonal" class="text-center ofir-list-view__empty-alert">
           <v-icon size="48" class="mb-2">{{ emptyIcon }}</v-icon>
           <div>{{ emptyMessage }}</div>
@@ -230,18 +266,27 @@
       </v-card-text>
 
       <!-- Paginación -->
-      <v-card-actions v-if="totalPages > 1" class="justify-center pa-2 ofir-list-view__pagination">
+      <v-card-actions
+        v-if="totalPages > 1"
+        class="justify-center pa-2 ofir-list-view__pagination"
+        :data-testid="buildTestId(testIdBase, 'pagination')"
+      >
         <v-pagination
           v-model="currentPage"
           :length="totalPages"
           :total-visible="$vuetify.display.xs ? 5 : 7"
           :size="$vuetify.display.xs ? 'small' : 'default'"
+          :data-testid="buildTestId(testIdBase, 'pagination-control')"
           @update:model-value="loadPage"
         ></v-pagination>
       </v-card-actions>
 
       <!-- Info de paginación -->
-      <v-card-text v-if="displayItems.length > 0" class="text-center text-caption pa-2 ofir-list-view__meta">
+      <v-card-text
+        v-if="displayItems.length > 0"
+        class="text-center text-caption pa-2 ofir-list-view__meta"
+        :data-testid="buildTestId(testIdBase, 'results-meta')"
+      >
         Mostrando {{ startIndex + 1 }} - {{ endIndex }} de {{ totalItemsForView }} registros
       </v-card-text>
     </v-card>
@@ -252,6 +297,7 @@
 import { ref, computed, watch, onMounted, useSlots } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTenant } from '@/composables/useTenant'
+import { buildItemTestId, buildTestId } from '@/utils/testIds'
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -307,6 +353,7 @@ const storageKey = computed(() => {
   const baseKey = `${routeKey}:${listKey}`
   return `ofir:list-view-mode:${String(baseKey)}`
 })
+const testIdBase = computed(() => buildTestId('list-view', route.name || props.title))
 
 const normalizedTableColumns = computed(() => {
   return props.tableColumns.map((column) => ({
@@ -386,6 +433,23 @@ const getColumnValue = (item, column) => {
   if (column.field) return item?.[column.field]
   return item?.[column.key]
 }
+
+const getItemIdentifier = (item) => item?.[props.itemKey] ?? item?.id ?? item?.name ?? 'row'
+
+const getItemContainerTestId = (item) => buildItemTestId(
+  buildTestId(testIdBase.value, 'item'),
+  getItemIdentifier(item)
+)
+
+const getItemActionTestId = (action, item) => buildItemTestId(
+  buildTestId(testIdBase.value, action),
+  getItemIdentifier(item)
+)
+
+const getItemActionsContainerTestId = (item) => buildItemTestId(
+  buildTestId(testIdBase.value, 'actions'),
+  getItemIdentifier(item)
+)
 
 const handleRowClick = (item) => {
   if (!props.clickable) return

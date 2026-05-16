@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="third-parties-page">
     <ListView
       :title="t('thirdParties.title')"
       icon="mdi-account-multiple"

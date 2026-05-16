@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="users-page">
     <ListView
       :title="t('users.title')"
       icon="mdi-account-group"
@@ -48,6 +48,7 @@
             icon="mdi-lock-reset"
             size="small"
             variant="text"
+            :data-testid="buildTestId('users-change-password', item.user_id)"
             @click.stop="openPasswordDialog(item)"
             :title="t('users.changePassword')"
           ></v-btn>
@@ -56,6 +57,7 @@
             size="small"
             variant="text"
             :color="item.is_active ? 'error' : 'success'"
+            :data-testid="buildTestId('users-toggle-status', item.user_id)"
             @click.stop="toggleUserStatus(item)"
             :title="item.is_active ? t('users.deactivate') : t('users.activate')"
           ></v-btn>
@@ -224,6 +226,7 @@ import { useTenant } from '@/composables/useTenant'
 import { useTenantSettings } from '@/composables/useTenantSettings'
 import { useI18n } from '@/i18n'
 import ListView from '@/components/ListView.vue'
+import { buildTestId } from '@/utils/testIds'
 import {
   getUsers,
   getAllUsers,

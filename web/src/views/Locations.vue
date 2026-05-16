@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="locations-page">
     <ListView
       :title="t('locations.title')"
       icon="mdi-store"

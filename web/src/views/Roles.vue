@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="roles-page">
     <!-- Banner: solo lectura para administradores de tenant -->
     <v-alert
       v-if="!isSuperAdmin"

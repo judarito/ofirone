@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="reports-hub-page">
     <!-- Header -->
     <div class="mb-5">
       <div class="text-h5 font-weight-bold">{{ t('reportsHub.title') }}</div>

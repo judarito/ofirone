@@ -1,5 +1,5 @@
 <template>
-  <div v-if="contract">
+  <div v-if="contract" data-testid="layaway-detail-page">
     <!-- Encabezado -->
     <v-card class="mb-3">
       <v-card-title class="d-flex flex-column flex-sm-row align-start align-sm-center pa-2 pa-sm-4">

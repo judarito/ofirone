@@ -1,14 +1,20 @@
 <template>
-  <v-app class="ofir-shell" :class="isDark ? 'ofir-shell--dark' : 'ofir-shell--light'">
+  <v-app
+    class="ofir-shell"
+    :class="isDark ? 'ofir-shell--dark' : 'ofir-shell--light'"
+    data-testid="app-shell"
+  >
     <!-- Layout con sidebar para rutas autenticadas -->
     <template v-if="!isAuthRoute">
       <v-app-bar
         class="ofir-topbar"
         density="comfortable"
         elevation="0"
+        data-testid="app-topbar"
       >
         <v-app-bar-nav-icon 
           class="ofir-topbar__icon"
+          data-testid="app-nav-toggle"
           @click="drawer = !drawer"
         ></v-app-bar-nav-icon>
 
@@ -26,15 +32,17 @@
               variant="text"
               class="text-none mr-1 ofir-topbar__text-btn"
               prepend-icon="mdi-translate"
+              data-testid="app-language-menu"
             >
               {{ currentLanguageLabel }}
             </v-btn>
           </template>
-          <v-list density="compact">
+          <v-list density="compact" data-testid="app-language-options">
             <v-list-item
               v-for="lang in languageOptions"
               :key="lang.value"
               :active="locale === lang.value"
+              :data-testid="buildTestId('app-language-option', lang.value)"
               @click="setLocale(lang.value)"
             >
               <v-list-item-title>{{ lang.title }}</v-list-item-title>
@@ -50,6 +58,7 @@
           inset
           color="secondary"
           class="theme-switch mr-2"
+          data-testid="app-theme-switch"
         >
           <template #prepend>
             <v-icon size="16">mdi-white-balance-sunny</v-icon>
@@ -59,7 +68,13 @@
           </template>
         </v-switch>
 
-        <v-btn v-if="userProfile || tenantId" class="ofir-topbar__icon-btn" icon @click="alertsDialog = true">
+        <v-btn
+          v-if="userProfile || tenantId"
+          class="ofir-topbar__icon-btn"
+          icon
+          data-testid="app-alerts-button"
+          @click="alertsDialog = true"
+        >
           <v-badge
             :content="totalAlertsCount"
             :color="totalAlertsCount > 0 ? 'error' : 'grey'"
@@ -69,15 +84,21 @@
           </v-badge>
         </v-btn>
 
-        <v-btn class="ofir-topbar__icon-btn" icon to="/help">
+        <v-btn class="ofir-topbar__icon-btn" icon to="/help" data-testid="app-help-button">
           <v-icon>mdi-lifebuoy</v-icon>
         </v-btn>
 
-        <v-btn v-if="canOpenAiInsights" class="ofir-topbar__icon-btn" icon to="/ai-insights">
+        <v-btn
+          v-if="canOpenAiInsights"
+          class="ofir-topbar__icon-btn"
+          icon
+          to="/ai-insights"
+          data-testid="app-ai-insights-button"
+        >
           <v-icon>mdi-robot-outline</v-icon>
         </v-btn>
 
-        <v-btn class="ofir-topbar__icon-btn" icon @click="handleProfileClick">
+        <v-btn class="ofir-topbar__icon-btn" icon data-testid="app-profile-button" @click="handleProfileClick">
           <v-icon>mdi-account-circle</v-icon>
         </v-btn>
       </v-app-bar>
@@ -89,8 +110,10 @@
         :temporary="isMobile"
         :width="sidebarWidth"
         app
+        data-testid="app-sidebar"
       >
         <v-list-item
+          data-testid="app-sidebar-user"
           :title="userProfile?.full_name || user?.email || superAdminInfo?.email || t('app.user')"
           :subtitle="(canManageTenants && !userProfile) ? t('app.superAdmin') : (userProfile?.tenants?.name || t('app.noCompany'))"
         >
@@ -111,13 +134,24 @@
             divided
             color="primary"
             class="ofir-sidebar__display-toggle-control"
+            data-testid="app-menu-display-toggle"
           >
-            <v-btn :value="MENU_DISPLAY_MODE_LIST" icon="mdi-format-list-bulleted" title="Vista en lista" />
-            <v-btn :value="MENU_DISPLAY_MODE_GRID" icon="mdi-view-grid-outline" title="Vista en cuadrícula" />
+            <v-btn
+              :value="MENU_DISPLAY_MODE_LIST"
+              icon="mdi-format-list-bulleted"
+              title="Vista en lista"
+              data-testid="app-menu-display-list"
+            />
+            <v-btn
+              :value="MENU_DISPLAY_MODE_GRID"
+              icon="mdi-view-grid-outline"
+              title="Vista en cuadrícula"
+              data-testid="app-menu-display-grid"
+            />
           </v-btn-toggle>
         </div>
 
-        <v-list v-if="!isGridMenuMode" class="ofir-sidebar__menu" density="compact" nav>
+        <v-list v-if="!isGridMenuMode" class="ofir-sidebar__menu" density="compact" nav data-testid="app-sidebar-menu">
           <template v-if="menuSections && menuSections.length > 0">
             <template v-for="(section, idx) in menuSections" :key="`section-${section?.title || idx}`">
               <!-- Item suelto (sin grupo) -->
@@ -128,16 +162,22 @@
                 :to="section?.action ? undefined : section?.route"
                 :value="section?.title"
                 color="primary"
+                :data-testid="buildTestId('app-sidebar-item', section?.route || section?.title || idx)"
                 @click="section?.action ? handleMenuAction(section.action) : undefined"
               ></v-list-item>
 
               <!-- Grupo colapsable -->
-              <v-list-group v-else-if="section?.children" :value="section?.title">
+              <v-list-group
+                v-else-if="section?.children"
+                :value="section?.title"
+                :data-testid="buildTestId('app-sidebar-group', section?.title || idx)"
+              >
                 <template #activator="{ props }">
                   <v-list-item
                     v-bind="props"
                     :prepend-icon="section?.icon"
                     :title="section?.title"
+                    :data-testid="buildTestId('app-sidebar-group-trigger', section?.title || idx)"
                   ></v-list-item>
                 </template>
                 <v-list-item
@@ -148,6 +188,7 @@
                   :to="child?.action ? undefined : child?.route"
                   :value="child?.title"
                   color="primary"
+                  :data-testid="buildTestId('app-sidebar-child', child?.route || child?.title || childIdx)"
                   @click="child?.action ? handleMenuAction(child.action) : undefined"
                 ></v-list-item>
               </v-list-group>
@@ -162,16 +203,18 @@
 
         <div v-else class="ofir-sidebar__grid-wrap px-3 pb-3">
           <template v-if="menuSections && menuSections.length > 0">
-            <div class="ofir-sidebar__grid">
+            <div class="ofir-sidebar__grid" data-testid="app-sidebar-grid">
               <div
                 v-for="(section, idx) in menuSections"
                 :key="`grid-section-${section?.title || idx}`"
                 class="ofir-sidebar__grid-card"
                 :class="{ 'ofir-sidebar__grid-card--expanded': section?.children && isGridSectionExpanded(section, idx) }"
+                :data-testid="buildTestId('app-sidebar-grid-card', section?.title || idx)"
               >
                 <button
                   type="button"
                   class="ofir-sidebar__grid-trigger"
+                  :data-testid="buildTestId('app-sidebar-grid-trigger', section?.title || idx)"
                   @click="handleGridSectionSelection(section, idx)"
                 >
                   <span class="ofir-sidebar__grid-icon">
@@ -194,12 +237,14 @@
                 <div
                   v-if="section?.children?.length && isGridSectionExpanded(section, idx)"
                   class="ofir-sidebar__grid-children"
+                  :data-testid="buildTestId('app-sidebar-grid-children', section?.title || idx)"
                 >
                   <button
                     v-for="(child, childIdx) in section.children"
                     :key="`grid-child-${child?.title || childIdx}`"
                     type="button"
                     class="ofir-sidebar__grid-child"
+                    :data-testid="buildTestId('app-sidebar-grid-child', child?.route || child?.title || childIdx)"
                     @click="handleGridChildSelection(child)"
                   >
                     <v-icon size="16">{{ child?.icon || 'mdi-chevron-right' }}</v-icon>
@@ -209,7 +254,7 @@
               </div>
             </div>
           </template>
-          <div v-else class="ofir-sidebar__grid-empty">
+          <div v-else class="ofir-sidebar__grid-empty" data-testid="app-sidebar-grid-empty">
             {{ t('app.loadingMenu') }}
           </div>
         </div>
@@ -221,6 +266,7 @@
               prepend-icon="mdi-logout"
               color="error"
               variant="outlined"
+              data-testid="app-logout-button"
               @click="handleLogout"
             >
               {{ t('app.logout') }}
@@ -229,8 +275,8 @@
         </template>
       </v-navigation-drawer>
 
-      <v-main class="ofir-main">
-        <v-container fluid class="pa-4 ofir-main__container">
+      <v-main class="ofir-main" data-testid="app-main">
+        <v-container fluid class="pa-4 ofir-main__container" data-testid="app-main-container">
           <v-alert
             v-if="showBillingBanner"
             :type="billingBannerType"
@@ -255,18 +301,25 @@
               </v-btn>
             </div>
           </v-alert>
-          <router-view></router-view>
+          <router-view v-slot="{ Component, route: currentRoute }">
+            <div
+              class="ofir-route-view"
+              :data-testid="buildRouteTestId(currentRoute)"
+            >
+              <component :is="Component" />
+            </div>
+          </router-view>
         </v-container>
       </v-main>
 
-      <v-footer app class="text-center ofir-footer" elevation="0">
+      <v-footer app class="text-center ofir-footer" elevation="0" data-testid="app-footer">
         <v-col class="text-center" cols="12">
           {{ new Date().getFullYear() }} — <strong>OfirOne</strong>
         </v-col>
       </v-footer>
 
       <!-- Snackbar global -->
-      <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">
+      <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000" data-testid="app-snackbar">
         {{ snackbarMessage }}
         <template v-slot:actions>
           <v-btn variant="text" @click="snackbar = false">{{ t('common.close') }}</v-btn>
@@ -278,7 +331,14 @@
 
     <!-- Layout simple para rutas de autenticación -->
     <template v-else>
-      <router-view></router-view>
+      <router-view v-slot="{ Component, route: currentRoute }">
+        <div
+          class="ofir-route-view ofir-route-view--public"
+          :data-testid="buildRouteTestId(currentRoute)"
+        >
+          <component :is="Component" />
+        </div>
+      </router-view>
     </template>
   </v-app>
 </template>
@@ -298,6 +358,7 @@ import rolesService from '@/services/roles.service'
 import { useAppAlerts } from '@/composables/useAppAlerts'
 import { useI18n } from '@/i18n'
 import { filterMenuTreeByBilling, getBillingRouteAccess } from '../../shared/utils/billingAccess'
+import { buildRouteTestId, buildTestId } from '@/utils/testIds'
 import {
   loadMenuDisplayMode,
   MENU_DISPLAY_MODE_GRID,

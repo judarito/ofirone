@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="about-page">
     <v-card>
       <v-card-title class="text-h4 bg-primary pa-4 d-flex align-center">
         <img src="/branding/ofirone-mark.png" alt="OfirOne" class="about-title-logo">

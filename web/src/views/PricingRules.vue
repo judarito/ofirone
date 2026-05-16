@@ -1,5 +1,5 @@
 ﻿<template>
-  <div>
+  <div data-testid="pricing-rules-page">
     <v-card flat class="mb-3">
       <v-card-text class="pa-2 d-flex justify-end" style="gap: 8px; flex-wrap: wrap;">
         <v-btn
@@ -673,7 +673,6 @@ onMounted(async () => {
   await loadLocations()
 })
 </script>
-
 
 
 

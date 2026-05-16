@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="accounting-page">
     <v-card class="mb-4" variant="tonal" color="primary">
       <v-card-text class="d-flex align-center justify-space-between flex-wrap gap-3">
         <div>

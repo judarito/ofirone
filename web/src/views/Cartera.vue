@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="cartera-page">
     <!-- Header -->
     <div class="d-flex align-center justify-space-between mb-4">
       <div>
@@ -165,11 +165,12 @@
                 color="green"
                 variant="tonal"
                 prepend-icon="mdi-cash-plus"
+                :data-testid="buildTestId('cartera-payment', item.credit_account_id)"
                 @click.stop="openPaymentDialog(item)"
               >
                 Abonar
               </v-btn>
-              <v-btn size="x-small" variant="text" icon="mdi-history" @click.stop="openHistory(item)"></v-btn>
+              <v-btn size="x-small" variant="text" icon="mdi-history" :data-testid="buildTestId('cartera-history', item.credit_account_id)" @click.stop="openHistory(item)"></v-btn>
             </div>
           </template>
         </ListView>
@@ -346,6 +347,7 @@ import creditService from '@/services/credit.service'
 import customersService from '@/services/customers.service'
 import { formatMoney, formatMoneyShort, formatDateTime as formatDate } from '@/utils/formatters'
 import { useI18n } from '@/i18n'
+import { buildTestId } from '@/utils/testIds'
 
 const { t } = useI18n()
 

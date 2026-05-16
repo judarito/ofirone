@@ -1,6 +1,6 @@
 <template>
-  <div class="login-root" :class="{ 'login-dark': isDark }">
-    <section class="login-page">
+  <div class="login-root" :class="{ 'login-dark': isDark }" data-testid="login-page">
+    <section class="login-page" data-testid="login-section">
       <div class="bg-orb orb-a"></div>
       <div class="bg-orb orb-b"></div>
 
@@ -61,7 +61,7 @@
                     </div>
                   </div>
 
-                  <v-form @submit.prevent="handleUpdatePassword">
+                  <v-form @submit.prevent="handleUpdatePassword" data-testid="login-recovery-form">
                     <v-text-field
                       v-model="recoveryPassword"
                       :label="t('login.newPassword')"
@@ -71,6 +71,7 @@
                       variant="outlined"
                       required
                       class="mb-2 login-input"
+                      data-testid="login-recovery-password"
                       @click:append-inner="showPassword = !showPassword"
                     ></v-text-field>
 
@@ -82,6 +83,7 @@
                       variant="outlined"
                       required
                       class="mb-3 login-input"
+                      data-testid="login-recovery-password-confirm"
                     ></v-text-field>
 
                     <v-btn
@@ -91,6 +93,7 @@
                       block
                       :loading="loading"
                       class="login-btn"
+                      data-testid="login-recovery-submit"
                     >
                       <v-icon start>mdi-content-save-check</v-icon>
                       {{ t('login.savePassword') }}
@@ -122,7 +125,7 @@
                     </div>
                   </div>
 
-                  <v-form @submit.prevent="handleLogin" ref="loginForm">
+                  <v-form @submit.prevent="handleLogin" ref="loginForm" data-testid="login-form">
                     <v-text-field
                       v-model="loginData.email"
                       :label="t('login.email')"
@@ -132,6 +135,7 @@
                       :rules="[rules.required, rules.email]"
                       required
                       class="mb-2 login-input"
+                      data-testid="login-email"
                     ></v-text-field>
 
                     <v-text-field
@@ -144,6 +148,7 @@
                       :rules="[rules.required]"
                       required
                       class="mb-2 login-input"
+                      data-testid="login-password"
                       @click:append-inner="showPassword = !showPassword"
                     ></v-text-field>
 
@@ -153,12 +158,14 @@
                         :label="t('login.rememberMe')"
                         density="compact"
                         hide-details
+                        data-testid="login-remember-me"
                       ></v-checkbox>
                       <v-btn
                         variant="text"
                         size="small"
                         color="primary"
                         class="login-link-btn"
+                        data-testid="login-forgot-password"
                         @click="showResetPassword = true"
                       >
                         {{ t('login.forgotPassword') }}
@@ -172,6 +179,7 @@
                       block
                       :loading="loading"
                       class="login-btn"
+                      data-testid="login-submit"
                     >
                       <v-icon start>mdi-login</v-icon>
                       {{ t('login.enterSystem') }}
@@ -184,6 +192,7 @@
                         color="primary"
                         size="small"
                         prepend-icon="mdi-store-plus"
+                        data-testid="login-buy-plan"
                       >
                         Comprar un plan
                       </v-btn>
@@ -208,14 +217,14 @@
       </v-container>
     </section>
 
-    <v-dialog v-model="showResetPassword" max-width="500">
+    <v-dialog v-model="showResetPassword" max-width="500" data-testid="login-reset-dialog">
       <v-card rounded="xl">
         <v-card-title>
           <v-icon start>mdi-lock-reset</v-icon>
           {{ t('login.resetPasswordTitle') }}
         </v-card-title>
         <v-card-text>
-          <v-form @submit.prevent="handleResetPassword">
+          <v-form @submit.prevent="handleResetPassword" data-testid="login-reset-form">
             <v-text-field
               v-model="resetEmail"
               :label="t('login.email')"
@@ -223,6 +232,7 @@
               variant="outlined"
               type="email"
               class="login-input"
+              data-testid="login-reset-email"
               required
             ></v-text-field>
 
@@ -238,11 +248,12 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn @click="showResetPassword = false">{{ t('common.cancel') }}</v-btn>
+          <v-btn data-testid="login-reset-cancel" @click="showResetPassword = false">{{ t('common.cancel') }}</v-btn>
           <v-btn
             color="primary"
             @click="handleResetPassword"
             :loading="loading"
+            data-testid="login-reset-submit"
           >
             {{ t('login.send') }}
           </v-btn>

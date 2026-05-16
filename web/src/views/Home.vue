@@ -1,5 +1,5 @@
 <template>
-  <div class="home-root ofir-home" :class="isDark ? 'ofir-home--dark' : 'ofir-home--light'">
+  <div class="home-root ofir-home" :class="isDark ? 'ofir-home--dark' : 'ofir-home--light'" data-testid="home-page">
     <template v-if="isSuperAdminDashboard">
       <v-row class="ofir-home__hero mb-4" align="center">
         <v-col cols="12" md="8">

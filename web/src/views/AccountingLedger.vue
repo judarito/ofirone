@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="accounting-ledger-page">
     <div class="mb-3">
       <v-btn
         color="primary"

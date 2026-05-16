@@ -1,5 +1,5 @@
 <template>
-  <div class="storefront" :style="themeStyles">
+  <div class="storefront" :style="themeStyles" data-testid="public-storefront-page">
     <div class="storefront__shell">
       <section class="storefront__hero">
         <div

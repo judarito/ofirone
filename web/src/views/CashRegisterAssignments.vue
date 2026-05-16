@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="cash-register-assignments-page">
     <v-card>
       <v-card-text>
         <ListView

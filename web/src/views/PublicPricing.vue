@@ -1,5 +1,5 @@
 <template>
-  <div class="pricing-page">
+  <div class="pricing-page" data-testid="public-pricing-page">
     <section class="pricing-hero">
       <div class="pricing-hero__copy">
         <div class="pricing-eyebrow">OfirOne SaaS</div>

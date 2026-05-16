@@ -1,7 +1,7 @@
 <template>
-  <div class="pos-container ofir-page ofir-pos">
+  <div class="pos-container ofir-page ofir-pos" data-testid="pos-page">
     <!-- Barra Superior POS -->
-    <v-card ref="headerCard" flat class="mb-2 pos-header-card">
+    <v-card ref="headerCard" flat class="mb-2 pos-header-card" data-testid="pos-header">
       <v-card-title class="d-flex flex-column flex-sm-row align-start align-sm-center pa-2">
         <div class="d-flex align-center mb-2 mb-sm-0">
           <v-icon class="mr-2">mdi-point-of-sale</v-icon>
@@ -15,6 +15,7 @@
             variant="tonal"
             color="secondary"
             prepend-icon="mdi-map-marker-path"
+            data-testid="pos-open-sale-wizard"
             @click="openSaleWizard"
           >
             Venta guiada
@@ -25,6 +26,7 @@
             prepend-icon="mdi-check-circle"
             :loading="processing"
             :disabled="cart.length === 0 || remaining > 0 || sessionExpired || !currentSession"
+            data-testid="pos-charge-button"
             @click="processSale"
           >
             Cobrar {{ formatMoney(totals.total) }}
@@ -35,6 +37,7 @@
             color="error"
             prepend-icon="mdi-trash-can"
             :disabled="cart.length === 0"
+            data-testid="pos-clear-button"
             @click="clearSale"
           >
             Limpiar
@@ -65,7 +68,7 @@
     <v-row no-gutters align="start" class="pos-main-row">
       <!-- Panel Izquierdo: Búsqueda de productos -->
       <v-col cols="12" md="7" class="pr-md-2">
-        <v-card class="pos-panel">
+        <v-card class="pos-panel" data-testid="pos-search-panel">
           <v-card-text class="pa-2">
             <!-- Búsqueda con autocompletado -->
             <v-autocomplete
@@ -86,6 +89,7 @@
               clearable
               autofocus
               :no-data-text="searchTerm && searchTerm.length >= 2 ? 'No se encontraron productos' : 'Escribe para buscar...'"
+              data-testid="pos-product-search"
               @update:search="debouncedSearch"
               @update:model-value="onVariantSelected"
               @keydown.enter.prevent="searchByBarcode"
@@ -110,6 +114,7 @@
               auto-grow
               class="mt-2"
               hide-details="auto"
+              data-testid="pos-chat-order-input"
             ></v-textarea>
 
             <input
@@ -118,6 +123,7 @@
               accept="image/*"
               capture="environment"
               class="d-none"
+              data-testid="pos-order-image-input"
               @change="onOrderImageSelected"
             />
 
@@ -128,6 +134,7 @@
                 prepend-icon="mdi-creation"
                 :loading="processingChatOrder"
                 :disabled="processingChatOrder || processingOrderImage || !chatOrderText.trim()"
+                data-testid="pos-parse-chat-order"
                 @click="parseChatOrderWithAgent"
               >
                 Convertir texto a venta
@@ -140,6 +147,7 @@
                 prepend-icon="mdi-camera-outline"
                 :loading="processingOrderImage"
                 :disabled="processingOrderImage || processingChatOrder"
+                data-testid="pos-upload-order-image"
                 @click="triggerOrderImageInput"
               >
                 Tomar o subir imagen
@@ -224,6 +232,7 @@
               :show-create-button="false"
               :editable="false"
               :deletable="false"
+              data-testid="pos-cart-list"
               @load-page="onCartListPage"
             >
               <template #title="{ item: line }">

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="taxes-page">
     <ListView
       :title="t('taxes.title')"
       icon="mdi-percent"

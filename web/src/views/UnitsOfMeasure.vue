@@ -1,5 +1,5 @@
 <template>
-  <div class="fill-width">
+  <div class="fill-width" data-testid="units-of-measure-page">
     <ListView
       :title="t('units.title')"
       icon="mdi-ruler"
@@ -57,6 +57,7 @@
           size="small"
           variant="text"
           color="primary"
+          :data-testid="buildTestId('units-edit', item.unit_id)"
           @click="openEditDialog(item)"
         ></v-btn>
         <v-btn
@@ -65,6 +66,7 @@
           size="small"
           variant="text"
           color="error"
+          :data-testid="buildTestId('units-delete', item.unit_id)"
           @click="confirmDelete(item)"
         ></v-btn>
         <v-tooltip v-if="item.is_system" :text="t('units.systemNotEditable')" location="top">
@@ -215,6 +217,7 @@ import { useTenantSettings } from '@/composables/useTenantSettings'
 import { useI18n } from '@/i18n'
 import ListView from '@/components/ListView.vue'
 import unitsOfMeasureService from '@/services/unitsOfMeasure.service'
+import { buildTestId } from '@/utils/testIds'
 
 const { tenantId } = useTenant()
 const { t } = useI18n()
