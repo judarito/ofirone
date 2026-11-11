@@ -27,12 +27,11 @@ export async function getLayawayContracts(tenantId, page = 1, pageSize = 20, sta
       .from('vw_layaway_summary')
       .select('*', { count: 'exact' })
       .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .range(from, to);
+      .order('created_at', { ascending: false });
 
     if (status) query = query.eq('status', status);
 
-    const { data, error, count } = await query;
+    const { data, error, count } = await query.range(from, to);
     if (error) throw error;
 
     return { success: true, data: data || [], total: count || 0 };

@@ -1,9 +1,15 @@
 import supabaseService from './supabase.service'
+import { getBackendPOSContext } from './backendPOSContextClient'
+
+const USE_BACKEND_POS_CONTEXT = import.meta.env.VITE_USE_BACKEND_POS_CONTEXT !== 'false'
 
 class CashAssignmentService {
   // Obtener contexto POS al login (sesión abierta + cajas asignadas)
   async getPOSHomeContext(tenantId, userId) {
     try {
+      if (USE_BACKEND_POS_CONTEXT) {
+        return { success: true, context: await getBackendPOSContext() }
+      }
       const { data, error } = await supabaseService.client.rpc('fn_pos_home_context', {
         p_tenant: tenantId,
         p_user: userId

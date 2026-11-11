@@ -1,0 +1,38 @@
+Base temporal aislada creada: ofirone_validation_20261109_165351 (se elimina al final)
+[PASS] Baseline 0001-0003 aplicado en base vacía: 
+[PASS] Objetos del baseline tras up: tablas=10, funciones=3, políticas=9, ledger=0
+[PASS] Siembra sintética + rol de prueba NOBYPASSRLS: owner de Neon tiene BYPASSRLS; las aserciones se ejecutan con SET ROLE
+[PASS] Sin contexto → tenants invisible: filas=0
+[PASS] Sin contexto → roles invisible: filas=0
+[PASS] Sin contexto → identities invisible: filas=0
+[PASS] Sin contexto → sessions invisible: filas=0
+[PASS] Sin contexto → refresh_tokens invisible: filas=0
+[PASS] Tenant A → tenants = 1: filas=1
+[PASS] Tenant A → roles = 25: filas=25
+[PASS] Tenant A → tenant_memberships = 1: filas=1
+[PASS] Tenant A → sessions = 1: filas=1
+[PASS] Tenant A ve sólo su identidad: filas=1
+[PASS] Tenant B NO ve sessions de A: filas=0
+[PASS] Tenant B NO ve refresh_tokens de A: filas=0
+[PASS] Tenant B NO ve membership_roles de A: filas=0
+[PASS] Tenant B ve sólo sus 5 roles: filas=5
+[PASS] RLS: rechaza INSERT cross-tenant: INSERT rol de tenant B desde contexto A: rechazado con SQLSTATE 42501
+[PASS] RLS: rechaza UPDATE cross-tenant: UPDATE tenant_id de rol A hacia B: rechazado con SQLSTATE 42501
+[PASS] FK compuesta: rechaza rol de otro tenant: membership_roles con rol de otro tenant: rechazado con SQLSTATE 23503
+[PASS] FK compuesta: rechaza identidad cruzada: sesión con identidad que no es del membership: rechazado con SQLSTATE 23503
+[PASS] CHECK: rechaza hash de 1 byte: refresh token con hash corto: rechazado con SQLSTATE 23514
+[PASS] Keyset pagination sin duplicados: filas=25, únicas=25
+[PASS] Keyset pagination sin omisiones (25 roles A): únicas=25
+[PASS] Keyset pagination no mezcla tenant B: filas_b=0
+[BLOQ] Validaciones de negocio (productos/inventario/ventas/compras/cartera): esquema de negocio portable inexistente (tablas encontradas=0)
+[HALLAZGO] Segunda ejecución 0001 no rompe: no idempotente ({'S': 'ERROR', 'V': 'ERROR', 'C': '42P06', 'M': 'schema "app_private" already exists', 'F': 'pg_namespace.c', 'L': '62', 'R': 'NamespaceCrea). El ledger debe evitar re-aplicar.
+[PASS] Down elimina objetos del baseline: tablas_restantes=0
+[PASS] Ciclo up → down → up completado: esquema recreado
+  0001_core.up.sql sha256=b9c7c3bc85f71df8db57e44c21fc2b3d10a2eb27365dd5c385d016d84eed9b09
+  0002_identity.up.sql sha256=601deb5022541fe8abb2fbf33062cf1c4649be2317208fa7d555eb375542c83f
+  0003_migration_control.up.sql sha256=63fb1f09aeff303e90cee3cd030acfaab4d994fa1358e4e6658a1cf8dcaacf7b
+[PASS] Checksums SHA-256 de migraciones calculados: 3 archivos
+Base temporal eliminada: ofirone_validation_20261109_165351
+Rol temporal eliminado: ofirone_validation_actor
+
+RESULTADO GLOBAL: PASS (PASS=28, FAIL=0, BLOQ=1, HALLAZGO=1)

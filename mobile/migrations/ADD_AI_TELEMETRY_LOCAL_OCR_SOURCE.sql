@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_AI_TELEMETRY_LOCAL_OCR_SOURCE.sql

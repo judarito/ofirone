@@ -1,0 +1,13 @@
+Contrato del ledger (reglas del runner)
+
+[PASS] ledger vacío: 3 pendientes: pending=3
+[PASS] ledger exacto: 0 pendientes: pending=0
+[PASS] prefijo de 2: 1 pendiente: pending=1
+[PASS] ledger más largo: rechazo: rechazado: ledger más largo que la historia (versión aplicada desconocida)
+[PASS] nombre distinto: rechazo: rechazado: nombre distinto en versión 1
+[PASS] checksum distinto: rechazo: rechazado: checksum distinto en versión 1
+[PASS] dirty: rechazo: rechazado: fila dirty en versión 1
+[PASS] hueco en historia: rechazo: rechazado: hueco o versión distinta en el ledger
+[PASS] historia reordenada: rechazo: rechazado: historia no consecutiva en 2
+
+RESULTADO GLOBAL: PASS

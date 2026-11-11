@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { ensureTenantBillingFeature } from './tenantBilling.service';
 import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
+import { estimateAITokens, recordAITelemetryEvent } from './aiTelemetry.service';
 
 const OCR_EDGE_FUNCTION = process.env.EXPO_PUBLIC_DEEPSEEK_OCR_EDGE_FUNCTION || 'deepseek-ocr-proxy';
 const TEXT_EDGE_FUNCTION = process.env.EXPO_PUBLIC_DEEPSEEK_TEXT_EDGE_FUNCTION || 'deepseek-proxy';
@@ -256,6 +257,7 @@ function findBestVariantMatch(line, catalog) {
 }
 
 export async function analyzeInvoiceWithText({ tenantId, ocrText }) {
+  const startedAt = Date.now();
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.' };
   }
@@ -320,6 +322,18 @@ Texto OCR:
 
   if (error) {
     const details = await extractInvokeError(error);
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'invoice_ocr_text',
+      input_type: 'text',
+      engine: 'deepseek',
+      model: DEFAULT_TEXT_MODEL,
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens(userPrompt),
+      success: false,
+      error: details,
+    });
     return {
       success: false,
       error: `Error invocando Edge Function "${TEXT_EDGE_FUNCTION}": ${details}.`,
@@ -329,6 +343,19 @@ Texto OCR:
   const content = data?.content;
   const parsed = parseAiJson(content);
   if (!parsed || !Array.isArray(parsed.line_items)) {
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'invoice_ocr_text',
+      input_type: 'text',
+      engine: 'deepseek',
+      model: data?.model || DEFAULT_TEXT_MODEL,
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens(userPrompt),
+      tokens_output: estimateAITokens(content),
+      success: false,
+      error: 'parse_error',
+    });
     return { success: false, error: 'No se pudo parsear la respuesta de IA para la factura.' };
   }
 
@@ -342,6 +369,19 @@ Texto OCR:
     }))
     .filter((item) => item.raw_name);
 
+  await recordAITelemetryEvent({
+    tenant_id: tenantId,
+    feature: 'invoice_ocr_text',
+    input_type: 'text',
+    engine: 'deepseek',
+    model: data?.model || DEFAULT_TEXT_MODEL,
+    resolution_source: 'cloud_llm',
+    latency_ms: Date.now() - startedAt,
+    tokens_input: estimateAITokens(userPrompt),
+    tokens_output: estimateAITokens(content),
+    success: true,
+  });
+
   return {
     success: true,
     data: {
@@ -353,7 +393,8 @@ Texto OCR:
   };
 }
 
-export async function analyzeInvoiceWithImage({ tenantId, imageBase64, mimeType = 'image/jpeg' }) {
+export async function analyzeInvoiceWithImage({ tenantId, imageBase64, mimeType = 'image/jpeg', fallback = null }) {
+  const startedAt = Date.now();
   if (!tenantId) {
     return { success: false, error: 'tenantId es requerido.' };
   }
@@ -418,6 +459,19 @@ Reglas:
     const sizeHint = String(details || '').toLowerCase().includes('maximum size limit 1024 kb')
       ? ' OCR.Space (plan actual) solo acepta imagenes <= 1MB. La app intenta comprimir automaticamente; si persiste, toma la foto mas cerca y con menos fondo.'
       : '';
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'invoice_ocr_image',
+      input_type: 'image',
+      engine: 'deepseek',
+      model: DEFAULT_TEXT_MODEL,
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens({ prompt, mimeType, imageSize: String(imageBase64).length }),
+      fallback,
+      success: false,
+      error: details,
+    });
     return {
       success: false,
       error: `Error invocando Edge Function "${OCR_EDGE_FUNCTION}": ${details}.${sizeHint}`,
@@ -427,6 +481,20 @@ Reglas:
   const content = data?.content;
   const parsed = parseAiJson(content);
   if (!parsed || !Array.isArray(parsed.line_items)) {
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'invoice_ocr_image',
+      input_type: 'image',
+      engine: 'deepseek',
+      model: data?.model || DEFAULT_TEXT_MODEL,
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens({ prompt, mimeType, imageSize: String(imageBase64).length }),
+      tokens_output: estimateAITokens(content),
+      fallback,
+      success: false,
+      error: 'parse_error',
+    });
     return { success: false, error: 'No se pudo parsear la respuesta OCR+IA para la factura.' };
   }
 
@@ -440,6 +508,20 @@ Reglas:
     }))
     .filter((item) => item.raw_name);
 
+  await recordAITelemetryEvent({
+    tenant_id: tenantId,
+    feature: 'invoice_ocr_image',
+    input_type: 'image',
+    engine: 'deepseek',
+    model: data?.model || DEFAULT_TEXT_MODEL,
+    resolution_source: 'cloud_llm',
+    latency_ms: Date.now() - startedAt,
+    tokens_input: estimateAITokens({ prompt, mimeType, imageSize: String(imageBase64).length }),
+    tokens_output: estimateAITokens(content),
+    fallback,
+    success: true,
+  });
+
   return {
     success: true,
     data: {
@@ -450,6 +532,36 @@ Reglas:
       model: data?.model || DEFAULT_TEXT_MODEL,
     },
   };
+}
+
+export async function recordInvoiceImageOcrTelemetry({
+  tenantId,
+  userId = null,
+  engine = 'native_ocr',
+  latencyMs = 0,
+  confidence = null,
+  success = true,
+  error = null,
+  fallback = null,
+} = {}) {
+  if (!tenantId) return null;
+  return recordAITelemetryEvent({
+    tenant_id: tenantId,
+    user_id: userId,
+    feature: 'invoice_ocr_image',
+    input_type: 'image',
+    engine,
+    model: engine,
+    resolution_source: 'local_ocr',
+    latency_ms: latencyMs,
+    confidence,
+    tokens_input: 0,
+    tokens_output: 0,
+    estimated_cost: 0,
+    fallback,
+    success,
+    error,
+  });
 }
 
 export function matchInvoiceLinesToCatalog(lineItems, catalog, options = {}) {

@@ -257,6 +257,7 @@ import salesService from '@/services/sales.service'
 
 const { tenantId } = useTenant()
 const { aiForecastDaysBack, loadSettings } = useTenantSettings()
+const USE_GO_MVP = import.meta.env.VITE_USE_BACKEND_POS_CONTEXT === 'true'
 
 const forecast = ref(null)
 const loading = ref(false)

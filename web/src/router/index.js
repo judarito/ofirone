@@ -4,6 +4,7 @@ import { canManageTenants } from '@/utils/superAdmin'
 import { detectRecoveryFromWindow, isRecoveryNavigationTarget } from '@/utils/authRecovery'
 import rolesService from '@/services/roles.service'
 import supabaseService from '@/services/supabase.service'
+import { getBackendSession, USE_BACKEND_AUTH } from '@/services/backendAuthClient'
 import tenantBillingService, { getBillingRouteAccess } from '@/services/tenantBilling.service'
 
 const Login = () => import('@/views/Login.vue')
@@ -572,8 +573,11 @@ const router = createRouter({
 // Guard de navegación
 router.beforeEach(async (to, from, next) => {
   try {
-    const session = await supabaseService.getValidSession({ redirectOnFail: false })
-    const isAuthenticated = !!session
+  const backendSession = USE_BACKEND_AUTH ? getBackendSession() : null
+  const session = backendSession?.accessToken
+    ? { user: { id: null, email: null }, access_token: backendSession.accessToken }
+    : await supabaseService.getValidSession({ redirectOnFail: false })
+  const isAuthenticated = !!session
 
     // Validación de autenticación
     if (to.meta.requiresAuth && !isAuthenticated) {

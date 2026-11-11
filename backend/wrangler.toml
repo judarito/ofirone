@@ -1,0 +1,21 @@
+name = "ofirone-backend-gateway"
+main = "src/cloudflare/worker-entry.js"
+compatibility_date = "2025-01-01"
+
+# El gateway usa Request/Response/fetch nativos (sin node:http ni Buffer).
+# No se requiere nodejs_compat.
+
+[observability]
+enabled = true
+
+# Variables NO secretas. Los secretos se configuran con:
+#   npx wrangler secret put SUPABASE_URL
+#   npx wrangler secret put SUPABASE_ANON_KEY
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY   # solo si acá (no recomendado; usalo en el worker)
+[vars]
+CORS_ORIGIN = "https://tu-dominio-web"
+RATE_LIMIT_MAX = "300"
+RATE_LIMIT_WINDOW_MS = "60000"
+MAX_BODY_BYTES = "1048576"
+ALLOWED_AI_FUNCTIONS = "deepseek-proxy,deepseek-ocr-proxy,ops-rag-agent,chat-order-parser"
+ALLOWED_IMPORT_FUNCTIONS = "product-photo-parser,product-photo-analyzer,deepseek-ocr-proxy"

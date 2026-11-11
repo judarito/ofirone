@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { estimateAITokens, recordAITelemetryEvent } from './aiTelemetry.service';
 
 const PHOTO_PARSER_EDGE_FUNCTION =
   process.env.EXPO_PUBLIC_PRODUCT_PHOTO_PARSER_EDGE_FUNCTION || 'product-photo-parser';
@@ -294,14 +295,16 @@ async function extractInvokeError(error) {
 }
 
 export async function parseProductsFromPhoto({ tenantId, imageBase64, mimeType = 'image/jpeg' }) {
+  const startedAt = Date.now();
   if (!tenantId) return { success: false, error: 'tenantId es requerido.' };
   if (!imageBase64) return { success: false, error: 'imageBase64 es requerido.' };
 
+  const model = process.env.EXPO_PUBLIC_DEEPSEEK_TEXT_MODEL || 'deepseek-chat';
   const { data, error } = await supabase.functions.invoke(PHOTO_PARSER_EDGE_FUNCTION, {
     body: {
       image: imageBase64,
       mime_type: mimeType,
-      model: process.env.EXPO_PUBLIC_DEEPSEEK_TEXT_MODEL || 'deepseek-chat',
+      model,
       temperature: 0.1,
       max_tokens: 2200,
     },
@@ -309,10 +312,37 @@ export async function parseProductsFromPhoto({ tenantId, imageBase64, mimeType =
 
   if (error) {
     const details = await extractInvokeError(error);
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'product_photo_parser',
+      input_type: 'image',
+      engine: 'deepseek',
+      model,
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens({ mimeType, imageSize: String(imageBase64).length }),
+      success: false,
+      error: details,
+    });
     return { success: false, error: `Error invocando ${PHOTO_PARSER_EDGE_FUNCTION}: ${details}` };
   }
 
   const products = Array.isArray(data?.products) ? data.products : [];
+  await recordAITelemetryEvent({
+    tenant_id: tenantId,
+    feature: 'product_photo_parser',
+    input_type: 'image',
+    engine: 'deepseek',
+    model: data?.model || model,
+    resolution_source: 'cloud_llm',
+    latency_ms: Date.now() - startedAt,
+    confidence: products.length
+      ? products.reduce((sum, item) => sum + Number(item?.confidence || 0), 0) / products.length
+      : null,
+    tokens_input: estimateAITokens({ mimeType, imageSize: String(imageBase64).length }),
+    tokens_output: estimateAITokens(data),
+    success: true,
+  });
   return {
     success: true,
     data: {

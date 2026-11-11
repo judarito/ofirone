@@ -9,6 +9,7 @@ import AICacheManager from '../utils/aiCache.js';
 import { supabase } from '@/plugins/supabase';
 import tenantBillingService from './tenantBilling.service';
 import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
+import { estimateAITokens, recordAITelemetryEvent } from './aiTelemetry.service';
 
 const DEEPSEEK_MODEL = 'deepseek-chat';
 const CACHE_TTL_HOURS = 12; // Caché de 12 horas para sugerencias de compra
@@ -30,6 +31,8 @@ class AIPurchaseAdvisorService {
    * @param {Object} options - Opciones adicionales (forceRefresh: boolean)
    */
   async generatePurchaseRecommendations(tenantId, rotationData, suggestions, options = {}) {
+    const startedAt = Date.now();
+    let telemetryStage = 'billing';
     try {
       const billingAccess = await tenantBillingService.ensureFeatureAccess(
         tenantId,
@@ -53,6 +56,16 @@ class AIPurchaseAdvisorService {
         const cached = AICacheManager.get(cacheKey);
         if (cached) {
           console.log('📦 Usando análisis de compra desde caché');
+          recordAITelemetryEvent({
+            tenant_id: tenantId,
+            feature: 'purchase_advisor',
+            input_type: 'structured',
+            engine: 'cache',
+            resolution_source: 'local_cache',
+            latency_ms: Date.now() - startedAt,
+            cache_hit: true,
+            success: true,
+          });
           return {
             ...cached,
             from_cache: true,
@@ -64,6 +77,7 @@ class AIPurchaseAdvisorService {
       console.log('🚀 Consultando IA vía Edge Function...');
 
       const prompt = this._buildPrompt(rotationData, suggestions, options);
+      telemetryStage = 'cloud_llm';
       
       const aiResponse = await this._invokeDeepSeek(
         [
@@ -91,12 +105,36 @@ class AIPurchaseAdvisorService {
 
       // Guardar en caché
       AICacheManager.set(cacheKey, result, CACHE_TTL_HOURS);
+      recordAITelemetryEvent({
+        tenant_id: tenantId,
+        feature: 'purchase_advisor',
+        input_type: 'structured',
+        engine: 'deepseek',
+        model: DEEPSEEK_MODEL,
+        resolution_source: 'cloud_llm',
+        latency_ms: Date.now() - startedAt,
+        tokens_input: estimateAITokens(prompt),
+        tokens_output: estimateAITokens(aiResponse),
+        cache_hit: false,
+        success: true,
+      });
 
       return {
         ...result,
         from_cache: false
       };
     } catch (error) {
+      recordAITelemetryEvent({
+        tenant_id: tenantId,
+        feature: 'purchase_advisor',
+        input_type: 'structured',
+        engine: telemetryStage === 'cloud_llm' ? 'deepseek' : null,
+        model: telemetryStage === 'cloud_llm' ? DEEPSEEK_MODEL : null,
+        resolution_source: telemetryStage,
+        latency_ms: Date.now() - startedAt,
+        success: false,
+        error: error.message,
+      });
       console.error('Error en AI Purchase Advisor:', error);
       throw error;
     }

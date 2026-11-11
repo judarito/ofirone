@@ -14,6 +14,10 @@ function normalizeSku(value) {
     .replace(/[^a-z0-9]/g, '')
 }
 
+function compactNormalizedText(value) {
+  return normalizeText(value).replace(/\s+/g, '')
+}
+
 const SIZE_TOKENS = new Set([
   'xs',
   's',
@@ -321,10 +325,14 @@ export function findBestSupplierCandidate(invoice = {}, suppliers = []) {
       if (!normalizedCandidate) continue
 
       let score = 0
-      if (normalizedCandidate === normalizedVendor) score = 1
+      const compactCandidate = compactNormalizedText(candidateText)
+      const compactVendor = compactNormalizedText(vendorName)
+      if (normalizedCandidate === normalizedVendor || compactCandidate === compactVendor) score = 1
       else if (
         normalizedCandidate.includes(normalizedVendor) ||
-        normalizedVendor.includes(normalizedCandidate)
+        normalizedVendor.includes(normalizedCandidate) ||
+        compactCandidate.includes(compactVendor) ||
+        compactVendor.includes(compactCandidate)
       ) score = 0.82
       else {
         const vendorTokens = tokenize(vendorName)

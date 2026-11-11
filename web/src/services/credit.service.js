@@ -1,9 +1,15 @@
 import supabaseService from './supabase.service'
+import { listBackendReceivables, createBackendReceivablePayment, getBackendReceivable, upsertBackendReceivable, createBackendReceivableCharge, listBackendReceivableMovements, getBackendReceivableSummary } from './backendReceivablesClient'
+const USE_BACKEND_CXC = import.meta.env.VITE_USE_BACKEND_CXC === 'true'
 
 class CreditService {
   // ─── Cuenta de crédito de un cliente ────────────────────────────────────
   async getCreditAccount(tenantId, customerId) {
     try {
+      if (USE_BACKEND_CXC) {
+        const all = await listBackendReceivables({ limit: 100 })
+        return { success: true, data: (all.items || []).find(item => item.customer_id === customerId) || null }
+      }
       const { data, error } = await supabaseService.client
         .from('customer_credit_accounts')
         .select('credit_account_id, credit_limit, current_balance, is_active')
@@ -26,6 +32,10 @@ class CreditService {
   // ─── Asegurar que existe una cuenta de crédito ───────────────────────────
   async upsertCreditAccount(tenantId, customerId, creditLimit) {
     try {
+      if (USE_BACKEND_CXC) {
+        const data = await upsertBackendReceivable({ customer_id: customerId, credit_limit: Number(creditLimit) || 0, status: 'active' })
+        return { success: true, data }
+      }
       const { data, error } = await supabaseService.client
         .from('customer_credit_accounts')
         .upsert({ tenant_id: tenantId, customer_id: customerId, credit_limit: creditLimit, is_active: true },
@@ -42,6 +52,10 @@ class CreditService {
   // ─── Registrar movimiento de venta a crédito (suma deuda) ───────────────
   async registerCreditSale(tenantId, creditAccountId, saleId, amount, userId) {
     try {
+      if (USE_BACKEND_CXC) {
+        await createBackendReceivableCharge({ credit_account_id: creditAccountId, amount: Math.abs(amount), source_type: 'sale', source_id: saleId })
+        return { success: true }
+      }
       // Insertar movimiento
       const { error: mvErr } = await supabaseService.client
         .from('customer_credit_movements')
@@ -72,6 +86,10 @@ class CreditService {
   // ─── Registrar abono (reduce deuda) ─────────────────────────────────────
   async registerPayment(tenantId, creditAccountId, amount, note, userId) {
     try {
+      if (USE_BACKEND_CXC) {
+        await createBackendReceivablePayment({ credit_account_id: creditAccountId, amount: Math.abs(amount), note: note || 'Abono a cartera' })
+        return { success: true }
+      }
       const { error: mvErr } = await supabaseService.client
         .from('customer_credit_movements')
         .insert({
@@ -100,6 +118,10 @@ class CreditService {
   // ─── Lista de deudores (saldo > 0) ──────────────────────────────────────
   async getDebtors(tenantId) {
     try {
+      if (USE_BACKEND_CXC) {
+        const result = await listBackendReceivables({ limit: 100 })
+        return { success: true, data: (result.items || []).filter(item => Number(item.current_balance) > 0) }
+      }
       const { data, error } = await supabaseService.client
         .from('customer_credit_accounts')
         .select(`
@@ -120,6 +142,10 @@ class CreditService {
   // ─── Todos los clientes con cuenta de crédito ───────────────────────────
   async getAllCreditAccounts(tenantId) {
     try {
+      if (USE_BACKEND_CXC) {
+        const result = await listBackendReceivables({ limit: 100 })
+        return { success: true, data: result.items || [] }
+      }
       const { data, error } = await supabaseService.client
         .from('customer_credit_accounts')
         .select(`
@@ -138,6 +164,10 @@ class CreditService {
   // ─── Historial de movimientos de un cliente ──────────────────────────────
   async getCreditMovements(tenantId, creditAccountId) {
     try {
+      if (USE_BACKEND_CXC) {
+        const result = await listBackendReceivableMovements({ accountId: creditAccountId, limit: 200 })
+        return { success: true, data: result.items || [] }
+      }
       const { data, error } = await supabaseService.client
         .from('customer_credit_movements')
         .select('movement_id, source, source_id, amount, note, created_at, created_by_user:created_by(full_name)')
@@ -155,6 +185,10 @@ class CreditService {
   // ─── Resumen general de cartera ──────────────────────────────────────────
   async getPortfolioSummary(tenantId) {
     try {
+      if (USE_BACKEND_CXC) {
+        const data = await getBackendReceivableSummary()
+        return { success: true, data }
+      }
       const { data, error } = await supabaseService.client
         .from('customer_credit_accounts')
         .select('credit_limit, current_balance, is_active')

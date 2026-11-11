@@ -1,0 +1,11 @@
+# Contexto de build del Dockerfile backend (context: . de docker-compose).
+node_modules
+backend/node_modules
+.git
+.github
+docs
+web
+mobile
+*.log
+.env*
+backend/.env*

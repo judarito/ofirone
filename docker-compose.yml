@@ -1,0 +1,32 @@
+# Deploy local del backend gateway (mismo artefacto que irá a producción).
+# Usa el .env real de backend/.env (ignorado por git).
+#   docker compose up --build
+# Gateway:   http://localhost:8787  (health: GET /health)
+# Worker:    procesa async_jobs (import_jobs, media_processing)
+services:
+  gateway:
+    image: ofirone-backend-gateway:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8787:8787"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    image: ofirone-backend-gateway:local
+    depends_on:
+      gateway:
+        condition: service_healthy
+    command: ["node", "src/worker.js"]
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped

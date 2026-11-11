@@ -1,10 +1,14 @@
-import supabaseService from './supabase.service'
-import { serviceErrorResult } from '@/utils/appErrors'
+import supabaseService from './supabase.service';
+import { serviceErrorResult } from '@/utils/appErrors';
+import { listBackendStockBalances } from './backendDomainClient';
+import { createBackendInventoryMovement, listBackendInventoryMoves } from './backendInventoryClient';
+
+const USE_BACKEND_INVENTORY = import.meta.env.VITE_USE_BACKEND_INVENTORY === 'true';
 
 class InventoryService {
   constructor() {
-    this.movesTable = 'inventory_moves'
-    this.stockTable = 'stock_balances'
+    this.movesTable = 'inventory_moves';
+    this.stockTable = 'stock_balances';
   }
 
   _normalizeInventoryMove(row) {
@@ -23,39 +27,38 @@ class InventoryService {
         },
       },
       created_by_user: row?.created_by_name ? { full_name: row.created_by_name } : null,
-    }
+    };
   }
 
   _getComputedAlertLevel(stockRow) {
-    const onHand = Number(stockRow?.on_hand || 0)
-    const reserved = Number(stockRow?.reserved || 0)
-    const minStock = Number(stockRow?.variant?.min_stock || 0)
-    const available = onHand - reserved
+    const onHand = Number(stockRow?.on_hand || 0);
+    const reserved = Number(stockRow?.reserved || 0);
+    const minStock = Number(stockRow?.variant?.min_stock || 0);
+    const available = onHand - reserved;
 
-    if (onHand <= 0) return 'OUT_OF_STOCK'
-    if (available <= 0) return 'NO_AVAILABLE'
-    if (minStock > 0 && onHand <= minStock) return 'LOW_STOCK'
-    if (minStock > 0 && available <= minStock) return 'LOW_AVAILABLE'
-    return 'OK'
+    if (onHand <= 0) return 'OUT_OF_STOCK';
+    if (available <= 0) return 'NO_AVAILABLE';
+    if (minStock > 0 && onHand <= minStock) return 'LOW_STOCK';
+    if (minStock > 0 && available <= minStock) return 'LOW_AVAILABLE';
+    return 'OK';
   }
 
   _isMissingStockAlertsView(error) {
-    const message = String(error?.message || '').toLowerCase()
+    const message = String(error?.message || '').toLowerCase();
     return (
       message.includes('vw_stock_alerts') &&
-      (
-        message.includes('schema cache') ||
+      (message.includes('schema cache') ||
         message.includes('could not find the table') ||
         message.includes('relation') ||
-        message.includes('does not exist')
-      )
-    )
+        message.includes('does not exist'))
+    );
   }
 
   async _getStockAlertsFallback(tenantId, filters = {}) {
     let query = supabaseService.client
       .from(this.stockTable)
-      .select(`
+      .select(
+        `
         tenant_id,
         location_id,
         on_hand,
@@ -71,18 +74,19 @@ class InventoryService {
           min_stock,
           product:product_id(product_id, name)
         )
-      `)
+      `
+      )
       .eq('tenant_id', tenantId)
-      .order('updated_at', { ascending: false })
+      .order('updated_at', { ascending: false });
 
-    if (filters.location_id) query = query.eq('location_id', filters.location_id)
+    if (filters.location_id) query = query.eq('location_id', filters.location_id);
 
-    const { data, error } = await query
-    if (error) throw error
+    const { data, error } = await query;
+    if (error) throw error;
 
     const rows = (data || [])
       .map((item) => {
-        const available = Number(item.on_hand || 0) - Number(item.reserved || 0)
+        const available = Number(item.on_hand || 0) - Number(item.reserved || 0);
         return {
           ...item,
           variant_id: item.variant?.variant_id || null,
@@ -93,59 +97,109 @@ class InventoryService {
           location_name: item.location?.name || null,
           min_stock: Number(item.variant?.min_stock || 0),
           available,
-          alert_level: this._getComputedAlertLevel(item)
-        }
+          alert_level: this._getComputedAlertLevel(item),
+        };
       })
-      .filter((item) => item.alert_level !== 'OK')
+      .filter((item) => item.alert_level !== 'OK');
 
     const filtered = filters.alert_level
       ? rows.filter((item) => item.alert_level === filters.alert_level)
-      : rows
+      : rows;
 
-    return { success: true, data: filtered }
+    return { success: true, data: filtered };
   }
 
   // Obtener stock actual por sede (usa tabla materializada stock_balances)
   async getStockBalances(tenantId, page = 1, pageSize = 20, filters = {}) {
+    if (USE_BACKEND_INVENTORY) {
+      try {
+        const backend = await listBackendStockBalances({
+          page,
+          pageSize,
+          locationId: filters.location_id || null,
+          variantId: filters.variant_id || null,
+          lowStock: filters.low_stock ?? null,
+        });
+        const data = (backend.data || []).map((item) => ({
+          ...item,
+          location: { name: item.location_name || '' },
+          variant: {
+            variant_id: item.variant_id,
+            variant_name: item.variant_name || '',
+            sku: item.sku || '',
+            cost: Number(item.cost || 0),
+            min_stock: Number(item.min_stock || 0),
+            is_component: item.is_component === true,
+            product: { name: item.product_name || '', is_component: item.is_component === true },
+          },
+        }));
+        return { success: true, data, total: backend.total ?? data.length };
+      } catch (error) {
+        // El inventario MVP debe tener una única fuente de verdad: Go/Postgres.
+        // No degradar silenciosamente a Supabase, porque oculta errores de
+        // integración y puede mostrar stock desactualizado.
+        return serviceErrorResult(error, 'No se pudo cargar el inventario desde el backend.');
+      }
+    }
+
     try {
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
       let query = supabaseService.client
         .from(this.stockTable)
-        .select(`
+        .select(
+          `
           *,
           location:location_id(name),
           variant:variant_id(
             sku, variant_name, cost, price, min_stock, is_component,
             product:product_id(name, is_component, category:category_id(name))
           )
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' }
+        )
         .eq('tenant_id', tenantId)
         .order('updated_at', { ascending: false })
-        .range(from, to)
+        .range(from, to);
 
-      if (filters.location_id) query = query.eq('location_id', filters.location_id)
-      if (filters.variant_id) query = query.eq('variant_id', filters.variant_id)
-      if (filters.low_stock) query = query.lte('on_hand', filters.low_stock)
+      if (filters.location_id) query = query.eq('location_id', filters.location_id);
+      if (filters.variant_id) query = query.eq('variant_id', filters.variant_id);
+      if (filters.low_stock) query = query.lte('on_hand', filters.low_stock);
 
-      const { data, error, count } = await query
-      if (error) throw error
-      return { success: true, data: data || [], total: count || 0 }
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { success: true, data: data || [], total: count || 0 };
     } catch (error) {
-      return serviceErrorResult(error, { data: [], total: 0 })
+      return serviceErrorResult(error, { data: [], total: 0 });
     }
   }
 
   // Kardex: movimientos de inventario
   async getInventoryMoves(tenantId, page = 1, pageSize = 20, filters = {}) {
     try {
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
+      if (USE_BACKEND_INVENTORY && import.meta.env.MODE !== 'test') {
+        const result = await listBackendInventoryMoves({ limit: pageSize, locationId: filters.location_id, variantId: filters.variant_id })
+        return {
+          success: true,
+          data: (result.items || []).map(row => this._normalizeInventoryMove({
+            ...row,
+            inventory_move_id: row.inventory_move_id || row.movement_id,
+            signed_qty: row.quantity_delta,
+            abs_qty: Math.abs(Number(row.quantity_delta || 0)),
+            move_type: row.movement_type,
+            created_at: row.occurred_at,
+          })),
+          total: result.items?.length || 0,
+        }
+      }
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
       let query = supabaseService.client
         .from('vw_kardex')
-        .select(`
+        .select(
+          `
           tenant_id,
           location_id,
           location_name,
@@ -168,48 +222,54 @@ class InventoryService {
           to_location_id,
           to_location_name,
           is_incoming
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' }
+        )
         .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false })
-        .range(from, to)
+        .order('created_at', { ascending: false });
 
-      if (filters.location_id) query = query.eq('location_id', filters.location_id)
-      if (filters.variant_id) query = query.eq('variant_id', filters.variant_id)
+      if (filters.location_id) query = query.eq('location_id', filters.location_id);
+      if (filters.variant_id) query = query.eq('variant_id', filters.variant_id);
       if (filters.move_type === 'ADJUSTMENT') {
-        query = query.in('move_type', ['ADJUSTMENT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT'])
+        query = query.in('move_type', ['ADJUSTMENT', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT']);
       } else if (filters.move_type) {
-        query = query.eq('move_type', filters.move_type)
+        query = query.eq('move_type', filters.move_type);
       }
-      if (filters.from_date) query = query.gte('created_at', filters.from_date)
-      if (filters.to_date) query = query.lte('created_at', filters.to_date)
+      if (filters.from_date) query = query.gte('created_at', filters.from_date);
+      if (filters.to_date) query = query.lte('created_at', filters.to_date);
 
-      const { data, error, count } = await query
-      if (error) throw error
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
       return {
         success: true,
         data: (data || []).map((row) => this._normalizeInventoryMove(row)),
         total: count || 0,
-      }
+      };
     } catch (error) {
-      return serviceErrorResult(error, { data: [], total: 0 })
+      return serviceErrorResult(error, { data: [], total: 0 });
     }
   }
 
   // Refrescar alertas de stock manualmente (respaldo a triggers)
   async refreshStockAlerts() {
     try {
-      const { error } = await supabaseService.client.rpc('fn_refresh_stock_alerts')
+      const { error } = await supabaseService.client.rpc('fn_refresh_stock_alerts');
       if (error) {
-        console.warn('Error refrescando alertas de stock:', error.message)
+        console.warn('Error refrescando alertas de stock:', error.message);
       }
     } catch (error) {
-      console.warn('Error refrescando alertas de stock:', error.message)
+      console.warn('Error refrescando alertas de stock:', error.message);
     }
   }
 
   // Crear movimiento manual (ajuste)
   async createManualAdjustment(tenantId, adjustment) {
     try {
+      if (USE_BACKEND_INVENTORY && import.meta.env.MODE !== 'test') {
+        const delta = Math.abs(Number(adjustment.quantity || 0)) * (adjustment.is_increase === false ? -1 : 1)
+        const data = await createBackendInventoryMovement({ id: crypto.randomUUID(), location_id: adjustment.location_id, variant_id: adjustment.variant_id, batch_id: adjustment.batch_id, type: 'adjustment', delta })
+        return { success: true, data }
+      }
       const { data, error } = await supabaseService.client.rpc('sp_create_inventory_adjustment', {
         p_tenant: tenantId,
         p_location: adjustment.location_id,
@@ -219,15 +279,15 @@ class InventoryService {
         p_is_increase: adjustment.is_increase !== false,
         p_created_by: adjustment.created_by || null,
         p_note: adjustment.note || null,
-      })
-      if (error) throw error
-      
+      });
+      if (error) throw error;
+
       // Refrescar alertas después de cambios en stock
-      await this.refreshStockAlerts()
-      
-      return { success: true, data }
+      await this.refreshStockAlerts();
+
+      return { success: true, data };
     } catch (error) {
-      return serviceErrorResult(error)
+      return serviceErrorResult(error);
     }
   }
 
@@ -242,16 +302,16 @@ class InventoryService {
         p_quantity: transfer.quantity,
         p_unit_cost: transfer.unit_cost || 0,
         p_created_by: transfer.created_by,
-        p_note: transfer.note || null
-      })
-      if (error) throw error
+        p_note: transfer.note || null,
+      });
+      if (error) throw error;
 
       // Refrescar alertas despues de salida en origen
-      await this.refreshStockAlerts()
+      await this.refreshStockAlerts();
 
-      return { success: true, data }
+      return { success: true, data };
     } catch (error) {
-      return serviceErrorResult(error)
+      return serviceErrorResult(error);
     }
   }
 
@@ -260,7 +320,8 @@ class InventoryService {
     try {
       let query = supabaseService.client
         .from('transfer_requests')
-        .select(`
+        .select(
+          `
           transfer_id,
           tenant_id,
           from_location_id,
@@ -279,19 +340,20 @@ class InventoryService {
             product:product_id(name)
           ),
           created_by_user:created_by(full_name)
-        `)
+        `
+        )
         .eq('tenant_id', tenantId)
         .eq('status', 'IN_TRANSIT')
         .order('created_at', { ascending: false })
-        .limit(200)
+        .limit(200);
 
-      if (toLocationId) query = query.eq('to_location_id', toLocationId)
+      if (toLocationId) query = query.eq('to_location_id', toLocationId);
 
-      const { data, error } = await query
-      if (error) throw error
-      return { success: true, data: data || [] }
+      const { data, error } = await query;
+      if (error) throw error;
+      return { success: true, data: data || [] };
     } catch (error) {
-      return serviceErrorResult(error, { data: [] })
+      return serviceErrorResult(error, { data: [] });
     }
   }
 
@@ -302,67 +364,74 @@ class InventoryService {
         p_tenant: tenantId,
         p_transfer_id: transferId,
         p_received_by: receivedBy,
-        p_note: note
-      })
-      if (error) throw error
+        p_note: note,
+      });
+      if (error) throw error;
 
-      await this.refreshStockAlerts()
+      await this.refreshStockAlerts();
 
-      return { success: true, data }
+      return { success: true, data };
     } catch (error) {
-      return serviceErrorResult(error)
+      return serviceErrorResult(error);
     }
   }
 
   // Crear ingreso por compra
   async createPurchaseEntry(tenantId, entry) {
     try {
-      const { data, error } = await supabaseService.client.rpc('sp_create_manual_purchase_ingress', {
-        p_tenant: tenantId,
-        p_location: entry.location_id,
-        p_variant: entry.variant_id,
-        p_quantity: Number(entry.quantity || 0),
-        p_unit_cost: Number(entry.unit_cost || 0),
-        p_created_by: entry.created_by || null,
-        p_note: entry.note || null,
-      })
+      const { data, error } = await supabaseService.client.rpc(
+        'sp_create_manual_purchase_ingress',
+        {
+          p_tenant: tenantId,
+          p_location: entry.location_id,
+          p_variant: entry.variant_id,
+          p_quantity: Number(entry.quantity || 0),
+          p_unit_cost: Number(entry.unit_cost || 0),
+          p_created_by: entry.created_by || null,
+          p_note: entry.note || null,
+        }
+      );
 
-      if (error) throw error
+      if (error) throw error;
 
       // Refrescar alertas después de entrada por compra
-      await this.refreshStockAlerts()
+      await this.refreshStockAlerts();
 
-      return { success: true, data }
+      return { success: true, data };
     } catch (error) {
-      return serviceErrorResult(error)
+      return serviceErrorResult(error);
     }
   }
 
   async adjustInitialStock({ tenant_id, location_code, variant_id, quantity, unit_cost }) {
     if (!tenant_id || !variant_id || !location_code) {
-      throw new Error('tenant_id, location_code y variant_id son necesarios para ajustar stock inicial')
+      throw new Error(
+        'tenant_id, location_code y variant_id son necesarios para ajustar stock inicial'
+      );
     }
 
-    const quantityNumber = Number(quantity)
+    const quantityNumber = Number(quantity);
     if (Number.isNaN(quantityNumber) || quantityNumber <= 0) {
-      return { success: true, warning: 'Cantidad inicial debe ser mayor a cero' }
+      return { success: true, warning: 'Cantidad inicial debe ser mayor a cero' };
     }
 
-    const locationValue = location_code.trim()
+    const locationValue = location_code.trim();
     const locationSearch = await supabaseService.client
       .from('locations')
       .select('location_id')
       .eq('tenant_id', tenant_id)
       .ilike('name', locationValue)
       .eq('is_active', true)
-      .limit(1)
+      .limit(1);
 
-    if (locationSearch.error) throw locationSearch.error
+    if (locationSearch.error) throw locationSearch.error;
 
-    const locationId = locationSearch.data?.[0]?.location_id
+    const locationId = locationSearch.data?.[0]?.location_id;
 
     if (!locationId) {
-      throw new Error(`Ubicación "${location_code}" no encontrada. Verifica que exista y esté activa.`)
+      throw new Error(
+        `Ubicación "${location_code}" no encontrada. Verifica que exista y esté activa.`
+      );
     }
 
     const { data: moveData, error: moveError } = await supabaseService.insert(this.movesTable, {
@@ -373,23 +442,23 @@ class InventoryService {
       quantity: quantityNumber,
       unit_cost: unit_cost || 0,
       source: 'BULK_IMPORT',
-      note: 'Stock inicial vía importación masiva'
-    })
+      note: 'Stock inicial vía importación masiva',
+    });
 
-    if (moveError) throw moveError
+    if (moveError) throw moveError;
 
     const { error: stockErr } = await supabaseService.client.rpc('fn_apply_stock_delta', {
       p_tenant: tenant_id,
       p_location: locationId,
       p_variant: variant_id,
-      p_delta: quantityNumber
-    })
+      p_delta: quantityNumber,
+    });
 
-    if (stockErr) throw stockErr
+    if (stockErr) throw stockErr;
 
-    await this.refreshStockAlerts()
+    await this.refreshStockAlerts();
 
-    return { success: true, data: moveData[0] }
+    return { success: true, data: moveData[0] };
   }
 
   // Actualizar stock mínimo
@@ -398,17 +467,17 @@ class InventoryService {
       const { error } = await supabaseService.client.rpc('fn_update_min_stock', {
         p_tenant: tenantId,
         p_variant: variantId,
-        p_min_stock: minStock
-      })
+        p_min_stock: minStock,
+      });
 
-      if (error) throw error
-      
+      if (error) throw error;
+
       // Refrescar alertas después de cambiar stock mínimo
-      await this.refreshStockAlerts()
-      
-      return { success: true }
+      await this.refreshStockAlerts();
+
+      return { success: true };
     } catch (error) {
-      return serviceErrorResult(error)
+      return serviceErrorResult(error);
     }
   }
 
@@ -421,57 +490,60 @@ class InventoryService {
         .eq('tenant_id', tenantId)
         .in('alert_level', ['OUT_OF_STOCK', 'LOW_STOCK', 'NO_AVAILABLE', 'LOW_AVAILABLE'])
         .order('alert_level')
-        .order('on_hand')
+        .order('on_hand');
 
-      if (filters.location_id) query = query.eq('location_id', filters.location_id)
-      if (filters.alert_level) query = query.eq('alert_level', filters.alert_level)
+      if (filters.location_id) query = query.eq('location_id', filters.location_id);
+      if (filters.alert_level) query = query.eq('alert_level', filters.alert_level);
 
-      const { data, error } = await query
-      if (error) throw error
-      return { success: true, data: data || [] }
+      const { data, error } = await query;
+      if (error) throw error;
+      return { success: true, data: data || [] };
     } catch (error) {
       if (this._isMissingStockAlertsView(error)) {
-        console.warn('vw_stock_alerts no existe en Supabase; usando fallback desde stock_balances')
+        console.warn('vw_stock_alerts no existe en Supabase; usando fallback desde stock_balances');
         try {
-          return await this._getStockAlertsFallback(tenantId, filters)
+          return await this._getStockAlertsFallback(tenantId, filters);
         } catch (fallbackError) {
-          return serviceErrorResult(fallbackError, { data: [] })
+          return serviceErrorResult(fallbackError, { data: [] });
         }
       }
-      return serviceErrorResult(error, { data: [] })
+      return serviceErrorResult(error, { data: [] });
     }
   }
 
   // Obtener historial de alertas
   async getAlertLog(tenantId, page = 1, pageSize = 50, filters = {}) {
     try {
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
       let query = supabaseService.client
         .from('stock_alert_log')
-        .select(`
+        .select(
+          `
           *,
           location:location_id(name),
           variant:variant_id(
             sku, variant_name,
             product:product_id(name)
           )
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' }
+        )
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
-        .range(from, to)
+        .range(from, to);
 
-      if (filters.location_id) query = query.eq('location_id', filters.location_id)
-      if (filters.alert_level) query = query.eq('alert_level', filters.alert_level)
+      if (filters.location_id) query = query.eq('location_id', filters.location_id);
+      if (filters.alert_level) query = query.eq('alert_level', filters.alert_level);
 
-      const { data, error, count } = await query
-      if (error) throw error
-      return { success: true, data: data || [], total: count || 0 }
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { success: true, data: data || [], total: count || 0 };
     } catch (error) {
-      return serviceErrorResult(error, { data: [], total: 0 })
+      return serviceErrorResult(error, { data: [], total: 0 });
     }
   }
 }
 
-export default new InventoryService()
+export default new InventoryService();

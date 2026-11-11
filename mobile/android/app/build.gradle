@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.juan.d.ricardo.t.app'
+    namespace 'com.ofirone.app'
     defaultConfig {
-        applicationId 'com.juan.d.ricardo.t.app'
+        applicationId 'com.ofirone.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

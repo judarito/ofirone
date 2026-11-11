@@ -1,0 +1,4850 @@
+{
+ "ai_telemetry_events": {
+  "name": "ai_telemetry_events",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_AI_TELEMETRY_EVENTS.sql",
+    "line": 7,
+    "has_tenant_id": true,
+    "columns": [
+     "ai_telemetry_event_id",
+     "cache_hit",
+     "confidence",
+     "constraint",
+     "created_at",
+     "device_id",
+     "engine",
+     "error",
+     "estimated_cost",
+     "event_id",
+     "fallback",
+     "feature",
+     "input_type",
+     "latency_ms",
+     "metadata",
+     "model",
+     "occurred_at",
+     "resolution_source",
+     "success",
+     "tenant_id",
+     "tokens_input",
+     "tokens_output",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "async_jobs": {
+  "name": "async_jobs",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+    "line": 12,
+    "has_tenant_id": true,
+    "columns": [
+     "attempts",
+     "completed_at",
+     "correlation_id",
+     "created_at",
+     "created_by",
+     "dead_letter_at",
+     "dedupe_key",
+     "error",
+     "failed_at",
+     "job_id",
+     "job_type",
+     "lock_expires_at",
+     "locked_at",
+     "locked_by",
+     "max_attempts",
+     "payload",
+     "priority",
+     "queue",
+     "result",
+     "run_after",
+     "source",
+     "started_at",
+     "status",
+     "tenant_id",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "async_job_attempts": {
+  "name": "async_job_attempts",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+    "line": 75,
+    "has_tenant_id": false,
+    "columns": [
+     "attempt_id",
+     "attempt_number",
+     "created_at",
+     "duration_ms",
+     "error",
+     "finished_at",
+     "job_id",
+     "result",
+     "started_at",
+     "status",
+     "worker_id"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "notification_outbox": {
+  "name": "notification_outbox",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+    "line": 9,
+    "has_tenant_id": true,
+    "columns": [
+     "attempts",
+     "channel",
+     "created_at",
+     "dedupe_key",
+     "entity_id",
+     "entity_type",
+     "event_type",
+     "html",
+     "last_error",
+     "locked_at",
+     "max_attempts",
+     "next_attempt_at",
+     "notification_id",
+     "payload",
+     "provider",
+     "provider_message_id",
+     "recipient_email",
+     "recipient_name",
+     "sent_at",
+     "status",
+     "subject",
+     "tenant_id",
+     "text_body",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "chat_order_ai_cache": {
+  "name": "chat_order_ai_cache",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_CHAT_ORDER_AI_CACHE.sql",
+    "line": 5,
+    "has_tenant_id": true,
+    "columns": [
+     "cache_id",
+     "chat_hash",
+     "chat_text_norm",
+     "created_at",
+     "expires_at",
+     "last_used_at",
+     "model",
+     "response_payload",
+     "tenant_id",
+     "unique",
+     "updated_at",
+     "use_count"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_credit_debtors": {
+  "name": "vw_credit_debtors",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_CREDIT_SALES.sql",
+    "line": 69,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "current_date",
+     "from",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "v_sale_lines_with_discounts": {
+  "name": "v_sale_lines_with_discounts",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_DISCOUNT_TYPE.sql",
+    "line": 97,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "fe_provider_config": {
+  "name": "fe_provider_config",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+    "line": 35,
+    "has_tenant_id": true,
+    "columns": [
+     "api_key",
+     "auth_header",
+     "auth_type",
+     "base_url",
+     "config_id",
+     "created_at",
+     "environment",
+     "is_active",
+     "provider_name",
+     "software_id",
+     "software_pin",
+     "tenant_id",
+     "test_set_id",
+     "timeout_seconds",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "invoice_resolutions": {
+  "name": "invoice_resolutions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+    "line": 73,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "current_number",
+     "document_type",
+     "from_number",
+     "is_active",
+     "prefix",
+     "resolution_date",
+     "resolution_id",
+     "resolution_number",
+     "technical_key",
+     "tenant_id",
+     "to_number",
+     "updated_at",
+     "valid_from",
+     "valid_to"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_products_expiration_config": {
+  "name": "vw_products_expiration_config",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE1.sql",
+    "line": 99,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "select",
+     "when",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "inventory_batches": {
+  "name": "inventory_batches",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+    "line": 21,
+    "has_tenant_id": true,
+    "columns": [
+     "batch_id",
+     "batch_number",
+     "check",
+     "created_by",
+     "expiration_date",
+     "is_active",
+     "location_id",
+     "notes",
+     "on_hand",
+     "physical_location",
+     "received_at",
+     "reserved",
+     "tenant_id",
+     "unit_cost",
+     "updated_at",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "stock_balances_backup": {
+  "name": "stock_balances_backup",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+    "line": 150,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "stock_balances": {
+  "name": "stock_balances",
+  "kind": "materialized view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+    "line": 165,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "group",
+     "select",
+     "where"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 361,
+    "has_tenant_id": true,
+    "columns": [
+     "location_id",
+     "on_hand",
+     "primary",
+     "tenant_id",
+     "updated_at",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 363,
+    "has_tenant_id": true,
+    "columns": [
+     "location_id",
+     "on_hand",
+     "primary",
+     "tenant_id",
+     "updated_at",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 3
+ },
+ "vw_stock_with_batches": {
+  "name": "vw_stock_with_batches",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+    "line": 236,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "sale_line_batches": {
+  "name": "sale_line_batches",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+    "line": 316,
+    "has_tenant_id": true,
+    "columns": [
+     "batch_id",
+     "created_at",
+     "quantity",
+     "sale_id",
+     "sale_line_batch_id",
+     "sale_line_id",
+     "tenant_id",
+     "unit_cost"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_batch_traceability": {
+  "name": "vw_batch_traceability",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+    "line": 343,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select",
+     "where"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 319,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "sale_warnings": {
+  "name": "sale_warnings",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE4_SALES.sql",
+    "line": 22,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "data",
+     "message",
+     "sale_id",
+     "severity",
+     "tenant_id",
+     "warning_id",
+     "warning_type"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_expiring_products": {
+  "name": "vw_expiring_products",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+    "line": 22,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "select",
+     "when",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_expiring_by_variant": {
+  "name": "vw_expiring_by_variant",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+    "line": 90,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "group",
+     "select",
+     "when"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_expiration_dashboard": {
+  "name": "vw_expiration_dashboard",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+    "line": 147,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "group",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_batch_rotation": {
+  "name": "vw_batch_rotation",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+    "line": 180,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "current_date",
+     "else",
+     "end",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_stock_for_cashier": {
+  "name": "vw_stock_for_cashier",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+    "line": 249,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "limit",
+     "order",
+     "select",
+     "when",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "online_stores": {
+  "name": "online_stores",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+    "line": 153,
+    "has_tenant_id": true,
+    "columns": [
+     "accent_color",
+     "background_color",
+     "brand_logo_url",
+     "brand_name",
+     "button_text",
+     "checkout_message",
+     "constraint",
+     "created_at",
+     "header_image_url",
+     "is_enabled",
+     "is_published",
+     "landing_return_url",
+     "location_id",
+     "manual_payment_method_id",
+     "primary_color",
+     "secondary_color",
+     "slug",
+     "sold_by_user_id",
+     "stock_buffer_units",
+     "store_id",
+     "support_whatsapp",
+     "surface_color",
+     "tenant_id",
+     "text_color",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "online_store_catalog": {
+  "name": "online_store_catalog",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+    "line": 182,
+    "has_tenant_id": true,
+    "columns": [
+     "constraint",
+     "created_at",
+     "custom_description",
+     "custom_title",
+     "is_published",
+     "sort_order",
+     "stock_mode",
+     "stock_value",
+     "store_catalog_id",
+     "store_id",
+     "tenant_id",
+     "updated_at",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "online_orders": {
+  "name": "online_orders",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+    "line": 202,
+    "has_tenant_id": true,
+    "columns": [
+     "constraint",
+     "created_at",
+     "customer_email",
+     "customer_name",
+     "customer_note",
+     "customer_phone",
+     "discount_total",
+     "landing_return_url",
+     "online_order_id",
+     "order_number",
+     "payment_mode",
+     "payment_payload",
+     "payment_reference",
+     "payment_status",
+     "sale_id",
+     "status",
+     "store_id",
+     "store_snapshot",
+     "subtotal",
+     "tax_total",
+     "tenant_id",
+     "total",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "online_order_lines": {
+  "name": "online_order_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+    "line": 230,
+    "has_tenant_id": true,
+    "columns": [
+     "constraint",
+     "created_at",
+     "line_total",
+     "online_order_id",
+     "online_order_line_id",
+     "product_name",
+     "quantity",
+     "sku",
+     "tax_amount",
+     "tax_rate",
+     "tenant_id",
+     "unit_price",
+     "variant_id",
+     "variant_name"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "online_order_reservations": {
+  "name": "online_order_reservations",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+    "line": 249,
+    "has_tenant_id": true,
+    "columns": [
+     "constraint",
+     "consumed_at",
+     "created_at",
+     "location_id",
+     "online_order_id",
+     "release_reason",
+     "released_at",
+     "reservation_id",
+     "reserved_qty",
+     "status",
+     "store_id",
+     "tenant_id",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+    "line": 6,
+    "has_tenant_id": true,
+    "columns": [
+     "constraint",
+     "consumed_at",
+     "created_at",
+     "location_id",
+     "online_order_id",
+     "release_reason",
+     "released_at",
+     "reservation_id",
+     "reserved_qty",
+     "status",
+     "store_id",
+     "tenant_id",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "v_products_with_tax_info": {
+  "name": "v_products_with_tax_info",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PRICE_INCLUDES_TAX.sql",
+    "line": 85,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "public_subscription_signups": {
+  "name": "public_subscription_signups",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+    "line": 7,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "admin_email",
+     "admin_full_name",
+     "amount",
+     "auth_user_id",
+     "billing_interval",
+     "business_name",
+     "check",
+     "created_at",
+     "currency_code",
+     "error_message",
+     "legal_name",
+     "mercado_pago_payment_id",
+     "mercado_pago_preference_id",
+     "mercado_pago_status",
+     "mercado_pago_status_detail",
+     "paid_at",
+     "payment_payload",
+     "phone",
+     "plan_code",
+     "plan_id",
+     "plan_name",
+     "plan_price_id",
+     "provision_payload",
+     "provisioned_at",
+     "setup_fee",
+     "signup_id",
+     "status",
+     "tax_id",
+     "tenant_id",
+     "total",
+     "updated_at",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "public_subscription_signup_events": {
+  "name": "public_subscription_signup_events",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+    "line": 82,
+    "has_tenant_id": false,
+    "columns": [
+     "check",
+     "created_at",
+     "event_id",
+     "event_key",
+     "event_source",
+     "event_status",
+     "event_type",
+     "message",
+     "payload",
+     "signup_id"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "purchases": {
+  "name": "purchases",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PURCHASES_TABLE.sql",
+    "line": 7,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "location_id",
+     "note",
+     "purchase_id",
+     "supplier_id",
+     "tenant_id",
+     "total"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "purchase_orders": {
+  "name": "purchase_orders",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+    "line": 5,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "location_id",
+     "note",
+     "purchase_order_id",
+     "received_at",
+     "received_purchase_id",
+     "status",
+     "supplier_id",
+     "tenant_id",
+     "total",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "purchase_order_lines": {
+  "name": "purchase_order_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+    "line": 20,
+    "has_tenant_id": true,
+    "columns": [
+     "batch_number",
+     "created_at",
+     "expiration_date",
+     "physical_location",
+     "purchase_order_id",
+     "purchase_order_line_id",
+     "qty_ordered",
+     "tenant_id",
+     "unit_cost",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "purchase_returns": {
+  "name": "purchase_returns",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PURCHASE_RETURNS_CORE.sql",
+    "line": 5,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "location_id",
+     "note",
+     "purchase_id",
+     "purchase_return_id",
+     "supplier_id",
+     "tenant_id",
+     "total"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "purchase_return_lines": {
+  "name": "purchase_return_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_PURCHASE_RETURNS_CORE.sql",
+    "line": 17,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "line_total",
+     "purchase_id",
+     "purchase_return_id",
+     "purchase_return_line_id",
+     "qty",
+     "source_inventory_move_id",
+     "tenant_id",
+     "unit_cost",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_rls_audit_public": {
+  "name": "vw_rls_audit_public",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_RLS_GLOBAL_AUDIT_AND_AUTOFIX.sql",
+    "line": 19,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "exists",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "sale_return_refunds": {
+  "name": "sale_return_refunds",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_SALE_RETURNS_REFUNDS_V2.sql",
+    "line": 5,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "created_at",
+     "created_by",
+     "note",
+     "payment_method_id",
+     "reference",
+     "refund_payment_id",
+     "return_id",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "supplier_payables": {
+  "name": "supplier_payables",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+    "line": 5,
+    "has_tenant_id": true,
+    "columns": [
+     "balance",
+     "created_at",
+     "created_by",
+     "due_date",
+     "invoice_number",
+     "note",
+     "paid_amount",
+     "payable_id",
+     "purchase_id",
+     "status",
+     "supplier_id",
+     "tenant_id",
+     "total_amount",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "supplier_payable_payments": {
+  "name": "supplier_payable_payments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+    "line": 23,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "created_at",
+     "created_by",
+     "note",
+     "payable_id",
+     "payable_payment_id",
+     "payment_method",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "billing_plans": {
+  "name": "billing_plans",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 12,
+    "has_tenant_id": false,
+    "columns": [
+     "code",
+     "created_at",
+     "description",
+     "is_active",
+     "is_custom",
+     "is_public",
+     "name",
+     "plan_id",
+     "sort_order",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "billing_plan_prices": {
+  "name": "billing_plan_prices",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 25,
+    "has_tenant_id": false,
+    "columns": [
+     "amount",
+     "auto_renew_default",
+     "billing_interval",
+     "created_at",
+     "currency_code",
+     "grace_days",
+     "is_active",
+     "plan_id",
+     "plan_price_id",
+     "setup_fee",
+     "trial_days",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "billing_plan_features": {
+  "name": "billing_plan_features",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 41,
+    "has_tenant_id": false,
+    "columns": [
+     "created_at",
+     "feature_code",
+     "feature_name",
+     "is_enabled",
+     "metadata",
+     "plan_feature_id",
+     "plan_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "billing_plan_limits": {
+  "name": "billing_plan_limits",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 53,
+    "has_tenant_id": false,
+    "columns": [
+     "created_at",
+     "limit_code",
+     "limit_name",
+     "limit_unit",
+     "limit_value",
+     "metadata",
+     "plan_id",
+     "plan_limit_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "tenant_subscriptions": {
+  "name": "tenant_subscriptions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 79,
+    "has_tenant_id": true,
+    "columns": [
+     "cancel_at_period_end",
+     "canceled_at",
+     "check",
+     "created_at",
+     "current_period_end",
+     "current_period_start",
+     "grace_end_at",
+     "metadata",
+     "or",
+     "payment_provider",
+     "plan_id",
+     "plan_price_id",
+     "provider_customer_id",
+     "provider_subscription_id",
+     "renewal_mode",
+     "start_at",
+     "status",
+     "subscription_id",
+     "suspended_at",
+     "tenant_id",
+     "trial_end_at",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_subscription_periods": {
+  "name": "tenant_subscription_periods",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 119,
+    "has_tenant_id": true,
+    "columns": [
+     "check",
+     "created_at",
+     "invoice_id",
+     "period_end",
+     "period_number",
+     "period_start",
+     "status",
+     "subscription_id",
+     "subscription_period_id",
+     "tenant_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_subscription_events": {
+  "name": "tenant_subscription_events",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 138,
+    "has_tenant_id": true,
+    "columns": [
+     "check",
+     "created_at",
+     "created_by",
+     "event_id",
+     "event_source",
+     "event_type",
+     "payload",
+     "subscription_id",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_invoices": {
+  "name": "tenant_invoices",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 160,
+    "has_tenant_id": true,
+    "columns": [
+     "check",
+     "created_at",
+     "currency_code",
+     "due_at",
+     "invoice_id",
+     "issued_at",
+     "metadata",
+     "number",
+     "paid_at",
+     "status",
+     "subscription_id",
+     "subscription_period_id",
+     "subtotal",
+     "tax_amount",
+     "tenant_id",
+     "total",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_payments": {
+  "name": "tenant_payments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 187,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "check",
+     "created_at",
+     "currency_code",
+     "invoice_id",
+     "paid_at",
+     "payment_id",
+     "provider",
+     "provider_payment_id",
+     "raw_response",
+     "status",
+     "tenant_id",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_payment_methods": {
+  "name": "tenant_payment_methods",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 209,
+    "has_tenant_id": true,
+    "columns": [
+     "brand",
+     "created_at",
+     "expires_at",
+     "is_default",
+     "last4",
+     "provider",
+     "provider_token",
+     "tenant_id",
+     "tenant_payment_method_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_billing_summary": {
+  "name": "tenant_billing_summary",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+    "line": 1028,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "current_subscription",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "order",
+     "partition",
+     "select",
+     "when",
+     "where",
+     "with"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "tenant_gateway_credentials": {
+  "name": "tenant_gateway_credentials",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TENANT_MERCADOPAGO_CREDENTIALS.sql",
+    "line": 7,
+    "has_tenant_id": true,
+    "columns": [
+     "access_token",
+     "account_email",
+     "constraint",
+     "created_at",
+     "environment",
+     "gateway_credential_id",
+     "is_enabled",
+     "metadata",
+     "provider",
+     "public_key",
+     "tenant_id",
+     "updated_at",
+     "updated_by_auth_user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "third_parties": {
+  "name": "third_parties",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_THIRD_PARTIES.sql",
+    "line": 11,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "ciiu_code",
+     "city",
+     "contributor_type",
+     "country_code",
+     "created_at",
+     "default_currency",
+     "default_payment_terms",
+     "department",
+     "document_number",
+     "document_type",
+     "dv",
+     "electronic_invoicing_enabled",
+     "electronic_invoicing_id",
+     "email",
+     "fiscal_email",
+     "is_active",
+     "is_responsible_for_iva",
+     "legal_name",
+     "max_credit_amount",
+     "obligated_accounting",
+     "phone",
+     "postal_code",
+     "tax_regime",
+     "tax_responsibilities",
+     "tenant_id",
+     "third_party_id",
+     "trade_name",
+     "type"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/RECREATE_THIRD_PARTIES.sql",
+    "line": 30,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "ciiu_code",
+     "city",
+     "contributor_type",
+     "country_code",
+     "created_at",
+     "default_currency",
+     "default_payment_terms",
+     "department",
+     "document_number",
+     "document_type",
+     "dv",
+     "electronic_invoicing_enabled",
+     "electronic_invoicing_id",
+     "email",
+     "fiscal_email",
+     "is_active",
+     "is_responsible_for_iva",
+     "legal_name",
+     "max_credit_amount",
+     "obligated_accounting",
+     "phone",
+     "postal_code",
+     "tax_regime",
+     "tax_responsibilities",
+     "tenant_id",
+     "third_party_id",
+     "trade_name",
+     "type"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "document_types": {
+  "name": "document_types",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_THIRD_PARTIES_LOOKUPS.sql",
+    "line": 10,
+    "has_tenant_id": false,
+    "columns": [
+     "code",
+     "label"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "departments": {
+  "name": "departments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_THIRD_PARTIES_LOOKUPS.sql",
+    "line": 26,
+    "has_tenant_id": false,
+    "columns": [
+     "code",
+     "department_id",
+     "name"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "cities": {
+  "name": "cities",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_THIRD_PARTIES_LOOKUPS.sql",
+    "line": 41,
+    "has_tenant_id": false,
+    "columns": [
+     "city_id",
+     "department_id",
+     "name"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "transfer_requests": {
+  "name": "transfer_requests",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ADD_TRANSFER_IN_TRANSIT_CORE.sql",
+    "line": 5,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "from_location_id",
+     "note",
+     "quantity",
+     "received_at",
+     "received_by",
+     "status",
+     "tenant_id",
+     "to_location_id",
+     "transfer_id",
+     "unit_cost",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_stock_alerts": {
+  "name": "vw_stock_alerts",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/AddMinStock.sql",
+    "line": 29,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "select",
+     "when",
+     "where"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+    "line": 10,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "end",
+     "from",
+     "join",
+     "or",
+     "select",
+     "when",
+     "where"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 858,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "end",
+     "from",
+     "join",
+     "or",
+     "select",
+     "when",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 3
+ },
+ "stock_alert_log": {
+  "name": "stock_alert_log",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/AddMinStock.sql",
+    "line": 69,
+    "has_tenant_id": true,
+    "columns": [
+     "alert_id",
+     "alert_level",
+     "created_at",
+     "location_id",
+     "min_stock",
+     "on_hand",
+     "reserved",
+     "tenant_id",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "cash_register_assignments": {
+  "name": "cash_register_assignments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+    "line": 21,
+    "has_tenant_id": true,
+    "columns": [
+     "assigned_at",
+     "assigned_by",
+     "assignment_id",
+     "cash_register_id",
+     "is_active",
+     "note",
+     "tenant_id",
+     "unique",
+     "user_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+    "line": 16,
+    "has_tenant_id": true,
+    "columns": [
+     "assigned_at",
+     "assigned_by",
+     "assignment_id",
+     "cash_register_id",
+     "is_active",
+     "note",
+     "tenant_id",
+     "unique",
+     "user_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 1108,
+    "has_tenant_id": true,
+    "columns": [
+     "assigned_at",
+     "assigned_by",
+     "assignment_id",
+     "cash_register_id",
+     "is_active",
+     "note",
+     "tenant_id",
+     "unique",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 3
+ },
+ "vw_user_cash_registers": {
+  "name": "vw_user_cash_registers",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+    "line": 91,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+    "line": 82,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 1167,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 3
+ },
+ "bulk_imports": {
+  "name": "bulk_imports",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+    "line": 8,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "error_count",
+     "file_key",
+     "file_name",
+     "import_id",
+     "import_type",
+     "processed_count",
+     "row_count",
+     "status",
+     "summary",
+     "tenant_id",
+     "updated_at",
+     "uploaded_by"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "bulk_import_errors": {
+  "name": "bulk_import_errors",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+    "line": 24,
+    "has_tenant_id": false,
+    "columns": [
+     "created_at",
+     "detail",
+     "error_id",
+     "import_id",
+     "raw_data",
+     "row_number"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "v_sales_by_role": {
+  "name": "v_sales_by_role",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+    "line": 15,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "join",
+     "not",
+     "or",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "v_sale_lines_by_role": {
+  "name": "v_sale_lines_by_role",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+    "line": 45,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "from",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "v_sale_payments_by_role": {
+  "name": "v_sale_payments_by_role",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+    "line": 55,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "from",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "v_sale_returns_by_role": {
+  "name": "v_sale_returns_by_role",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+    "line": 65,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "from",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "v_cash_sessions_by_role": {
+  "name": "v_cash_sessions_by_role",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+    "line": 75,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "not",
+     "or",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "v_cash_movements_by_role": {
+  "name": "v_cash_movements_by_role",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+    "line": 103,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "from",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "units_of_measure": {
+  "name": "units_of_measure",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+    "line": 21,
+    "has_tenant_id": true,
+    "columns": [
+     "check",
+     "code",
+     "created_at",
+     "description",
+     "dian_code",
+     "is_active",
+     "is_system",
+     "name",
+     "tenant_id",
+     "unit_id",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "system_alerts": {
+  "name": "system_alerts",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+    "line": 43,
+    "has_tenant_id": true,
+    "columns": [
+     "alert_id",
+     "alert_level",
+     "alert_type",
+     "created_at",
+     "data",
+     "reference_id",
+     "tenant_id",
+     "unique",
+     "updated_at"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 891,
+    "has_tenant_id": true,
+    "columns": [
+     "alert_id",
+     "alert_level",
+     "alert_type",
+     "created_at",
+     "data",
+     "reference_id",
+     "tenant_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_stock_calculated": {
+  "name": "vw_stock_calculated",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+    "line": 8,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "select",
+     "when"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 592,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "select",
+     "when"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_kardex": {
+  "name": "vw_kardex",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+    "line": 31,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "select",
+     "when"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 616,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "select",
+     "when"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "tenants": {
+  "name": "tenants",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 7,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "currency_code",
+     "is_active",
+     "name",
+     "tax_id",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 12,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "currency_code",
+     "is_active",
+     "name",
+     "tax_id",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "locations": {
+  "name": "locations",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 16,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "created_at",
+     "is_active",
+     "location_id",
+     "name",
+     "tenant_id",
+     "type",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 21,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "created_at",
+     "is_active",
+     "location_id",
+     "name",
+     "tenant_id",
+     "type",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "users": {
+  "name": "users",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 30,
+    "has_tenant_id": true,
+    "columns": [
+     "auth_user_id",
+     "created_at",
+     "email",
+     "full_name",
+     "is_active",
+     "tenant_id",
+     "unique",
+     "user_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 35,
+    "has_tenant_id": true,
+    "columns": [
+     "auth_user_id",
+     "created_at",
+     "email",
+     "full_name",
+     "is_active",
+     "tenant_id",
+     "unique",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "roles": {
+  "name": "roles",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 41,
+    "has_tenant_id": true,
+    "columns": [
+     "name",
+     "role_id",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 46,
+    "has_tenant_id": true,
+    "columns": [
+     "name",
+     "role_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "permissions": {
+  "name": "permissions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 48,
+    "has_tenant_id": false,
+    "columns": [
+     "code",
+     "description",
+     "permission_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 53,
+    "has_tenant_id": false,
+    "columns": [
+     "code",
+     "description",
+     "permission_id"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 2
+ },
+ "role_permissions": {
+  "name": "role_permissions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 54,
+    "has_tenant_id": false,
+    "columns": [
+     "permission_id",
+     "primary",
+     "role_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 59,
+    "has_tenant_id": false,
+    "columns": [
+     "permission_id",
+     "primary",
+     "role_id"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 2
+ },
+ "user_roles": {
+  "name": "user_roles",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 60,
+    "has_tenant_id": false,
+    "columns": [
+     "primary",
+     "role_id",
+     "user_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 65,
+    "has_tenant_id": false,
+    "columns": [
+     "primary",
+     "role_id",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 2
+ },
+ "categories": {
+  "name": "categories",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 69,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "name",
+     "parent_category_id",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 74,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "name",
+     "parent_category_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "products": {
+  "name": "products",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 77,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "created_at",
+     "description",
+     "is_active",
+     "name",
+     "product_id",
+     "tenant_id",
+     "track_inventory",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 82,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "created_at",
+     "description",
+     "is_active",
+     "name",
+     "product_id",
+     "tenant_id",
+     "track_inventory",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "product_variants": {
+  "name": "product_variants",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 89,
+    "has_tenant_id": true,
+    "columns": [
+     "attrs",
+     "cost",
+     "is_active",
+     "price",
+     "product_id",
+     "sku",
+     "tenant_id",
+     "unique",
+     "variant_id",
+     "variant_name"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 94,
+    "has_tenant_id": true,
+    "columns": [
+     "attrs",
+     "cost",
+     "is_active",
+     "price",
+     "product_id",
+     "sku",
+     "tenant_id",
+     "unique",
+     "variant_id",
+     "variant_name"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "product_barcodes": {
+  "name": "product_barcodes",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 103,
+    "has_tenant_id": true,
+    "columns": [
+     "barcode",
+     "barcode_id",
+     "tenant_id",
+     "unique",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 108,
+    "has_tenant_id": true,
+    "columns": [
+     "barcode",
+     "barcode_id",
+     "tenant_id",
+     "unique",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "product_tags": {
+  "name": "product_tags",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 111,
+    "has_tenant_id": true,
+    "columns": [
+     "name",
+     "tag_id",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 116,
+    "has_tenant_id": true,
+    "columns": [
+     "name",
+     "tag_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "product_tag_map": {
+  "name": "product_tag_map",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 118,
+    "has_tenant_id": true,
+    "columns": [
+     "primary",
+     "product_id",
+     "tag_id",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 123,
+    "has_tenant_id": true,
+    "columns": [
+     "primary",
+     "product_id",
+     "tag_id",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "price_lists": {
+  "name": "price_lists",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 126,
+    "has_tenant_id": true,
+    "columns": [
+     "is_active",
+     "name",
+     "price_list_id",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 131,
+    "has_tenant_id": true,
+    "columns": [
+     "is_active",
+     "name",
+     "price_list_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "price_list_items": {
+  "name": "price_list_items",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 134,
+    "has_tenant_id": true,
+    "columns": [
+     "price",
+     "price_list_id",
+     "primary",
+     "tenant_id",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 139,
+    "has_tenant_id": true,
+    "columns": [
+     "price",
+     "price_list_id",
+     "primary",
+     "tenant_id",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "customers": {
+  "name": "customers",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 145,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "created_at",
+     "customer_id",
+     "document",
+     "email",
+     "full_name",
+     "is_active",
+     "phone",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 150,
+    "has_tenant_id": true,
+    "columns": [
+     "address",
+     "created_at",
+     "customer_id",
+     "document",
+     "email",
+     "full_name",
+     "is_active",
+     "phone",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "customer_credit_accounts": {
+  "name": "customer_credit_accounts",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 158,
+    "has_tenant_id": true,
+    "columns": [
+     "credit_account_id",
+     "credit_limit",
+     "current_balance",
+     "customer_id",
+     "is_active",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 163,
+    "has_tenant_id": true,
+    "columns": [
+     "credit_account_id",
+     "credit_limit",
+     "current_balance",
+     "customer_id",
+     "is_active",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "customer_credit_movements": {
+  "name": "customer_credit_movements",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 168,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "created_at",
+     "created_by",
+     "credit_account_id",
+     "movement_id",
+     "note",
+     "source",
+     "source_id",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 173,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "created_at",
+     "created_by",
+     "credit_account_id",
+     "movement_id",
+     "note",
+     "source",
+     "source_id",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "taxes": {
+  "name": "taxes",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 183,
+    "has_tenant_id": true,
+    "columns": [
+     "code",
+     "is_active",
+     "name",
+     "rate",
+     "tax_id",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 188,
+    "has_tenant_id": true,
+    "columns": [
+     "code",
+     "is_active",
+     "name",
+     "rate",
+     "tax_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "tax_rules": {
+  "name": "tax_rules",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 194,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "check",
+     "is_active",
+     "priority",
+     "product_id",
+     "scope",
+     "tax_id",
+     "tax_rule_id",
+     "tenant_id",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 198,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "check",
+     "is_active",
+     "priority",
+     "product_id",
+     "scope",
+     "tax_id",
+     "tax_rule_id",
+     "tenant_id",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "tenant_settings": {
+  "name": "tenant_settings",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 212,
+    "has_tenant_id": true,
+    "columns": [
+     "business_address",
+     "business_name",
+     "business_phone",
+     "default_tax_included",
+     "logo_url",
+     "receipt_footer",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 216,
+    "has_tenant_id": true,
+    "columns": [
+     "business_address",
+     "business_name",
+     "business_phone",
+     "default_tax_included",
+     "logo_url",
+     "receipt_footer",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "cash_registers": {
+  "name": "cash_registers",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 225,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_register_id",
+     "is_active",
+     "location_id",
+     "name",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 229,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_register_id",
+     "is_active",
+     "location_id",
+     "name",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "cash_sessions": {
+  "name": "cash_sessions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 234,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_register_id",
+     "cash_session_id",
+     "closed_at",
+     "closed_by",
+     "closing_amount_counted",
+     "closing_amount_expected",
+     "difference",
+     "opened_at",
+     "opened_by",
+     "opening_amount",
+     "status",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 238,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_register_id",
+     "cash_session_id",
+     "closed_at",
+     "closed_by",
+     "closing_amount_counted",
+     "closing_amount_expected",
+     "difference",
+     "opened_at",
+     "opened_by",
+     "opening_amount",
+     "status",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "cash_movements": {
+  "name": "cash_movements",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 249,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "cash_movement_id",
+     "cash_session_id",
+     "category",
+     "created_at",
+     "created_by",
+     "note",
+     "tenant_id",
+     "type"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 253,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "cash_movement_id",
+     "cash_session_id",
+     "category",
+     "created_at",
+     "created_by",
+     "note",
+     "tenant_id",
+     "type"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "payment_methods": {
+  "name": "payment_methods",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 264,
+    "has_tenant_id": true,
+    "columns": [
+     "code",
+     "is_active",
+     "name",
+     "payment_method_id",
+     "tenant_id",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 268,
+    "has_tenant_id": true,
+    "columns": [
+     "code",
+     "is_active",
+     "name",
+     "payment_method_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "sales": {
+  "name": "sales",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 273,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_session_id",
+     "customer_id",
+     "discount_total",
+     "location_id",
+     "note",
+     "sale_id",
+     "sale_number",
+     "sold_at",
+     "sold_by",
+     "status",
+     "subtotal",
+     "tax_total",
+     "tenant_id",
+     "total",
+     "unique"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 277,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_session_id",
+     "customer_id",
+     "discount_total",
+     "location_id",
+     "note",
+     "sale_id",
+     "sale_number",
+     "sold_at",
+     "sold_by",
+     "status",
+     "subtotal",
+     "tax_total",
+     "tenant_id",
+     "total",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "sale_lines": {
+  "name": "sale_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 291,
+    "has_tenant_id": true,
+    "columns": [
+     "discount_amount",
+     "line_total",
+     "quantity",
+     "sale_id",
+     "sale_line_id",
+     "tax_amount",
+     "tax_detail",
+     "tenant_id",
+     "unit_cost",
+     "unit_price",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 295,
+    "has_tenant_id": true,
+    "columns": [
+     "discount_amount",
+     "line_total",
+     "quantity",
+     "sale_id",
+     "sale_line_id",
+     "tax_amount",
+     "tax_detail",
+     "tenant_id",
+     "unit_cost",
+     "unit_price",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "sale_payments": {
+  "name": "sale_payments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 305,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "cash_session_id",
+     "paid_at",
+     "payment_method_id",
+     "reference",
+     "sale_id",
+     "sale_payment_id",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 309,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "cash_session_id",
+     "paid_at",
+     "payment_method_id",
+     "reference",
+     "sale_id",
+     "sale_payment_id",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "sale_returns": {
+  "name": "sale_returns",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 317,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "location_id",
+     "reason",
+     "refund_total",
+     "return_id",
+     "sale_id",
+     "status",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 320,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "location_id",
+     "reason",
+     "refund_total",
+     "return_id",
+     "sale_id",
+     "status",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "sale_return_lines": {
+  "name": "sale_return_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 329,
+    "has_tenant_id": true,
+    "columns": [
+     "line_total",
+     "quantity",
+     "return_id",
+     "return_line_id",
+     "sale_line_id",
+     "tax_amount",
+     "tenant_id",
+     "unit_price",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 332,
+    "has_tenant_id": true,
+    "columns": [
+     "line_total",
+     "quantity",
+     "return_id",
+     "return_line_id",
+     "sale_line_id",
+     "tax_amount",
+     "tenant_id",
+     "unit_price",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "inventory_moves": {
+  "name": "inventory_moves",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 344,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "inventory_move_id",
+     "location_id",
+     "move_type",
+     "note",
+     "quantity",
+     "source",
+     "source_id",
+     "tenant_id",
+     "to_location_id",
+     "unit_cost",
+     "variant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 347,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "created_by",
+     "inventory_move_id",
+     "location_id",
+     "move_type",
+     "note",
+     "quantity",
+     "source",
+     "source_id",
+     "tenant_id",
+     "to_location_id",
+     "unit_cost",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "audit_log": {
+  "name": "audit_log",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/InitDB.sql",
+    "line": 373,
+    "has_tenant_id": true,
+    "columns": [
+     "action",
+     "after_data",
+     "audit_id",
+     "before_data",
+     "created_at",
+     "entity",
+     "entity_id",
+     "tenant_id",
+     "user_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 375,
+    "has_tenant_id": true,
+    "columns": [
+     "action",
+     "after_data",
+     "audit_id",
+     "before_data",
+     "created_at",
+     "entity",
+     "entity_id",
+     "tenant_id",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "bill_of_materials": {
+  "name": "bill_of_materials",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 23,
+    "has_tenant_id": true,
+    "columns": [
+     "bom_code",
+     "bom_id",
+     "check",
+     "created_at",
+     "created_by",
+     "is_active",
+     "notes",
+     "product_id",
+     "tenant_id",
+     "updated_at",
+     "updated_by",
+     "variant_id",
+     "version"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "bom_components": {
+  "name": "bom_components",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 62,
+    "has_tenant_id": true,
+    "columns": [
+     "bom_id",
+     "component_id",
+     "component_variant_id",
+     "is_optional",
+     "notes",
+     "quantity",
+     "sequence",
+     "tenant_id",
+     "unit",
+     "waste_percentage"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "production_orders": {
+  "name": "production_orders",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 93,
+    "has_tenant_id": true,
+    "columns": [
+     "actual_cost",
+     "actual_end",
+     "actual_start",
+     "bom_id",
+     "cancellation_reason",
+     "cancelled_by",
+     "completed_by",
+     "created_at",
+     "created_by",
+     "estimated_cost",
+     "labor_cost",
+     "location_id",
+     "notes",
+     "order_number",
+     "overhead_cost",
+     "product_variant_id",
+     "production_order_id",
+     "quantity_planned",
+     "quantity_produced",
+     "scheduled_end",
+     "scheduled_start",
+     "started_by",
+     "status",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "production_order_lines": {
+  "name": "production_order_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 149,
+    "has_tenant_id": true,
+    "columns": [
+     "batch_id",
+     "component_variant_id",
+     "consumed_at",
+     "line_id",
+     "notes",
+     "production_order_id",
+     "quantity_consumed",
+     "quantity_required",
+     "tenant_id",
+     "unit_cost"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "production_outputs": {
+  "name": "production_outputs",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 179,
+    "has_tenant_id": true,
+    "columns": [
+     "batch_id",
+     "notes",
+     "output_id",
+     "produced_at",
+     "produced_by",
+     "production_order_id",
+     "quantity_produced",
+     "tenant_id",
+     "unit_cost"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "bundle_compositions": {
+  "name": "bundle_compositions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 206,
+    "has_tenant_id": true,
+    "columns": [
+     "bundle_variant_id",
+     "component_variant_id",
+     "composition_id",
+     "created_at",
+     "is_active",
+     "quantity",
+     "tenant_id",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "service_deliveries": {
+  "name": "service_deliveries",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 232,
+    "has_tenant_id": true,
+    "columns": [
+     "completed_date",
+     "created_at",
+     "delivery_id",
+     "delivery_status",
+     "notes",
+     "performed_by",
+     "quantity",
+     "sale_id",
+     "sale_line_id",
+     "scheduled_date",
+     "tenant_id",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "component_allocations": {
+  "name": "component_allocations",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+    "line": 265,
+    "has_tenant_id": true,
+    "columns": [
+     "allocation_id",
+     "batch_id",
+     "component_variant_id",
+     "consumed_at",
+     "notes",
+     "quantity",
+     "sale_id",
+     "sale_line_id",
+     "source_type",
+     "tenant_id",
+     "total_cost",
+     "unit_cost"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_service_products": {
+  "name": "vw_service_products",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+    "line": 317,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_service_revenue": {
+  "name": "vw_service_revenue",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+    "line": 348,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_products_with_bom": {
+  "name": "vw_products_with_bom",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+    "line": 385,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_ondemand_margin_analysis": {
+  "name": "vw_ondemand_margin_analysis",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+    "line": 355,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_component_consumption_detail": {
+  "name": "vw_component_consumption_detail",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+    "line": 401,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "group",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_ondemand_top_products": {
+  "name": "vw_ondemand_top_products",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+    "line": 440,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "order",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_manufacturing_dashboard": {
+  "name": "vw_manufacturing_dashboard",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+    "line": 450,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "join",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_production_cost_report": {
+  "name": "vw_production_cost_report",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PRODUCTION_COST_REPORT.sql",
+    "line": 21,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "order",
+     "select",
+     "then",
+     "when",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_production_cost_summary_by_product": {
+  "name": "vw_production_cost_summary_by_product",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MANUFACTURING_PRODUCTION_COST_REPORT.sql",
+    "line": 187,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "left",
+     "order",
+     "select",
+     "then",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_sales_with_customer": {
+  "name": "vw_sales_with_customer",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/MIGRATE_CUSTOMERS_TO_THIRD_PARTIES.sql",
+    "line": 89,
+    "has_tenant_id": false,
+    "columns": [
+     "as",
+     "from",
+     "left",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "vw_inventory_rotation_analysis": {
+  "name": "vw_inventory_rotation_analysis",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PURCHASE_ANALYSIS_VIEWS.sql",
+    "line": 17,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "current_date",
+     "current_stock",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "left",
+     "sales_last_90_days",
+     "select",
+     "where",
+     "with"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 1568,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "case",
+     "current_date",
+     "current_stock",
+     "else",
+     "end",
+     "from",
+     "group",
+     "join",
+     "left",
+     "sales_last_90_days",
+     "select",
+     "where",
+     "with"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_stock_available": {
+  "name": "vw_stock_available",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 31,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "select",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "layaway_contracts": {
+  "name": "layaway_contracts",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 90,
+    "has_tenant_id": true,
+    "columns": [
+     "balance",
+     "created_at",
+     "created_by",
+     "currency_code",
+     "customer_id",
+     "discount_total",
+     "due_date",
+     "initial_deposit",
+     "layaway_id",
+     "location_id",
+     "note",
+     "paid_total",
+     "sale_id",
+     "status",
+     "subtotal",
+     "tax_total",
+     "tenant_id",
+     "total",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "layaway_items": {
+  "name": "layaway_items",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 120,
+    "has_tenant_id": true,
+    "columns": [
+     "discount_amount",
+     "layaway_id",
+     "layaway_item_id",
+     "line_total",
+     "quantity",
+     "tax_amount",
+     "tax_detail",
+     "tenant_id",
+     "unit_price",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "layaway_installments": {
+  "name": "layaway_installments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 133,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "due_date",
+     "installment_id",
+     "layaway_id",
+     "status",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "layaway_payments": {
+  "name": "layaway_payments",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 142,
+    "has_tenant_id": true,
+    "columns": [
+     "amount",
+     "cash_session_id",
+     "layaway_id",
+     "layaway_payment_id",
+     "paid_at",
+     "paid_by",
+     "payment_method_id",
+     "reference",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "stock_reservations_log": {
+  "name": "stock_reservations_log",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 154,
+    "has_tenant_id": true,
+    "columns": [
+     "action",
+     "created_at",
+     "created_by",
+     "layaway_id",
+     "location_id",
+     "quantity",
+     "reservation_log_id",
+     "tenant_id",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_layaway_summary": {
+  "name": "vw_layaway_summary",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 671,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 290,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_layaway_payments": {
+  "name": "vw_layaway_payments",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PlanSepare.sql",
+    "line": 693,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "pricing_rules": {
+  "name": "pricing_rules",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/PricingRules.sql",
+    "line": 8,
+    "has_tenant_id": true,
+    "columns": [
+     "category_id",
+     "check",
+     "created_at",
+     "is_active",
+     "location_id",
+     "markup_percentage",
+     "price_rounding",
+     "pricing_method",
+     "pricing_rule_id",
+     "priority",
+     "product_id",
+     "rounding_to",
+     "scope",
+     "tenant_id",
+     "updated_at",
+     "variant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "menu_items": {
+  "name": "menu_items",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+    "line": 26,
+    "has_tenant_id": false,
+    "columns": [
+     "action",
+     "code",
+     "created_at",
+     "icon",
+     "is_active",
+     "is_superadmin_only",
+     "label",
+     "menu_item_id",
+     "parent_code",
+     "route",
+     "sort_order"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "menu_permissions": {
+  "name": "menu_permissions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+    "line": 49,
+    "has_tenant_id": false,
+    "columns": [
+     "menu_item_id",
+     "permission_id",
+     "primary"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "role_menus": {
+  "name": "role_menus",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+    "line": 61,
+    "has_tenant_id": false,
+    "columns": [
+     "menu_item_id",
+     "primary",
+     "role_id"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "role_menu_templates": {
+  "name": "role_menu_templates",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+    "line": 74,
+    "has_tenant_id": false,
+    "columns": [
+     "menu_item_id",
+     "role_name",
+     "template_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": false,
+  "def_count": 1
+ },
+ "sale_counters": {
+  "name": "sale_counters",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 13,
+    "has_tenant_id": true,
+    "columns": [
+     "location_id",
+     "next_sale_number",
+     "primary",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/full_migration.sql",
+    "line": 402,
+    "has_tenant_id": true,
+    "columns": [
+     "location_id",
+     "next_sale_number",
+     "primary",
+     "tenant_id"
+    ]
+   },
+   {
+    "file": "web/migrations/FIX_SALE_COUNTERS_RLS.sql",
+    "line": 7,
+    "has_tenant_id": true,
+    "columns": [
+     "location_id",
+     "next_sale_number",
+     "primary",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 3
+ },
+ "vw_stock_current": {
+  "name": "vw_stock_current",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 574,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_sales_summary": {
+  "name": "vw_sales_summary",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 644,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 14,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_layaway_report": {
+  "name": "vw_layaway_report",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 667,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "select",
+     "when"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 40,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "case",
+     "else",
+     "end",
+     "from",
+     "join",
+     "left",
+     "select",
+     "when"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_layaway_payments_report": {
+  "name": "vw_layaway_payments_report",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 719,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 94,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_layaway_inventory": {
+  "name": "vw_layaway_inventory",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 753,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 130,
+    "has_tenant_id": true,
+    "columns": [
+     "and",
+     "as",
+     "from",
+     "join",
+     "left",
+     "select"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_income_consolidated": {
+  "name": "vw_income_consolidated",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 789,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select",
+     "union",
+     "where"
+    ]
+   },
+   {
+    "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+    "line": 167,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "left",
+     "select",
+     "union",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 2
+ },
+ "vw_purchases_summary": {
+  "name": "vw_purchases_summary",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 1535,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "join",
+     "order",
+     "select",
+     "where"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "vw_sales_daily_history": {
+  "name": "vw_sales_daily_history",
+  "kind": "view",
+  "defs": [
+   {
+    "file": "shared/supabase/migrations/SpVistasFN.sql",
+    "line": 1790,
+    "has_tenant_id": true,
+    "columns": [
+     "as",
+     "from",
+     "group",
+     "join",
+     "order",
+     "partition",
+     "rows",
+     "select",
+     "where",
+     "with"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_withholding_configs": {
+  "name": "accounting_withholding_configs",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_COMPETITIVE_CORE.sql",
+    "line": 18,
+    "has_tenant_id": true,
+    "columns": [
+     "account_code",
+     "applies_to",
+     "base_threshold",
+     "code",
+     "config_id",
+     "created_at",
+     "is_active",
+     "name",
+     "rate",
+     "tenant_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_period_closures": {
+  "name": "accounting_period_closures",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_COMPETITIVE_CORE.sql",
+    "line": 39,
+    "has_tenant_id": true,
+    "columns": [
+     "closed_at",
+     "closed_by",
+     "closure_id",
+     "created_at",
+     "notes",
+     "period_month",
+     "period_year",
+     "reopened_at",
+     "reopened_by",
+     "status",
+     "tenant_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_posting_rules": {
+  "name": "accounting_posting_rules",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_COMPETITIVE_CORE.sql",
+    "line": 61,
+    "has_tenant_id": true,
+    "columns": [
+     "auto_post",
+     "created_at",
+     "credit_account_code",
+     "debit_account_code",
+     "description_template",
+     "event_type",
+     "is_active",
+     "priority",
+     "rule_id",
+     "rule_name",
+     "source_module",
+     "tenant_id",
+     "unique",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_automation_exceptions": {
+  "name": "accounting_automation_exceptions",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_COMPETITIVE_CORE.sql",
+    "line": 81,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "event_type",
+     "exception_id",
+     "payload",
+     "queue_event_id",
+     "reason",
+     "resolved_at",
+     "resolved_by",
+     "source_id",
+     "source_module",
+     "status",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_accounts": {
+  "name": "accounting_accounts",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_CO_MODULE.sql",
+    "line": 57,
+    "has_tenant_id": true,
+    "columns": [
+     "account_class",
+     "account_id",
+     "account_type",
+     "code",
+     "created_at",
+     "is_active",
+     "is_postable",
+     "is_system",
+     "name",
+     "natural_side",
+     "parent_account_id",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_entries": {
+  "name": "accounting_entries",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_CO_MODULE.sql",
+    "line": 81,
+    "has_tenant_id": true,
+    "columns": [
+     "ai_confidence",
+     "ai_generated",
+     "created_at",
+     "created_by",
+     "description",
+     "entry_date",
+     "entry_id",
+     "entry_number",
+     "is_adjustment",
+     "posted_at",
+     "posted_by",
+     "source_event",
+     "source_id",
+     "source_module",
+     "status",
+     "tenant_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_entry_lines": {
+  "name": "accounting_entry_lines",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_CO_MODULE.sql",
+    "line": 108,
+    "has_tenant_id": true,
+    "columns": [
+     "account_id",
+     "constraint",
+     "cost_center",
+     "created_at",
+     "credit_amount",
+     "debit_amount",
+     "description",
+     "entry_id",
+     "line_id",
+     "line_number",
+     "or",
+     "tenant_id",
+     "third_party_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "accounting_event_queue": {
+  "name": "accounting_event_queue",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "web/migrations/ADD_ACCOUNTING_CO_MODULE.sql",
+    "line": 134,
+    "has_tenant_id": true,
+    "columns": [
+     "attempts",
+     "available_at",
+     "created_at",
+     "event_id",
+     "event_type",
+     "last_error",
+     "payload",
+     "processed_at",
+     "source_id",
+     "source_module",
+     "status",
+     "tenant_id",
+     "unique"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "mobile_sale_operations": {
+  "name": "mobile_sale_operations",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_IDEMPOTENT_MOBILE_SALES.sql",
+    "line": 14,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "last_error",
+     "operation_id",
+     "sale_id",
+     "status",
+     "tenant_id",
+     "updated_at"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "notification_events": {
+  "name": "notification_events",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_IN_APP_NOTIFICATION_CENTER.sql",
+    "line": 78,
+    "has_tenant_id": true,
+    "columns": [
+     "cash_register_id",
+     "created_at",
+     "created_by",
+     "dedupe_key",
+     "entity_id",
+     "entity_type",
+     "event_id",
+     "event_type",
+     "location_id",
+     "message",
+     "occurred_at",
+     "payload",
+     "severity",
+     "target_role",
+     "tenant_id",
+     "title"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "user_notification_prefs": {
+  "name": "user_notification_prefs",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_IN_APP_NOTIFICATION_CENTER.sql",
+    "line": 110,
+    "has_tenant_id": true,
+    "columns": [
+     "created_at",
+     "enabled",
+     "event_type",
+     "min_severity",
+     "mute_until",
+     "pref_id",
+     "tenant_id",
+     "unique",
+     "updated_at",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "notifications": {
+  "name": "notifications",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_IN_APP_NOTIFICATION_CENTER.sql",
+    "line": 126,
+    "has_tenant_id": true,
+    "columns": [
+     "action_url",
+     "channel",
+     "created_at",
+     "event_id",
+     "event_type",
+     "is_read",
+     "message",
+     "metadata",
+     "notification_id",
+     "read_at",
+     "severity",
+     "tenant_id",
+     "title",
+     "unique",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "ops_ai_query_cache": {
+  "name": "ops_ai_query_cache",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_OPS_RAG_AGENT_CACHE.sql",
+    "line": 1,
+    "has_tenant_id": true,
+    "columns": [
+     "auth_user_id",
+     "cache_id",
+     "created_at",
+     "domains",
+     "expires_at",
+     "filters",
+     "last_used_at",
+     "model",
+     "normalized_query",
+     "query_hash",
+     "response_payload",
+     "tenant_id",
+     "use_count"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "product_media": {
+  "name": "product_media",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_PRODUCT_MEDIA_PHOTOS.sql",
+    "line": 30,
+    "has_tenant_id": true,
+    "columns": [
+     "ai_detected_brand",
+     "ai_detected_category",
+     "ai_detected_name",
+     "ai_labels",
+     "ai_status",
+     "ai_suggested_description",
+     "ai_summary",
+     "ai_warnings",
+     "check",
+     "created_at",
+     "created_by",
+     "height",
+     "is_cover",
+     "media_id",
+     "mime_type",
+     "product_id",
+     "size_bytes",
+     "sort_order",
+     "storage_path",
+     "tenant_id",
+     "updated_at",
+     "variant_id",
+     "width"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "user_push_devices": {
+  "name": "user_push_devices",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_PUSH_NOTIFICATIONS_EXPO.sql",
+    "line": 9,
+    "has_tenant_id": true,
+    "columns": [
+     "app_version",
+     "created_at",
+     "device_name",
+     "device_uid",
+     "expo_push_token",
+     "is_active",
+     "last_seen_at",
+     "platform",
+     "push_device_id",
+     "push_provider",
+     "push_token",
+     "tenant_id",
+     "unique",
+     "updated_at",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ },
+ "notification_push_queue": {
+  "name": "notification_push_queue",
+  "kind": "table",
+  "defs": [
+   {
+    "file": "mobile/migrations/ADD_PUSH_NOTIFICATIONS_EXPO.sql",
+    "line": 52,
+    "has_tenant_id": true,
+    "columns": [
+     "attempts",
+     "created_at",
+     "expo_push_token",
+     "last_error",
+     "message",
+     "next_attempt_at",
+     "notification_id",
+     "payload",
+     "push_device_id",
+     "push_provider",
+     "push_queue_id",
+     "push_token",
+     "sent_at",
+     "status",
+     "tenant_id",
+     "title",
+     "unique",
+     "user_id"
+    ]
+   }
+  ],
+  "has_tenant_id": true,
+  "def_count": 1
+ }
+}

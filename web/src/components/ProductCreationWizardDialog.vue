@@ -68,6 +68,9 @@
                   clearable
                 />
               </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field v-model.number="formData.initial_quantity" type="number" min="0" label="Cantidad inicial (opcional)" prepend-inner-icon="mdi-package-plus" variant="outlined" hint="Crea una compra recibida con la sede y proveedor predeterminados" persistent-hint />
+              </v-col>
               <v-col cols="12">
                 <v-textarea
                   v-model="formData.description"
@@ -414,6 +417,7 @@ const buildInitialForm = (profileId = 'sale_simple') => applyProductCreationProf
   seed_variant_cost: 0,
   seed_variant_price: 0,
   seed_variant_min_stock: 0,
+  initial_quantity: 0,
 }, profileId)
 const buildFormFromProps = () => (
   props.mode === 'edit' && props.initialProduct
@@ -575,6 +579,20 @@ const submit = async () => {
         if (!variantResult.success) {
           message = 'Producto creado, pero no se pudo crear la primera variante. Revísalo desde edición.'
           color = 'warning'
+        }
+        if (Number(formData.value.initial_quantity) > 0 && variantResult.data?.variant_id) {
+          const base = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+          const token = JSON.parse(localStorage.getItem('ofirone_backend_session') || '{}')?.accessToken
+          const [locationsResponse, suppliersResponse] = await Promise.all([
+            fetch(`${base}/api/v1/locations?limit=100`, { headers: { authorization: `Bearer ${token}` } }),
+            fetch(`${base}/api/v1/suppliers?limit=100`, { headers: { authorization: `Bearer ${token}` } })
+          ])
+          const locations = await locationsResponse.json(); const suppliers = await suppliersResponse.json()
+          const location = (locations.items || [])[0]; const supplier = (suppliers.items || suppliers.Items || [])[0]
+          if (location && supplier) {
+            await fetch(`${base}/api/v1/purchases`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ id: crypto.randomUUID(), location_id: location.id, supplier_id: supplier.id || supplier.ID, status: 'received', lines: [{ variant_id: variantResult.data.variant_id || variantResult.data.ID, quantity: Number(formData.value.initial_quantity), unit_cost: Number(formData.value.seed_variant_cost || formData.value.base_cost || 0) }], subtotal: Number(formData.value.initial_quantity) * Number(formData.value.seed_variant_cost || formData.value.base_cost || 0), total: Number(formData.value.initial_quantity) * Number(formData.value.seed_variant_cost || formData.value.base_cost || 0), tax_total: 0, discount: 0 }) })
+            message = 'Producto creado y compra inicial registrada.'
+          }
         }
       }
     }

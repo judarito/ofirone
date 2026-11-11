@@ -4,6 +4,9 @@ import queryCache from '@/utils/queryCache'
 import tenantBillingService from './tenantBilling.service'
 import { validateSalePayloadDiscounts } from '@/utils/saleCalculator'
 import { serviceErrorResult } from '@/utils/appErrors'
+import { createBackendSale, listBackendSales, getBackendSale, voidBackendSale } from './backendSalesClient'
+
+const USE_BACKEND_SALES = import.meta.env.VITE_USE_BACKEND_SALES === 'true'
 
 class SalesService {
   constructor() {
@@ -41,6 +44,33 @@ class SalesService {
   // Crear venta usando SP atómico
   async createSale(tenantId, saleData) {
     try {
+      if (USE_BACKEND_SALES) {
+        const payload = {
+          id: crypto.randomUUID(),
+          location_id: saleData.location_id,
+          customer_id: saleData.customer_id || '',
+          cash_session_id: saleData.cash_session_id || '',
+          status: 'completed',
+          idempotency_key: `web-${crypto.randomUUID()}`,
+          lines: (saleData.lines || []).map(line => ({
+            variant_id: line.variant_id,
+            batch_id: line.batch_id || '',
+            quantity: Number(line.quantity ?? line.qty ?? 0),
+            unit_price: Math.round(Number(line.unit_price || 0)),
+            discount: Math.round(Number(line.discount || 0)),
+            tax: Math.round(Number(line.tax || 0)),
+          })),
+          payments: (saleData.payments || []).map(payment => ({
+            method_id: payment.method_id || '',
+            payment_method_code: payment.payment_method_code || payment.method || '',
+            amount: Math.round(Number(payment.amount || 0)),
+            reference: payment.reference || '',
+          })),
+        }
+        const data = await createBackendSale(payload)
+        this.invalidateOperationalCaches(tenantId)
+        return { success: true, data: { sale_id: data.id, status: data.status, total: data.total } }
+      }
       const billingResult = await tenantBillingService.getTenantBillingSummary(tenantId)
       if (billingResult.success && billingResult.data && billingResult.data.can_operate_sales === false) {
         return {
@@ -116,6 +146,10 @@ class SalesService {
   // Obtener ventas con paginación
   async getSales(tenantId, page = 1, pageSize = 10, filters = {}) {
     try {
+      if (USE_BACKEND_SALES) {
+        const result = await listBackendSales({ limit: Math.min(pageSize, 100) })
+        return { success: true, data: result.items || [], total: result.items?.length || 0 }
+      }
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
 
@@ -149,6 +183,7 @@ class SalesService {
   // Obtener detalle de venta
   async getSaleById(tenantId, saleId) {
     try {
+      if (USE_BACKEND_SALES) return { success: true, data: await getBackendSale(saleId) }
       const { data, error } = await supabaseService.client
         .from(this.table)
         .select(`
@@ -182,6 +217,7 @@ class SalesService {
   // Anular venta
   async voidSale(tenantId, saleId) {
     try {
+      if (USE_BACKEND_SALES) return { success: true, data: await voidBackendSale(saleId) }
       const { data, error } = await supabaseService.update(this.table, {
         status: 'VOIDED'
       }, { tenant_id: tenantId, sale_id: saleId })
@@ -270,6 +306,14 @@ class SalesService {
    */
   async getSalesForecastData(tenantId, locationId = null, daysBack = 90) {
     try {
+      if (import.meta.env.VITE_USE_BACKEND_POS_CONTEXT === 'true') {
+        const token = (await import('./backendAuthClient')).getBackendSession()?.accessToken
+        const base = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+        const response = await fetch(`${base}/api/v1/reports/dashboard`, { headers: { accept: 'application/json', authorization: `Bearer ${token}` } })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload?.message || `Backend respondió ${response.status}`)
+        return { success: true, data: (payload.daily_series || []).map(row => ({ date: row.date, total: row.total })) }
+      }
       const { data, error } = await supabaseService.client.rpc('fn_get_sales_forecast_data', {
         p_tenant_id: tenantId,
         p_location_id: locationId,

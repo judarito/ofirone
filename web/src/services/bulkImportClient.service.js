@@ -2,6 +2,65 @@ import { supabase } from '@/plugins/supabase'
 
 const bucket = 'dataimport'
 const MAX_HISTORY = 20
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || ''
+const USE_BACKEND_IMPORT_JOBS = import.meta.env.VITE_USE_BACKEND_IMPORT_JOBS === 'true'
+
+const backendBaseUrl = () => BACKEND_BASE_URL.replace(/\/+$/, '')
+
+async function getBackendAccessToken() {
+  const { data } = await supabase.auth.getSession()
+  const accessToken = data?.session?.access_token
+  if (!accessToken) {
+    throw new Error('Sesión requerida para encolar importaciones.')
+  }
+  return accessToken
+}
+
+async function enqueueImportJob(importRecord, jobOptions) {
+  if (!USE_BACKEND_IMPORT_JOBS) {
+    return { queued: false, job_id: null }
+  }
+
+  if (!BACKEND_BASE_URL) {
+    throw new Error('VITE_BACKEND_API_URL no configurado para encolar importaciones.')
+  }
+
+  const accessToken = await getBackendAccessToken()
+  const response = await fetch(`${backendBaseUrl()}/async-jobs`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      tenant_id: importRecord.tenant_id,
+      queue: 'import_jobs',
+      job_type: jobOptions.jobType,
+      payload: {
+        import_id: importRecord.import_id,
+        import_type: importRecord.import_type,
+        file_key: importRecord.file_key,
+        file_name: importRecord.file_name,
+      },
+      dedupe_key: jobOptions.dedupeKey,
+      priority: jobOptions.priority,
+      max_attempts: 3,
+      source: 'web',
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload?.error || `Backend respondió ${response.status} al encolar importación.`)
+  }
+
+  return { queued: true, job_id: payload.job_id }
+}
+
+export function isBackendImportJobsEnabled() {
+  return USE_BACKEND_IMPORT_JOBS
+}
 
 export async function uploadBulkImport({ importType, file, tenantId, uploadedBy }) {
   const timestamp = Date.now()
@@ -40,6 +99,30 @@ export async function uploadBulkImport({ importType, file, tenantId, uploadedBy 
   }
 
   return record
+}
+
+export async function enqueueBulkImportJob(importRecord) {
+  return enqueueImportJob(importRecord, {
+    jobType: 'bulk_import_process',
+    dedupeKey: `bulk-import:${importRecord.import_id}`,
+    priority: 50,
+  })
+}
+
+export async function enqueueBulkImportApplyProducts(importRecord) {
+  return enqueueImportJob(importRecord, {
+    jobType: 'bulk_import_apply_products',
+    dedupeKey: `bulk-import-apply:${importRecord.import_id}`,
+    priority: 40,
+  })
+}
+
+export async function enqueueBulkImportApplyThirdParties(importRecord) {
+  return enqueueImportJob(importRecord, {
+    jobType: 'bulk_import_apply_third_parties',
+    dedupeKey: `bulk-import-apply:${importRecord.import_id}`,
+    priority: 40,
+  })
 }
 
 export async function listBulkImports(tenantId, importType) {

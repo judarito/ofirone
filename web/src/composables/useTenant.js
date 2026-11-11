@@ -12,7 +12,15 @@ export const useTenant = () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        currentTenant.value = JSON.parse(stored)
+        const parsed = JSON.parse(stored)
+        // Backend auth returns the tenant id from /me, while older local
+        // sessions may have persisted only that id. Keep the shell usable
+        // during hydration instead of rendering the misleading "Sin empresa".
+        if (parsed?.tenant_id && !parsed.tenant_name) {
+          parsed.tenant_name = 'DEV Local'
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+        }
+        currentTenant.value = parsed
       }
     } catch (error) {
       console.error('Error loading tenant from storage:', error)

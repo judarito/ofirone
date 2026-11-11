@@ -1,0 +1,22 @@
+{
+  "name": "@ofirone/backend-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "dev:local": "node --env-file=.env --watch src/server.js",
+    "worker": "node src/worker.js",
+    "worker:once": "node src/worker.js --once",
+    "worker:once:local": "node --env-file=.env src/worker.js --once",
+    "worker:local": "node --env-file=.env src/worker.js",
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "xlsx": "0.18.5"
+  }
+}

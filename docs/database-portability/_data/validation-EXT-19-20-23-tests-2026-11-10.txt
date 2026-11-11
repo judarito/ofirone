@@ -1,0 +1,35 @@
+EXT-19/20/23 — tests Go
+fecha=2026-11-10
+
+== go test ./... ==
+go: downloading github.com/jackc/pgx/v5 v5.7.2
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading golang.org/x/crypto v0.31.0
+go: downloading github.com/jackc/puddle/v2 v2.2.2
+go: downloading github.com/jackc/pgpassfile v1.0.0
+go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
+go: downloading golang.org/x/text v0.21.0
+go: downloading golang.org/x/sync v0.10.0
+go: downloading golang.org/x/sys v0.28.0
+?   	ofirone/backend-go/cmd/dev-auth-bootstrap	[no test files]
+?   	ofirone/backend-go/cmd/worker	[no test files]
+ok  	ofirone/backend-go/cmd/api	0.004s
+ok  	ofirone/backend-go/internal/app	0.027s
+ok  	ofirone/backend-go/internal/audit	0.003s
+?   	ofirone/backend-go/internal/cash	[no test files]
+?   	ofirone/backend-go/internal/customers	[no test files]
+ok  	ofirone/backend-go/internal/auth	1.258s
+ok  	ofirone/backend-go/internal/catalog	0.005s
+ok  	ofirone/backend-go/internal/config	0.005s
+ok  	ofirone/backend-go/internal/httpapi	0.026s
+ok  	ofirone/backend-go/internal/inventory	0.013s
+ok  	ofirone/backend-go/internal/jobs	0.007s
+ok  	ofirone/backend-go/internal/logging	0.006s
+ok  	ofirone/backend-go/internal/migrations	0.010s
+ok  	ofirone/backend-go/internal/pagination	0.005s
+ok  	ofirone/backend-go/internal/purchases	0.010s
+ok  	ofirone/backend-go/internal/sales	0.003s
+
+== go test -race httpapi/auth ==
+ok  	ofirone/backend-go/internal/httpapi	1.041s
+ok  	ofirone/backend-go/internal/auth	2.325s

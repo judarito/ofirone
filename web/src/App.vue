@@ -115,7 +115,7 @@
         <v-list-item
           data-testid="app-sidebar-user"
           :title="userProfile?.full_name || user?.email || superAdminInfo?.email || t('app.user')"
-          :subtitle="(canManageTenants && !userProfile) ? t('app.superAdmin') : (userProfile?.tenants?.name || t('app.noCompany'))"
+          :subtitle="(canManageTenants && !userProfile) ? t('app.superAdmin') : (tenantName || userProfile?.tenants?.name || t('app.noCompany'))"
         >
           <template #prepend>
             <v-avatar size="38" class="user-avatar mr-3" color="primary" variant="tonal">
@@ -355,6 +355,7 @@ import { useSuperAdmin } from '@/composables/useSuperAdmin'
 import { useTenantBilling } from '@/composables/useTenantBilling'
 import { useDisplay } from 'vuetify'
 import rolesService from '@/services/roles.service'
+import { getBackendMenus, getBackendSession, USE_BACKEND_AUTH } from '@/services/backendAuthClient'
 import { useAppAlerts } from '@/composables/useAppAlerts'
 import { useI18n } from '@/i18n'
 import { filterMenuTreeByBilling, getBillingRouteAccess } from '../../shared/utils/billingAccess'
@@ -372,7 +373,7 @@ const AppAlertsDialog = defineAsyncComponent(() => import('@/components/AppAlert
 const router = useRouter()
 const route = useRoute()
 const { signOut, user, userProfile, hasPermission, hasAnyPermission } = useAuth()
-const { tenantId, clearTenant } = useTenant()
+const { tenantId, tenantName, clearTenant } = useTenant()
 const { locale: tenantLocale, loadSettings } = useTenantSettings()
 const { snackbar, snackbarMessage, snackbarColor } = useNotification()
 const { isDark, setTheme, ensureThemeForUser, syncThemeFromTenant } = useTheme()
@@ -413,6 +414,11 @@ const dynamicMenuTree = ref(null)  // null = sin cargar, [] = cargado vacío, [{
 async function loadDynamicMenus(authUserId) {
   if (!authUserId) return
   try {
+    if (USE_BACKEND_AUTH && getBackendSession()?.accessToken) {
+      const backendItems = await getBackendMenus()
+      dynamicMenuTree.value = backendItems
+      return
+    }
     const result = await rolesService.getUserMenus(authUserId)
     if (result.success && result.data.length > 0) {
       dynamicMenuTree.value = result.data  // árbol con children ya armado
@@ -499,12 +505,19 @@ const menuSections = computed(() => {
   // ── MENÚ DINÁMICO (DB-driven) ─────────────────────────────────
   // fn_get_user_menus resuelve jerarquía (padres auto-incluidos)
   if (!dynamicMenuTree.value || dynamicMenuTree.value.length === 0) {
-    return []  // Aún cargando, error de red, o sin menús asignados
+    return [
+      { title: t('app.dashboard'), icon: 'mdi-view-dashboard', route: '/' },
+      { title: t('app.customers'), icon: 'mdi-account-group', route: '/customers' },
+      { title: t('app.products'), icon: 'mdi-package-variant', route: '/products' },
+      { title: t('app.inventory'), icon: 'mdi-warehouse', route: '/inventory' },
+      { title: t('app.sales'), icon: 'mdi-cart', route: '/sales' },
+    ]
   }
 
   const billingSafeTree = filterMenuTreeByBilling(billingSummary.value, dynamicMenuTree.value)
 
   // Convertir árbol de DB al formato que espera el sidebar
+  const seenMenuKeys = new Set()
   return billingSafeTree.map(root => {
     const item = {
       title: root.label,
@@ -520,9 +533,14 @@ const menuSections = computed(() => {
         action: child.action || undefined,
       }))
     }
+    const key = item.route || item.action || String(item.title || '').trim().toLowerCase()
+    if (seenMenuKeys.has(key)) return null
+    seenMenuKeys.add(key)
     return item
-  })
+  }).filter(Boolean)
 })
+
+const handleBackendUnauthorized = () => { signOut() }
 
 
 const handleResize = () => {
@@ -623,6 +641,7 @@ watch([tenantId, isAuthRoute], ([newTenantId, newIsAuthRoute]) => {
 }, { immediate: true })
 
 onMounted(async () => {
+  window.addEventListener('ofirone:backend-unauthorized', handleBackendUnauthorized)
   window.addEventListener('resize', handleResize)
   handleResize()
   
@@ -664,6 +683,15 @@ watch(
   }
 )
 
+// Backend hydration resolves user and profile in separate microtasks. Watch
+// the profile too so a hard refresh always triggers the menu request.
+watch(
+  () => userProfile.value,
+  (profile) => {
+    if (profile && user.value?.id) loadDynamicMenus(user.value.id)
+  }
+)
+
 watch(
   () => tenantId.value,
   async (newTenantId) => {
@@ -686,6 +714,7 @@ watch(menuDisplayMode, (value) => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('ofirone:backend-unauthorized', handleBackendUnauthorized)
   window.removeEventListener('resize', handleResize)
   unsubscribeFromAlerts()
 })

@@ -1,0 +1,1 @@
+../../shared/supabase/migrations/ADD_AI_TELEMETRY_COST_SUMMARY_FN.sql

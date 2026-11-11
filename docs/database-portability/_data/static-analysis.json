@@ -1,0 +1,8137 @@
+{
+ "tables": {
+  "unique": 100,
+  "definitions": 139,
+  "redefined": {
+   "online_order_reservations": 2,
+   "third_parties": 2,
+   "cash_register_assignments": 3,
+   "system_alerts": 2,
+   "tenants": 2,
+   "locations": 2,
+   "users": 2,
+   "roles": 2,
+   "permissions": 2,
+   "role_permissions": 2,
+   "user_roles": 2,
+   "categories": 2,
+   "products": 2,
+   "product_variants": 2,
+   "product_barcodes": 2,
+   "product_tags": 2,
+   "product_tag_map": 2,
+   "price_lists": 2,
+   "price_list_items": 2,
+   "customers": 2,
+   "customer_credit_accounts": 2,
+   "customer_credit_movements": 2,
+   "taxes": 2,
+   "tax_rules": 2,
+   "tenant_settings": 2,
+   "cash_registers": 2,
+   "cash_sessions": 2,
+   "cash_movements": 2,
+   "payment_methods": 2,
+   "sales": 2,
+   "sale_lines": 2,
+   "sale_payments": 2,
+   "sale_returns": 2,
+   "sale_return_lines": 2,
+   "inventory_moves": 2,
+   "stock_balances": 2,
+   "audit_log": 2,
+   "sale_counters": 2
+  },
+  "detail": {
+   "ai_telemetry_events": [
+    {
+     "file": "shared/supabase/migrations/ADD_AI_TELEMETRY_EVENTS.sql",
+     "line": 7
+    }
+   ],
+   "async_job_attempts": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 75
+    }
+   ],
+   "async_jobs": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 12
+    }
+   ],
+   "audit_log": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 373
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 375
+    }
+   ],
+   "bill_of_materials": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 23
+    }
+   ],
+   "billing_plan_features": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 41
+    }
+   ],
+   "billing_plan_limits": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 53
+    }
+   ],
+   "billing_plan_prices": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 25
+    }
+   ],
+   "billing_plans": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 12
+    }
+   ],
+   "bom_components": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 62
+    }
+   ],
+   "bulk_import_errors": [
+    {
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 24
+    }
+   ],
+   "bulk_imports": [
+    {
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 8
+    }
+   ],
+   "bundle_compositions": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 206
+    }
+   ],
+   "cash_movements": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 249
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 253
+    }
+   ],
+   "cash_register_assignments": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 21
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 16
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1108
+    }
+   ],
+   "cash_registers": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 225
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 229
+    }
+   ],
+   "cash_sessions": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 234
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 238
+    }
+   ],
+   "categories": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 69
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 74
+    }
+   ],
+   "chat_order_ai_cache": [
+    {
+     "file": "shared/supabase/migrations/ADD_CHAT_ORDER_AI_CACHE.sql",
+     "line": 5
+    }
+   ],
+   "cities": [
+    {
+     "file": "shared/supabase/migrations/ADD_THIRD_PARTIES_LOOKUPS.sql",
+     "line": 41
+    }
+   ],
+   "component_allocations": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 265
+    }
+   ],
+   "customer_credit_accounts": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 158
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 163
+    }
+   ],
+   "customer_credit_movements": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 168
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 173
+    }
+   ],
+   "customers": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 145
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 150
+    }
+   ],
+   "departments": [
+    {
+     "file": "shared/supabase/migrations/ADD_THIRD_PARTIES_LOOKUPS.sql",
+     "line": 26
+    }
+   ],
+   "document_types": [
+    {
+     "file": "shared/supabase/migrations/ADD_THIRD_PARTIES_LOOKUPS.sql",
+     "line": 10
+    }
+   ],
+   "fe_provider_config": [
+    {
+     "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+     "line": 35
+    }
+   ],
+   "inventory_batches": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 21
+    }
+   ],
+   "inventory_moves": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 344
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 347
+    }
+   ],
+   "invoice_resolutions": [
+    {
+     "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+     "line": 73
+    }
+   ],
+   "layaway_contracts": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 90
+    }
+   ],
+   "layaway_installments": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 133
+    }
+   ],
+   "layaway_items": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 120
+    }
+   ],
+   "layaway_payments": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 142
+    }
+   ],
+   "locations": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 16
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 21
+    }
+   ],
+   "menu_items": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 26
+    }
+   ],
+   "menu_permissions": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 49
+    }
+   ],
+   "notification_outbox": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 9
+    }
+   ],
+   "online_order_lines": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 230
+    }
+   ],
+   "online_order_reservations": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 249
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 6
+    }
+   ],
+   "online_orders": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 202
+    }
+   ],
+   "online_store_catalog": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 182
+    }
+   ],
+   "online_stores": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 153
+    }
+   ],
+   "payment_methods": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 264
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 268
+    }
+   ],
+   "permissions": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 48
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 53
+    }
+   ],
+   "price_list_items": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 134
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 139
+    }
+   ],
+   "price_lists": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 126
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 131
+    }
+   ],
+   "pricing_rules": [
+    {
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 8
+    }
+   ],
+   "product_barcodes": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 103
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 108
+    }
+   ],
+   "product_tag_map": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 118
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 123
+    }
+   ],
+   "product_tags": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 111
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 116
+    }
+   ],
+   "product_variants": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 89
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 94
+    }
+   ],
+   "production_order_lines": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 149
+    }
+   ],
+   "production_orders": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 93
+    }
+   ],
+   "production_outputs": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 179
+    }
+   ],
+   "products": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 77
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 82
+    }
+   ],
+   "public_subscription_signup_events": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 82
+    }
+   ],
+   "public_subscription_signups": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 7
+    }
+   ],
+   "purchase_order_lines": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+     "line": 20
+    }
+   ],
+   "purchase_orders": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+     "line": 5
+    }
+   ],
+   "purchase_return_lines": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_RETURNS_CORE.sql",
+     "line": 17
+    }
+   ],
+   "purchase_returns": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_RETURNS_CORE.sql",
+     "line": 5
+    }
+   ],
+   "purchases": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASES_TABLE.sql",
+     "line": 7
+    }
+   ],
+   "role_menu_templates": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 74
+    }
+   ],
+   "role_menus": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 61
+    }
+   ],
+   "role_permissions": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 54
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 59
+    }
+   ],
+   "roles": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 41
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 46
+    }
+   ],
+   "sale_counters": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 13
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 402
+    }
+   ],
+   "sale_line_batches": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+     "line": 316
+    }
+   ],
+   "sale_lines": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 291
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 295
+    }
+   ],
+   "sale_payments": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 305
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 309
+    }
+   ],
+   "sale_return_lines": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 329
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 332
+    }
+   ],
+   "sale_return_refunds": [
+    {
+     "file": "shared/supabase/migrations/ADD_SALE_RETURNS_REFUNDS_V2.sql",
+     "line": 5
+    }
+   ],
+   "sale_returns": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 317
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 320
+    }
+   ],
+   "sale_warnings": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE4_SALES.sql",
+     "line": 22
+    }
+   ],
+   "sales": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 273
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 277
+    }
+   ],
+   "service_deliveries": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 232
+    }
+   ],
+   "stock_alert_log": [
+    {
+     "file": "shared/supabase/migrations/AddMinStock.sql",
+     "line": 69
+    }
+   ],
+   "stock_balances": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 361
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 363
+    }
+   ],
+   "stock_balances_backup": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 150
+    }
+   ],
+   "stock_reservations_log": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 154
+    }
+   ],
+   "supplier_payable_payments": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+     "line": 23
+    }
+   ],
+   "supplier_payables": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+     "line": 5
+    }
+   ],
+   "system_alerts": [
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+     "line": 43
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 891
+    }
+   ],
+   "tax_rules": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 194
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 198
+    }
+   ],
+   "taxes": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 183
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 188
+    }
+   ],
+   "tenant_gateway_credentials": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_MERCADOPAGO_CREDENTIALS.sql",
+     "line": 7
+    }
+   ],
+   "tenant_invoices": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 160
+    }
+   ],
+   "tenant_payment_methods": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 209
+    }
+   ],
+   "tenant_payments": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 187
+    }
+   ],
+   "tenant_settings": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 212
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 216
+    }
+   ],
+   "tenant_subscription_events": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 138
+    }
+   ],
+   "tenant_subscription_periods": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 119
+    }
+   ],
+   "tenant_subscriptions": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 79
+    }
+   ],
+   "tenants": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 7
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 12
+    }
+   ],
+   "third_parties": [
+    {
+     "file": "shared/supabase/migrations/ADD_THIRD_PARTIES.sql",
+     "line": 11
+    },
+    {
+     "file": "shared/supabase/migrations/RECREATE_THIRD_PARTIES.sql",
+     "line": 30
+    }
+   ],
+   "transfer_requests": [
+    {
+     "file": "shared/supabase/migrations/ADD_TRANSFER_IN_TRANSIT_CORE.sql",
+     "line": 5
+    }
+   ],
+   "units_of_measure": [
+    {
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 21
+    }
+   ],
+   "user_roles": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 60
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 65
+    }
+   ],
+   "users": [
+    {
+     "file": "shared/supabase/migrations/InitDB.sql",
+     "line": 30
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 35
+    }
+   ]
+  }
+ },
+ "tenant": {
+  "with_tenant_id": [
+   "ai_telemetry_events",
+   "async_jobs",
+   "audit_log",
+   "bill_of_materials",
+   "bom_components",
+   "bulk_imports",
+   "bundle_compositions",
+   "cash_movements",
+   "cash_register_assignments",
+   "cash_registers",
+   "cash_sessions",
+   "categories",
+   "chat_order_ai_cache",
+   "component_allocations",
+   "customer_credit_accounts",
+   "customer_credit_movements",
+   "customers",
+   "fe_provider_config",
+   "inventory_batches",
+   "inventory_moves",
+   "invoice_resolutions",
+   "layaway_contracts",
+   "layaway_installments",
+   "layaway_items",
+   "layaway_payments",
+   "locations",
+   "notification_outbox",
+   "online_order_lines",
+   "online_order_reservations",
+   "online_orders",
+   "online_store_catalog",
+   "online_stores",
+   "payment_methods",
+   "price_list_items",
+   "price_lists",
+   "pricing_rules",
+   "product_barcodes",
+   "product_tag_map",
+   "product_tags",
+   "product_variants",
+   "production_order_lines",
+   "production_orders",
+   "production_outputs",
+   "products",
+   "public_subscription_signups",
+   "purchase_order_lines",
+   "purchase_orders",
+   "purchase_return_lines",
+   "purchase_returns",
+   "purchases",
+   "roles",
+   "sale_counters",
+   "sale_line_batches",
+   "sale_lines",
+   "sale_payments",
+   "sale_return_lines",
+   "sale_return_refunds",
+   "sale_returns",
+   "sale_warnings",
+   "sales",
+   "service_deliveries",
+   "stock_alert_log",
+   "stock_balances",
+   "stock_reservations_log",
+   "supplier_payable_payments",
+   "supplier_payables",
+   "system_alerts",
+   "tax_rules",
+   "taxes",
+   "tenant_gateway_credentials",
+   "tenant_invoices",
+   "tenant_payment_methods",
+   "tenant_payments",
+   "tenant_settings",
+   "tenant_subscription_events",
+   "tenant_subscription_periods",
+   "tenant_subscriptions",
+   "tenants",
+   "third_parties",
+   "transfer_requests",
+   "units_of_measure",
+   "users"
+  ],
+  "without_tenant_id": [
+   "async_job_attempts",
+   "billing_plan_features",
+   "billing_plan_limits",
+   "billing_plan_prices",
+   "billing_plans",
+   "bulk_import_errors",
+   "cities",
+   "departments",
+   "document_types",
+   "menu_items",
+   "menu_permissions",
+   "permissions",
+   "public_subscription_signup_events",
+   "role_menu_templates",
+   "role_menus",
+   "role_permissions",
+   "user_roles"
+  ]
+ },
+ "rls": {
+  "tables_enabled": [
+   "ai_telemetry_events",
+   "async_job_attempts",
+   "async_jobs",
+   "billing_plan_features",
+   "billing_plan_limits",
+   "billing_plan_prices",
+   "billing_plans",
+   "bulk_import_errors",
+   "bulk_imports",
+   "cash_movements",
+   "cash_register_assignments",
+   "cash_registers",
+   "cash_sessions",
+   "chat_order_ai_cache",
+   "customer_credit_movements",
+   "customers",
+   "fe_provider_config",
+   "inventory_moves",
+   "invoice_resolutions",
+   "layaway_contracts",
+   "layaway_installments",
+   "layaway_items",
+   "layaway_payments",
+   "locations",
+   "menu_items",
+   "menu_permissions",
+   "notification_outbox",
+   "online_order_lines",
+   "online_order_reservations",
+   "online_orders",
+   "online_store_catalog",
+   "online_stores",
+   "payment_methods",
+   "permissions",
+   "pricing_rules",
+   "product_variants",
+   "products",
+   "public_subscription_signup_events",
+   "public_subscription_signups",
+   "purchase_order_lines",
+   "purchase_orders",
+   "purchase_return_lines",
+   "purchase_returns",
+   "purchases",
+   "role_menu_templates",
+   "role_menus",
+   "role_permissions",
+   "roles",
+   "sale_lines",
+   "sale_payments",
+   "sale_return_refunds",
+   "sale_returns",
+   "sales",
+   "stock_alert_log",
+   "stock_balances",
+   "stock_movements",
+   "supplier_payable_payments",
+   "supplier_payables",
+   "system_alerts",
+   "tax_rules",
+   "taxes",
+   "tenant_gateway_credentials",
+   "tenant_invoices",
+   "tenant_payment_methods",
+   "tenant_payments",
+   "tenant_subscription_events",
+   "tenant_subscription_periods",
+   "tenant_subscriptions",
+   "tenants",
+   "third_parties",
+   "transfer_requests",
+   "units_of_measure",
+   "user_roles",
+   "users"
+  ],
+  "policies_by_table": {
+   "ai_telemetry_events": 3,
+   "async_job_attempts": 1,
+   "async_jobs": 2,
+   "billing_plans": 1,
+   "bulk_import_errors": 2,
+   "bulk_imports": 3,
+   "cash_movements": 3,
+   "cash_register_assignments": 2,
+   "cash_registers": 4,
+   "cash_sessions": 3,
+   "chat_order_ai_cache": 3,
+   "customer_credit_movements": 2,
+   "customers": 2,
+   "fe_provider_config": 1,
+   "inventory_moves": 3,
+   "invoice_resolutions": 1,
+   "layaway_contracts": 8,
+   "layaway_installments": 8,
+   "layaway_items": 7,
+   "layaway_payments": 7,
+   "locations": 1,
+   "menu_items": 2,
+   "menu_permissions": 2,
+   "notification_outbox": 1,
+   "objects": 6,
+   "online_order_reservations": 1,
+   "online_stores": 1,
+   "payment_methods": 4,
+   "permissions": 1,
+   "pricing_rules": 4,
+   "product_variants": 1,
+   "products": 2,
+   "public_subscription_signup_events": 1,
+   "public_subscription_signups": 1,
+   "purchase_order_lines": 4,
+   "purchase_orders": 4,
+   "purchase_return_lines": 2,
+   "purchase_returns": 3,
+   "purchases": 1,
+   "role_menu_templates": 2,
+   "role_menus": 2,
+   "role_permissions": 3,
+   "roles": 4,
+   "sale_lines": 6,
+   "sale_payments": 6,
+   "sale_return_refunds": 4,
+   "sale_returns": 3,
+   "sales": 5,
+   "stock_alert_log": 2,
+   "stock_balances": 2,
+   "stock_movements": 2,
+   "supplier_payable_payments": 2,
+   "supplier_payables": 4,
+   "system_alerts": 8,
+   "tax_rules": 2,
+   "taxes": 2,
+   "tenant_gateway_credentials": 1,
+   "tenants": 1,
+   "third_parties": 4,
+   "transfer_requests": 4,
+   "units_of_measure": 4,
+   "user_roles": 3,
+   "users": 4
+  },
+  "policies_total": 188,
+  "policies_detail": {
+   "ai_telemetry_events": [
+    {
+     "name": "ai_telemetry_events_update_policy",
+     "file": "shared/supabase/migrations/ADD_AI_TELEMETRY_CORRECTION_FIELDS.sql",
+     "line": 25
+    },
+    {
+     "name": "ai_telemetry_events_select_policy",
+     "file": "shared/supabase/migrations/ADD_AI_TELEMETRY_EVENTS.sql",
+     "line": 57
+    },
+    {
+     "name": "ai_telemetry_events_insert_policy",
+     "file": "shared/supabase/migrations/ADD_AI_TELEMETRY_EVENTS.sql",
+     "line": 65
+    }
+   ],
+   "async_job_attempts": [
+    {
+     "name": "async_job_attempts_tenant_select",
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 108
+    }
+   ],
+   "async_jobs": [
+    {
+     "name": "async_jobs_tenant_select",
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 96
+    },
+    {
+     "name": "async_jobs_tenant_insert",
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 102
+    }
+   ],
+   "billing_plans": [
+    {
+     "name": "billing_plans_select_policy",
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 626
+    }
+   ],
+   "bulk_import_errors": [
+    {
+     "name": "bulk_import_errors_tenant_select",
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 55
+    },
+    {
+     "name": "bulk_import_errors_tenant_insert",
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 63
+    }
+   ],
+   "bulk_imports": [
+    {
+     "name": "bulk_imports_tenant_select",
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 40
+    },
+    {
+     "name": "bulk_imports_tenant_insert",
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 44
+    },
+    {
+     "name": "bulk_imports_tenant_update",
+     "file": "shared/supabase/migrations/CREATE_BULK_IMPORT_TRACKING.sql",
+     "line": 48
+    }
+   ],
+   "cash_movements": [
+    {
+     "name": "Admins can manage all cash movements",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 137
+    },
+    {
+     "name": "Cashiers can view their own movements",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 160
+    },
+    {
+     "name": "Cashiers can create movements",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 172
+    }
+   ],
+   "cash_register_assignments": [
+    {
+     "name": "Admins can access all assignments",
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 245
+    },
+    {
+     "name": "Cashiers can access their own assignments",
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 269
+    }
+   ],
+   "cash_registers": [
+    {
+     "name": "cash_registers_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 204
+    },
+    {
+     "name": "cash_registers_insert_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 209
+    },
+    {
+     "name": "cash_registers_update_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 217
+    },
+    {
+     "name": "cash_registers_delete_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 225
+    }
+   ],
+   "cash_sessions": [
+    {
+     "name": "Admins can manage all cash sessions",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 72
+    },
+    {
+     "name": "Cashiers can view their own sessions",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 96
+    },
+    {
+     "name": "Cashiers can manage their own sessions",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 108
+    }
+   ],
+   "chat_order_ai_cache": [
+    {
+     "name": "chat_order_ai_cache_select_policy",
+     "file": "shared/supabase/migrations/ADD_CHAT_ORDER_AI_CACHE.sql",
+     "line": 45
+    },
+    {
+     "name": "chat_order_ai_cache_insert_policy",
+     "file": "shared/supabase/migrations/ADD_CHAT_ORDER_AI_CACHE.sql",
+     "line": 52
+    },
+    {
+     "name": "chat_order_ai_cache_update_policy",
+     "file": "shared/supabase/migrations/ADD_CHAT_ORDER_AI_CACHE.sql",
+     "line": 59
+    }
+   ],
+   "customer_credit_movements": [
+    {
+     "name": "customer_credit_movements_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 325
+    },
+    {
+     "name": "customer_credit_movements_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 330
+    }
+   ],
+   "customers": [
+    {
+     "name": "Users can view customers in their tenant",
+     "file": "shared/supabase/migrations/FIX_RLS_REPORTS.sql",
+     "line": 34
+    },
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 531
+    }
+   ],
+   "fe_provider_config": [
+    {
+     "name": "fe_provider_config_tenant_all",
+     "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+     "line": 64
+    }
+   ],
+   "inventory_moves": [
+    {
+     "name": "Admins can manage inventory moves",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 292
+    },
+    {
+     "name": "Cashiers can view moves in their locations",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 304
+    },
+    {
+     "name": "Cashiers can create moves in their locations",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 313
+    }
+   ],
+   "invoice_resolutions": [
+    {
+     "name": "invoice_resolutions_tenant_all",
+     "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+     "line": 101
+    }
+   ],
+   "layaway_contracts": [
+    {
+     "name": "Admins can manage layaway contracts",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 338
+    },
+    {
+     "name": "Cashiers can view contracts in their locations",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 350
+    },
+    {
+     "name": "Cashiers can create contracts in their locations",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 359
+    },
+    {
+     "name": "Cashiers can update contracts in their locations",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 368
+    },
+    {
+     "name": "layaway_contracts_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 194
+    },
+    {
+     "name": "layaway_contracts_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 199
+    },
+    {
+     "name": "layaway_contracts_update",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 204
+    },
+    {
+     "name": "layaway_contracts_delete",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 210
+    }
+   ],
+   "layaway_installments": [
+    {
+     "name": "Admins can manage layaway installments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 509
+    },
+    {
+     "name": "Cashiers can view installments in their contracts",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 529
+    },
+    {
+     "name": "Cashiers can create installments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 542
+    },
+    {
+     "name": "Cashiers can update installments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 555
+    },
+    {
+     "name": "layaway_installments_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 238
+    },
+    {
+     "name": "layaway_installments_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 243
+    },
+    {
+     "name": "layaway_installments_update",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 248
+    },
+    {
+     "name": "layaway_installments_delete",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 254
+    }
+   ],
+   "layaway_items": [
+    {
+     "name": "Admins can manage layaway items",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 393
+    },
+    {
+     "name": "Cashiers can view items in their contracts",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 413
+    },
+    {
+     "name": "Cashiers can create items in their contracts",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 426
+    },
+    {
+     "name": "layaway_items_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 216
+    },
+    {
+     "name": "layaway_items_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 221
+    },
+    {
+     "name": "layaway_items_update",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 226
+    },
+    {
+     "name": "layaway_items_delete",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 232
+    }
+   ],
+   "layaway_payments": [
+    {
+     "name": "Admins can manage layaway payments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 450
+    },
+    {
+     "name": "Cashiers can view their layaway payments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 462
+    },
+    {
+     "name": "Cashiers can create layaway payments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 479
+    },
+    {
+     "name": "layaway_payments_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 260
+    },
+    {
+     "name": "layaway_payments_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 265
+    },
+    {
+     "name": "layaway_payments_update",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 270
+    },
+    {
+     "name": "layaway_payments_delete",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 276
+    }
+   ],
+   "locations": [
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 515
+    }
+   ],
+   "menu_items": [
+    {
+     "name": "menu_items_read_all",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 561
+    },
+    {
+     "name": "menu_items_write_superadmin",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 565
+    }
+   ],
+   "menu_permissions": [
+    {
+     "name": "menu_permissions_read",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 578
+    },
+    {
+     "name": "menu_permissions_write_superadmin",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 582
+    }
+   ],
+   "notification_outbox": [
+    {
+     "name": "notification_outbox_tenant_select",
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 49
+    }
+   ],
+   "objects": [
+    {
+     "name": "storefront_auth_can_upload",
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 43
+    },
+    {
+     "name": "storefront_anon_can_upload_payment_proofs",
+     "file": "shared/supabase/migrations/ONLINE_STORE_PAYMENT_PROOF_AND_GATEWAY_READY.sql",
+     "line": 10
+    },
+    {
+     "name": "dataimport_select",
+     "file": "shared/supabase/migrations/SETUP_DATAIMPORT_BUCKET.sql",
+     "line": 32
+    },
+    {
+     "name": "dataimport_insert",
+     "file": "shared/supabase/migrations/SETUP_DATAIMPORT_BUCKET.sql",
+     "line": 40
+    },
+    {
+     "name": "dataimport_update",
+     "file": "shared/supabase/migrations/SETUP_DATAIMPORT_BUCKET.sql",
+     "line": 48
+    },
+    {
+     "name": "dataimport_delete",
+     "file": "shared/supabase/migrations/SETUP_DATAIMPORT_BUCKET.sql",
+     "line": 60
+    }
+   ],
+   "online_order_reservations": [
+    {
+     "name": "online_order_reservations_tenant_isolation",
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 33
+    }
+   ],
+   "online_stores": [
+    {
+     "name": "online_stores_tenant_isolation",
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 311
+    }
+   ],
+   "payment_methods": [
+    {
+     "name": "payment_methods_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 245
+    },
+    {
+     "name": "payment_methods_insert_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 250
+    },
+    {
+     "name": "payment_methods_update_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 258
+    },
+    {
+     "name": "payment_methods_delete_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 266
+    }
+   ],
+   "permissions": [
+    {
+     "name": "permissions_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 152
+    }
+   ],
+   "pricing_rules": [
+    {
+     "name": "pricing_rules_select_policy",
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 264
+    },
+    {
+     "name": "pricing_rules_insert_policy",
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 269
+    },
+    {
+     "name": "pricing_rules_update_policy",
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 274
+    },
+    {
+     "name": "pricing_rules_delete_policy",
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 280
+    }
+   ],
+   "product_variants": [
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 523
+    }
+   ],
+   "products": [
+    {
+     "name": "Users can view products in their tenant",
+     "file": "shared/supabase/migrations/FIX_RLS_REPORTS.sql",
+     "line": 17
+    },
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 519
+    }
+   ],
+   "public_subscription_signup_events": [
+    {
+     "name": "public_subscription_signup_events_service_role_all",
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 105
+    }
+   ],
+   "public_subscription_signups": [
+    {
+     "name": "public_subscription_signups_service_role_all",
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 74
+    }
+   ],
+   "purchase_order_lines": [
+    {
+     "name": "purchase_order_lines_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 91
+    },
+    {
+     "name": "purchase_order_lines_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 107
+    },
+    {
+     "name": "purchase_order_lines_role_scope_update",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 123
+    },
+    {
+     "name": "purchase_order_lines_role_scope_delete",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 152
+    }
+   ],
+   "purchase_orders": [
+    {
+     "name": "purchase_orders_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 66
+    },
+    {
+     "name": "purchase_orders_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 73
+    },
+    {
+     "name": "purchase_orders_role_scope_update",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 80
+    },
+    {
+     "name": "tenant_isolation_purchase_orders",
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+     "line": 41
+    }
+   ],
+   "purchase_return_lines": [
+    {
+     "name": "purchase_return_lines_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 192
+    },
+    {
+     "name": "purchase_return_lines_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 208
+    }
+   ],
+   "purchase_returns": [
+    {
+     "name": "purchase_returns_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 178
+    },
+    {
+     "name": "purchase_returns_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 185
+    },
+    {
+     "name": "tenant_isolation_purchase_returns",
+     "file": "shared/supabase/migrations/ADD_PURCHASE_RETURNS_CORE.sql",
+     "line": 38
+    }
+   ],
+   "purchases": [
+    {
+     "name": "tenant_isolation",
+     "file": "shared/supabase/migrations/ADD_PURCHASES_TABLE.sql",
+     "line": 26
+    }
+   ],
+   "role_menu_templates": [
+    {
+     "name": "role_menu_templates_read",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 615
+    },
+    {
+     "name": "role_menu_templates_write_superadmin",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 619
+    }
+   ],
+   "role_menus": [
+    {
+     "name": "role_menus_read_tenant",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 592
+    },
+    {
+     "name": "role_menus_write_superadmin",
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 605
+    }
+   ],
+   "role_permissions": [
+    {
+     "name": "role_permissions_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 171
+    },
+    {
+     "name": "role_permissions_insert_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 182
+    },
+    {
+     "name": "role_permissions_delete_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 187
+    }
+   ],
+   "roles": [
+    {
+     "name": "roles_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 114
+    },
+    {
+     "name": "roles_insert_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 119
+    },
+    {
+     "name": "roles_update_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 127
+    },
+    {
+     "name": "roles_delete_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 135
+    }
+   ],
+   "sale_lines": [
+    {
+     "name": "Admins can manage all sale lines",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 19
+    },
+    {
+     "name": "Cashiers can view their own sale lines",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 44
+    },
+    {
+     "name": "Cashiers can create sale lines",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 56
+    },
+    {
+     "name": "Admins can manage sale lines",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 76
+    },
+    {
+     "name": "Cashiers can view their sale lines",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 96
+    },
+    {
+     "name": "Cashiers can create sale lines",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 111
+    }
+   ],
+   "sale_payments": [
+    {
+     "name": "Admins can manage all sale payments",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 78
+    },
+    {
+     "name": "Cashiers can view their own sale payments",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 103
+    },
+    {
+     "name": "Cashiers can create sale payments",
+     "file": "shared/supabase/migrations/FIX_RLS_ALL_TABLES.sql",
+     "line": 115
+    },
+    {
+     "name": "Admins can manage sale payments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 138
+    },
+    {
+     "name": "Cashiers can view their sale payments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 158
+    },
+    {
+     "name": "Cashiers can create sale payments",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 173
+    }
+   ],
+   "sale_return_refunds": [
+    {
+     "name": "sale_return_refunds_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 38
+    },
+    {
+     "name": "sale_return_refunds_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 54
+    },
+    {
+     "name": "sale_return_refunds_tenant_select",
+     "file": "shared/supabase/migrations/ADD_SALE_RETURNS_REFUNDS_V2.sql",
+     "line": 27
+    },
+    {
+     "name": "sale_return_refunds_tenant_insert",
+     "file": "shared/supabase/migrations/ADD_SALE_RETURNS_REFUNDS_V2.sql",
+     "line": 39
+    }
+   ],
+   "sale_returns": [
+    {
+     "name": "Admins can manage sale returns",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 200
+    },
+    {
+     "name": "Cashiers can view their sale returns",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 220
+    },
+    {
+     "name": "Cashiers can create sale returns",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 235
+    }
+   ],
+   "sales": [
+    {
+     "name": "Users can view sales",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 143
+    },
+    {
+     "name": "Admins can manage all sales",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 172
+    },
+    {
+     "name": "Cashiers can create sales",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 184
+    },
+    {
+     "name": "Non-cashiers can create sales",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 200
+    },
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 527
+    }
+   ],
+   "stock_alert_log": [
+    {
+     "name": "stock_alert_log_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 288
+    },
+    {
+     "name": "stock_alert_log_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 293
+    }
+   ],
+   "stock_balances": [
+    {
+     "name": "Admins can manage stock balances",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 260
+    },
+    {
+     "name": "Cashiers can view stock in their locations",
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 272
+    }
+   ],
+   "stock_movements": [
+    {
+     "name": "Admins can manage stock movements",
+     "file": "shared/supabase/migrations/FIX_RLS_REPORTS.sql",
+     "line": 52
+    },
+    {
+     "name": "Users can view stock movements",
+     "file": "shared/supabase/migrations/FIX_RLS_REPORTS.sql",
+     "line": 65
+    }
+   ],
+   "supplier_payable_payments": [
+    {
+     "name": "supplier_payable_payments_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 296
+    },
+    {
+     "name": "supplier_payable_payments_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 314
+    }
+   ],
+   "supplier_payables": [
+    {
+     "name": "supplier_payables_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 235
+    },
+    {
+     "name": "supplier_payables_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 251
+    },
+    {
+     "name": "supplier_payables_role_scope_update",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 267
+    },
+    {
+     "name": "tenant_isolation_supplier_payables",
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+     "line": 43
+    }
+   ],
+   "system_alerts": [
+    {
+     "name": "system_alerts_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 80
+    },
+    {
+     "name": "system_alerts_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 87
+    },
+    {
+     "name": "system_alerts_role_scope_update",
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 94
+    },
+    {
+     "name": "system_alerts_role_scope_delete",
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 105
+    },
+    {
+     "name": "system_alerts_select",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 301
+    },
+    {
+     "name": "system_alerts_insert",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 306
+    },
+    {
+     "name": "system_alerts_update",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 311
+    },
+    {
+     "name": "system_alerts_delete",
+     "file": "shared/supabase/migrations/SECURITY_FIXES.sql",
+     "line": 317
+    }
+   ],
+   "tax_rules": [
+    {
+     "name": "Users can view tax rules of their tenant",
+     "file": "shared/supabase/migrations/RLS_TAX_RULES.sql",
+     "line": 18
+    },
+    {
+     "name": "Users can manage tax rules of their tenant",
+     "file": "shared/supabase/migrations/RLS_TAX_RULES.sql",
+     "line": 29
+    }
+   ],
+   "taxes": [
+    {
+     "name": "Users can view taxes of their tenant",
+     "file": "shared/supabase/migrations/RLS_TAX_RULES.sql",
+     "line": 60
+    },
+    {
+     "name": "Users can manage taxes of their tenant",
+     "file": "shared/supabase/migrations/RLS_TAX_RULES.sql",
+     "line": 70
+    }
+   ],
+   "tenant_gateway_credentials": [
+    {
+     "name": "tenant_gateway_credentials_no_direct_access",
+     "file": "shared/supabase/migrations/ADD_TENANT_MERCADOPAGO_CREDENTIALS.sql",
+     "line": 45
+    }
+   ],
+   "tenants": [
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 507
+    }
+   ],
+   "third_parties": [
+    {
+     "name": "third_parties_read_tenant",
+     "file": "shared/supabase/migrations/ADD_THIRD_PARTIES.sql",
+     "line": 226
+    },
+    {
+     "name": "third_parties_write_policy",
+     "file": "shared/supabase/migrations/ADD_THIRD_PARTIES.sql",
+     "line": 239
+    },
+    {
+     "name": "third_parties_read_tenant",
+     "file": "shared/supabase/migrations/RECREATE_THIRD_PARTIES.sql",
+     "line": 94
+    },
+    {
+     "name": "third_parties_write_policy",
+     "file": "shared/supabase/migrations/RECREATE_THIRD_PARTIES.sql",
+     "line": 100
+    }
+   ],
+   "transfer_requests": [
+    {
+     "name": "transfer_requests_role_scope_select",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 340
+    },
+    {
+     "name": "transfer_requests_role_scope_insert",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 351
+    },
+    {
+     "name": "transfer_requests_role_scope_update",
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 361
+    },
+    {
+     "name": "tenant_isolation_transfer_requests",
+     "file": "shared/supabase/migrations/ADD_TRANSFER_IN_TRANSIT_CORE.sql",
+     "line": 27
+    }
+   ],
+   "units_of_measure": [
+    {
+     "name": "units_select_policy",
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 258
+    },
+    {
+     "name": "units_insert_policy",
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 267
+    },
+    {
+     "name": "units_update_policy",
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 277
+    },
+    {
+     "name": "units_delete_policy",
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 292
+    }
+   ],
+   "user_roles": [
+    {
+     "name": "user_roles_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 81
+    },
+    {
+     "name": "user_roles_insert_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 92
+    },
+    {
+     "name": "user_roles_delete_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 97
+    }
+   ],
+   "users": [
+    {
+     "name": "users_select_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 46
+    },
+    {
+     "name": "users_insert_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 51
+    },
+    {
+     "name": "users_update_policy",
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 59
+    },
+    {
+     "name": "tenant_isolation_policy",
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 511
+    }
+   ]
+  }
+ },
+ "functions": {
+  "unique": 211,
+  "definitions": 298,
+  "detail": {
+   "change_user_password": [
+    {
+     "file": "shared/supabase/migrations/UserFunctions.sql",
+     "line": 100,
+     "tables": [
+      "users"
+     ]
+    }
+   ],
+   "check_rls_enabled": [
+    {
+     "file": "shared/supabase/migrations/CREATE_RLS_CHECK_FUNCTION.sql",
+     "line": 7,
+     "tables": [
+      "pg_policies",
+      "pg_tables"
+     ]
+    }
+   ],
+   "create_auth_user": [
+    {
+     "file": "shared/supabase/migrations/FIX_CREATE_AUTH_USER_RPC_SCHEMA_CACHE.sql",
+     "line": 5,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UserFunctions.sql",
+     "line": 6,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "fn_ai_telemetry_cost_summary": [
+    {
+     "file": "shared/supabase/migrations/ADD_AI_TELEMETRY_COST_SUMMARY_FN.sql",
+     "line": 8,
+     "tables": [
+      "agg",
+      "ai_telemetry_events",
+      "day_rows",
+      "scope"
+     ]
+    }
+   ],
+   "fn_alert_location_access": [
+    {
+     "file": "shared/supabase/migrations/ADD_CORE_RLS_HARDENING_V2.sql",
+     "line": 18,
+     "tables": []
+    }
+   ],
+   "fn_allocate_fefo_for_component": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+     "line": 25,
+     "tables": [
+      "inventory_batches"
+     ]
+    }
+   ],
+   "fn_allocate_stock_fefo": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+     "line": 22,
+     "tables": [
+      "inventory_batches",
+      "skip",
+      "tenant_settings"
+     ]
+    }
+   ],
+   "fn_apply_role_menu_templates": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 634,
+     "tables": [
+      "role_menu_templates",
+      "role_menus",
+      "roles"
+     ]
+    }
+   ],
+   "fn_apply_rounding": [
+    {
+     "file": "shared/supabase/migrations/FIX_SALE_ROUNDING.sql",
+     "line": 16,
+     "tables": [
+      "tenant_settings"
+     ]
+    }
+   ],
+   "fn_apply_stock_delta": [
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_FUNCTIONS_FOR_BATCHES.sql",
+     "line": 21,
+     "tables": [
+      "inventory_batches"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 44,
+     "tables": [
+      "stock_balances"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 431,
+     "tables": [
+      "stock_balances"
+     ]
+    }
+   ],
+   "fn_apply_stock_reservation_delta": [
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_FUNCTIONS_FOR_BATCHES.sql",
+     "line": 137,
+     "tables": [
+      "inventory_batches"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 43,
+     "tables": [
+      "stock_balances"
+     ]
+    }
+   ],
+   "fn_async_jobs_touch_updated_at": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 125,
+     "tables": []
+    }
+   ],
+   "fn_attach_online_gateway_preference": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql",
+     "line": 412,
+     "tables": [
+      "online_orders"
+     ]
+    }
+   ],
+   "fn_attach_subscription_signup_preference": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 381,
+     "tables": [
+      "public_subscription_signups"
+     ]
+    }
+   ],
+   "fn_audit_ondemand_costs": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 391,
+     "tables": [
+      "product_variants",
+      "sale_lines",
+      "sales"
+     ]
+    }
+   ],
+   "fn_billing_period_end": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_RENEWALS.sql",
+     "line": 7,
+     "tables": []
+    }
+   ],
+   "fn_calculate_bom_cost": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+     "line": 20,
+     "tables": [
+      "bom_components",
+      "inventory_batches",
+      "product_variants",
+      "products",
+      "tenant_settings"
+     ]
+    }
+   ],
+   "fn_calculate_discount": [
+    {
+     "file": "shared/supabase/migrations/ADD_DISCOUNT_TYPE.sql",
+     "line": 40,
+     "tables": []
+    }
+   ],
+   "fn_calculate_price": [
+    {
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 203,
+     "tables": [
+      "fn_get_pricing_policy",
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_calculate_sale_price": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1369,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_calculate_tax_breakdown": [
+    {
+     "file": "shared/supabase/migrations/ADD_PRICE_INCLUDES_TAX.sql",
+     "line": 30,
+     "tables": []
+    }
+   ],
+   "fn_can_access_location": [
+    {
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 38,
+     "tables": []
+    }
+   ],
+   "fn_change_subscription_plan": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 6,
+     "tables": [
+      "billing_plan_prices",
+      "billing_plans",
+      "tenant_subscription_events",
+      "tenant_subscriptions"
+     ]
+    }
+   ],
+   "fn_change_subscription_plan_prorated": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 639,
+     "tables": [
+      "billing_plan_prices",
+      "billing_plans",
+      "tenant_invoices",
+      "tenant_subscription_events",
+      "tenant_subscriptions"
+     ]
+    }
+   ],
+   "fn_claim_async_jobs": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 219,
+     "tables": [
+      "async_jobs",
+      "candidates",
+      "claimed",
+      "skip"
+     ]
+    }
+   ],
+   "fn_claim_online_order_email_notification": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_ORDER_EMAIL_IDEMPOTENCY_LOCK.sql",
+     "line": 9,
+     "tables": [
+      "online_orders"
+     ]
+    }
+   ],
+   "fn_clear_online_order_alert": [
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql",
+     "line": 28,
+     "tables": [
+      "system_alerts"
+     ]
+    }
+   ],
+   "fn_complete_async_job": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 258,
+     "tables": [
+      "async_job_attempts",
+      "async_jobs"
+     ]
+    }
+   ],
+   "fn_complete_online_order_email_notification": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_ORDER_EMAIL_IDEMPOTENCY_LOCK.sql",
+     "line": 69,
+     "tables": [
+      "online_orders"
+     ]
+    }
+   ],
+   "fn_complete_production": [
+    {
+     "file": "shared/supabase/migrations/FIX_MANUFACTURED_COST_PRICE_AUTO_UPDATE.sql",
+     "line": 31,
+     "tables": [
+      "fn_consume_bom_components",
+      "product_variants",
+      "production_orders",
+      "production_outputs"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_PRODUCTION_COMPLETE.sql",
+     "line": 248,
+     "tables": [
+      "fn_consume_bom_components",
+      "product_variants",
+      "production_orders",
+      "production_outputs"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 269,
+     "tables": [
+      "fn_consume_bom_components",
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants",
+      "production_orders",
+      "production_outputs"
+     ]
+    }
+   ],
+   "fn_confirm_online_manual_order": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_AUDIT_HISTORY.sql",
+     "line": 30,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "payment_methods",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql",
+     "line": 446,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "payment_methods",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 460,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "payment_methods",
+      "users"
+     ]
+    }
+   ],
+   "fn_consume_batch_stock": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+     "line": 256,
+     "tables": [
+      "inventory_batches"
+     ]
+    }
+   ],
+   "fn_consume_bom_components": [
+    {
+     "file": "shared/supabase/migrations/FIX_CONSUME_BOM_REFERENCE_TYPE.sql",
+     "line": 22,
+     "tables": [
+      "bill_of_materials",
+      "bom_components",
+      "component_allocations",
+      "fn_allocate_fefo_for_component",
+      "fn_validate_bom_availability",
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants",
+      "products",
+      "sale_lines"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_PRODUCTION_COMPLETE.sql",
+     "line": 41,
+     "tables": [
+      "bill_of_materials",
+      "bom_components",
+      "component_allocations",
+      "fn_allocate_fefo_for_component",
+      "fn_validate_bom_availability",
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants",
+      "production_order_lines",
+      "products",
+      "sale_lines"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+     "line": 98,
+     "tables": [
+      "bill_of_materials",
+      "bom_components",
+      "component_allocations",
+      "fn_allocate_fefo_for_component",
+      "fn_validate_bom_availability",
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants",
+      "products",
+      "sale_lines"
+     ]
+    }
+   ],
+   "fn_create_default_variant": [
+    {
+     "file": "shared/supabase/migrations/AUTO_CREATE_DEFAULT_VARIANT.sql",
+     "line": 75,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_create_online_manual_order": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql",
+     "line": 93,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "tenant_settings",
+      "tenants",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 650,
+     "tables": [
+      "online_order_lines",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "tenant_settings",
+      "tenants",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STORE_CHECKOUT_STOCK_LOCK.sql",
+     "line": 7,
+     "tables": [
+      "online_order_lines",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "tenant_settings",
+      "tenants",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STORE_SP_CREATE_SALE_SIGNATURE.sql",
+     "line": 6,
+     "tables": [
+      "online_order_lines",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ADDRESS_AND_STATUS.sql",
+     "line": 17,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "taxes",
+      "tenant_settings",
+      "tenants",
+      "users",
+      "variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql",
+     "line": 163,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "taxes",
+      "tenant_settings",
+      "tenants",
+      "users",
+      "variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 196,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "tenant_settings",
+      "tenants",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_PAYMENT_PROOF_AND_GATEWAY_READY.sql",
+     "line": 94,
+     "tables": [
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_store_catalog",
+      "online_stores",
+      "payment_methods",
+      "product_variants",
+      "products",
+      "tenant_settings",
+      "tenants",
+      "users"
+     ]
+    }
+   ],
+   "fn_create_production_order": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 128,
+     "tables": [
+      "bill_of_materials",
+      "bom_components",
+      "fn_calculate_bom_cost",
+      "product_variants",
+      "production_order_lines",
+      "production_orders"
+     ]
+    }
+   ],
+   "fn_create_public_subscription_signup": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 226,
+     "tables": [
+      "billing_plan_prices",
+      "billing_plans",
+      "public_subscription_signups",
+      "tenants",
+      "users"
+     ]
+    }
+   ],
+   "fn_create_tenant": [
+    {
+     "file": "shared/supabase/migrations/CreateTenantSP.sql",
+     "line": 17,
+     "tables": [
+      "locations",
+      "payment_methods",
+      "pricing_rules",
+      "registers",
+      "role_permissions",
+      "roles",
+      "tax_rules",
+      "tenant_settings",
+      "tenants",
+      "user_roles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SECURE_TENANT_MANAGEMENT.sql",
+     "line": 38,
+     "tables": [
+      "cash_registers",
+      "locations",
+      "payment_methods",
+      "permissions",
+      "role_permissions",
+      "roles",
+      "tax_rules",
+      "taxes",
+      "tenant_settings",
+      "tenants",
+      "user_roles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_CREATE_TENANT_DEFAULTS.sql",
+     "line": 31,
+     "tables": [
+      "cash_registers",
+      "locations",
+      "payment_methods",
+      "permissions",
+      "role_permissions",
+      "roles",
+      "tax_rules",
+      "taxes",
+      "tenant_settings",
+      "tenants",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "fn_create_tenant_subscription_renewal_invoice": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_RENEWALS.sql",
+     "line": 22,
+     "tables": [
+      "billing_plan_prices",
+      "tenant_invoices",
+      "tenant_subscription_events",
+      "tenant_subscription_periods",
+      "tenant_subscriptions"
+     ]
+    }
+   ],
+   "fn_current_user_tenant_id": [
+    {
+     "file": "shared/supabase/migrations/SETUP_DATAIMPORT_BUCKET.sql",
+     "line": 16,
+     "tables": [
+      "users"
+     ]
+    }
+   ],
+   "fn_delete_third_party": [
+    {
+     "file": "shared/supabase/migrations/FIX_THIRD_PARTIES_RPC.sql",
+     "line": 106,
+     "tables": [
+      "third_parties"
+     ]
+    }
+   ],
+   "fn_detect_bom_circular_reference": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 220,
+     "tables": [
+      "bill_of_materials",
+      "bom_components"
+     ]
+    }
+   ],
+   "fn_email_base_html": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 87,
+     "tables": []
+    }
+   ],
+   "fn_enforce_tenant_invoice_limit": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql",
+     "line": 155,
+     "tables": [
+      "sales",
+      "tenant_billing_summary"
+     ]
+    }
+   ],
+   "fn_enforce_tenant_plan_limit_on_active_row": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql",
+     "line": 85,
+     "tables": [
+      "tenant_billing_summary"
+     ]
+    }
+   ],
+   "fn_enqueue_async_job": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 141,
+     "tables": [
+      "async_jobs"
+     ]
+    }
+   ],
+   "fn_enqueue_email_notification": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 112,
+     "tables": [
+      "notification_outbox"
+     ]
+    }
+   ],
+   "fn_enqueue_pre_expiry_reminders": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 536,
+     "tables": [
+      "billing_plan_prices",
+      "billing_plans",
+      "coalesce",
+      "tenant_settings",
+      "tenant_subscriptions",
+      "tenants"
+     ]
+    }
+   ],
+   "fn_enqueue_subscription_status_emails": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 339,
+     "tables": [
+      "billing_plans",
+      "tenant_settings",
+      "tenant_subscriptions",
+      "tenants"
+     ]
+    }
+   ],
+   "fn_escape_html": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 71,
+     "tables": []
+    }
+   ],
+   "fn_expiration_report": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 338,
+     "tables": [
+      "inventory_batches",
+      "locations",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_expire_due_layaways": [
+    {
+     "file": "shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql",
+     "line": 605,
+     "tables": [
+      "layaway_contracts"
+     ]
+    }
+   ],
+   "fn_explode_bundle": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 34,
+     "tables": [
+      "bundle_compositions",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_fail_async_job": [
+    {
+     "file": "shared/supabase/migrations/ADD_ASYNC_JOB_QUEUE.sql",
+     "line": 312,
+     "tables": [
+      "async_job_attempts",
+      "async_jobs"
+     ]
+    }
+   ],
+   "fn_fix_migration_discrepancies": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2_MIGRATE.sql",
+     "line": 177,
+     "tables": [
+      "comparison",
+      "inventory_batches",
+      "stock_balances_backup"
+     ]
+    }
+   ],
+   "fn_format_cop": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 79,
+     "tables": []
+    }
+   ],
+   "fn_generate_batch_number": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 283,
+     "tables": [
+      "inventory_batches",
+      "product_variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_BATCH_NUMBER_BY_LOCATION.sql",
+     "line": 22,
+     "tables": [
+      "inventory_batches",
+      "product_variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_BATCH_NUMBER_INTEGER_OVERFLOW.sql",
+     "line": 10,
+     "tables": [
+      "inventory_batches",
+      "product_variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_INTEGER_OVERFLOW_COMPLETE.sql",
+     "line": 43,
+     "tables": [
+      "inventory_batches",
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_generate_production_inventory": [
+    {
+     "file": "shared/supabase/migrations/FIX_PRODUCTION_INVENTORY.sql",
+     "line": 40,
+     "tables": [
+      "bom_components",
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants",
+      "production_orders"
+     ]
+    }
+   ],
+   "fn_generate_unique_sku": [
+    {
+     "file": "shared/supabase/migrations/AUTO_CREATE_DEFAULT_VARIANT.sql",
+     "line": 18,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_get_active_bom": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 166,
+     "tables": [
+      "bill_of_materials",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_get_bom_explosion": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+     "line": 235,
+     "tables": [
+      "bill_of_materials",
+      "bom_components",
+      "fn_get_bom_explosion",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_get_default_variant": [
+    {
+     "file": "shared/supabase/migrations/AUTO_CREATE_DEFAULT_VARIANT.sql",
+     "line": 246,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_get_effective_inventory_behavior": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 24,
+     "tables": [
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_get_effective_is_component": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 132,
+     "tables": [
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_get_effective_production_type": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 60,
+     "tables": [
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_get_expiration_config": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE1.sql",
+     "line": 128,
+     "tables": [
+      "tenant_settings"
+     ]
+    }
+   ],
+   "fn_get_my_tenant_billing_summary": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 1113,
+     "tables": [
+      "tenant_billing_summary"
+     ]
+    }
+   ],
+   "fn_get_open_cash_session_for_user": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 73,
+     "tables": [
+      "cash_sessions"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 64,
+     "tables": [
+      "cash_sessions"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1151,
+     "tables": [
+      "cash_sessions"
+     ]
+    }
+   ],
+   "fn_get_pricing_policy": [
+    {
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 85,
+     "tables": [
+      "pricing_rules",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_get_public_online_store": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 525,
+     "tables": [
+      "locations",
+      "online_stores",
+      "tenant_settings",
+      "tenants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_PAYMENT_PROOF_AND_GATEWAY_READY.sql",
+     "line": 48,
+     "tables": [
+      "locations",
+      "online_stores",
+      "tenant_settings",
+      "tenants"
+     ]
+    }
+   ],
+   "fn_get_public_order_status": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql",
+     "line": 770,
+     "tables": [
+      "online_order_lines",
+      "online_orders",
+      "online_stores"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ADDRESS_AND_STATUS.sql",
+     "line": 304,
+     "tables": [
+      "online_order_lines",
+      "online_orders",
+      "online_stores"
+     ]
+    }
+   ],
+   "fn_get_public_subscription_signup_status": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 410,
+     "tables": [
+      "public_subscription_signups"
+     ]
+    }
+   ],
+   "fn_get_purchase_suggestions": [
+    {
+     "file": "shared/supabase/migrations/PURCHASE_ANALYSIS_VIEWS.sql",
+     "line": 114,
+     "tables": [
+      "suggestions",
+      "vw_inventory_rotation_analysis"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1658,
+     "tables": [
+      "suggestions",
+      "vw_inventory_rotation_analysis"
+     ]
+    }
+   ],
+   "fn_get_sale_warnings": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE4_SALES.sql",
+     "line": 365,
+     "tables": [
+      "sale_warnings"
+     ]
+    }
+   ],
+   "fn_get_sales_forecast_data": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1852,
+     "tables": [
+      "vw_sales_daily_history"
+     ]
+    }
+   ],
+   "fn_get_tax_info_for_variant": [
+    {
+     "file": "shared/supabase/migrations/FIX_TAX_INFO_DISPLAY.sql",
+     "line": 12,
+     "tables": [
+      "best_rule",
+      "product_variants",
+      "products",
+      "rules",
+      "tax_rules",
+      "taxes",
+      "v"
+     ]
+    }
+   ],
+   "fn_get_tax_rate_for_variant": [
+    {
+     "file": "shared/supabase/migrations/FIX_TAX_FUNCTION_PERMISSIONS.sql",
+     "line": 11,
+     "tables": [
+      "product_variants",
+      "products",
+      "rules",
+      "tax_rules",
+      "taxes",
+      "v"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 65,
+     "tables": [
+      "product_variants",
+      "products",
+      "rules",
+      "tax_rules",
+      "taxes",
+      "v"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 450,
+     "tables": [
+      "product_variants",
+      "products",
+      "rules",
+      "tax_rules",
+      "taxes",
+      "v"
+     ]
+    }
+   ],
+   "fn_get_tenant_billing_limit_usage": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql",
+     "line": 21,
+     "tables": [
+      "cash_registers",
+      "locations",
+      "products",
+      "sales",
+      "users"
+     ]
+    }
+   ],
+   "fn_get_tenant_billing_limit_value": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_LIMIT_ENFORCEMENT.sql",
+     "line": 5,
+     "tables": [
+      "tenant_billing_summary"
+     ]
+    }
+   ],
+   "fn_get_tenant_payment_history": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 280,
+     "tables": [
+      "tenant_invoices",
+      "tenant_payments",
+      "tenant_subscriptions"
+     ]
+    }
+   ],
+   "fn_get_tenant_template_json": [
+    {
+     "file": "shared/supabase/migrations/CreateTenantSP.sql",
+     "line": 377,
+     "tables": [
+      "payment_methods",
+      "pricing_rules",
+      "role_permissions",
+      "roles",
+      "tax_rules",
+      "tenant_settings"
+     ]
+    }
+   ],
+   "fn_get_unit_by_code": [
+    {
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 304,
+     "tables": [
+      "units_of_measure"
+     ]
+    }
+   ],
+   "fn_get_user_menus": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 480,
+     "tables": [
+      "assigned",
+      "hierarchy",
+      "menu_items",
+      "role_menus",
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "fn_get_variant_manufacturing_info": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 414,
+     "tables": [
+      "bom_components",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_handle_ondemand_line": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+     "line": 289,
+     "tables": [
+      "fn_consume_bom_components",
+      "sale_lines"
+     ]
+    }
+   ],
+   "fn_init_tenant_roles": [
+    {
+     "file": "shared/supabase/migrations/InitPermissions.sql",
+     "line": 73,
+     "tables": [
+      "permissions",
+      "role_permissions",
+      "roles"
+     ]
+    }
+   ],
+   "fn_is_admin_or_manager": [
+    {
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 6,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "fn_is_super_admin": [
+    {
+     "file": "shared/supabase/migrations/FIX_FN_IS_SUPER_ADMIN_AUTH_USER_ID.sql",
+     "line": 2,
+     "tables": [
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SECURE_TENANT_MANAGEMENT.sql",
+     "line": 9,
+     "tables": [
+      "users"
+     ]
+    }
+   ],
+   "fn_list_public_online_store_products": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 577,
+     "tables": [
+      "categories",
+      "cover_media",
+      "online_store_catalog",
+      "online_stores",
+      "product_media",
+      "product_variants",
+      "products"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_PUBLIC_CATEGORIES.sql",
+     "line": 8,
+     "tables": [
+      "categories",
+      "online_store_catalog",
+      "online_stores",
+      "product_variants",
+      "products"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_PUBLIC_IMAGES.sql",
+     "line": 13,
+     "tables": [
+      "categories",
+      "cover_media",
+      "online_store_catalog",
+      "online_stores",
+      "product_media",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_list_public_subscription_plans": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 166,
+     "tables": [
+      "billing_plan_features",
+      "billing_plan_limits",
+      "billing_plan_prices",
+      "billing_plans"
+     ]
+    }
+   ],
+   "fn_log_public_subscription_signup_event": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 113,
+     "tables": [
+      "public_subscription_signup_events"
+     ]
+    }
+   ],
+   "fn_log_stock_alert": [
+    {
+     "file": "shared/supabase/migrations/AddMinStock.sql",
+     "line": 117,
+     "tables": [
+      "product_variants",
+      "stock_alert_log",
+      "stock_balances"
+     ]
+    }
+   ],
+   "fn_mark_subscription_signup_payment": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 440,
+     "tables": [
+      "public_subscription_signups"
+     ]
+    }
+   ],
+   "fn_mark_tenant_subscription_renewal_paid": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_RENEWALS.sql",
+     "line": 181,
+     "tables": [
+      "tenant_invoices",
+      "tenant_payments",
+      "tenant_subscription_events",
+      "tenant_subscription_periods",
+      "tenant_subscriptions"
+     ]
+    }
+   ],
+   "fn_next_invoice_consecutive": [
+    {
+     "file": "shared/supabase/migrations/ADD_ELECTRONIC_INVOICING.sql",
+     "line": 162,
+     "tables": [
+      "invoice_resolutions"
+     ]
+    }
+   ],
+   "fn_next_production_order_number": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_BASE_TABLES.sql",
+     "line": 298,
+     "tables": [
+      "length",
+      "production_orders"
+     ]
+    }
+   ],
+   "fn_next_sale_number": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 20,
+     "tables": [
+      "sale_counters"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/full_migration.sql",
+     "line": 409,
+     "tables": [
+      "sale_counters"
+     ]
+    }
+   ],
+   "fn_normalize_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 59,
+     "tables": []
+    }
+   ],
+   "fn_online_order_actor_name": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_AUDIT_HISTORY.sql",
+     "line": 16,
+     "tables": [
+      "users"
+     ]
+    }
+   ],
+   "fn_online_store_available_qty": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 460,
+     "tables": [
+      "limited",
+      "online_store_catalog",
+      "online_stores",
+      "scoped",
+      "stock",
+      "stock_balances"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 83,
+     "tables": [
+      "limited",
+      "online_store_catalog",
+      "online_stores",
+      "scoped",
+      "stock",
+      "stock_balances"
+     ]
+    }
+   ],
+   "fn_online_store_create_sale": [
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STORE_CREATE_SALE_SIGNATURE_DETECTION.sql",
+     "line": 12,
+     "tables": [
+      "pg_namespace",
+      "pg_proc"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STORE_CREATE_SALE_SIGNATURE_DETECTION_V2.sql",
+     "line": 8,
+     "tables": [
+      "pg_namespace",
+      "pg_proc"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STORE_CREATE_SALE_SIGNATURE_DETECTION_V3.sql",
+     "line": 8,
+     "tables": [
+      "pg_namespace",
+      "pg_proc"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 147,
+     "tables": [
+      "pg_namespace",
+      "pg_proc"
+     ]
+    }
+   ],
+   "fn_online_store_reserved_qty": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql",
+     "line": 17,
+     "tables": [
+      "online_order_reservations",
+      "online_orders"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 442,
+     "tables": [
+      "online_order_reservations",
+      "online_orders"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STOCK_TIMEOUT_CLEANUP.sql",
+     "line": 114,
+     "tables": [
+      "online_order_reservations",
+      "online_orders",
+      "tenant_settings"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 65,
+     "tables": [
+      "online_order_reservations",
+      "online_orders"
+     ]
+    }
+   ],
+   "fn_online_store_slugify": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 134,
+     "tables": []
+    }
+   ],
+   "fn_online_store_touch_updated_at": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MVP.sql",
+     "line": 124,
+     "tables": []
+    }
+   ],
+   "fn_pos_home_context": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 236,
+     "tables": [
+      "cash_register_assignments",
+      "open_s",
+      "regs"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 202,
+     "tables": [
+      "cash_register_assignments",
+      "open_s",
+      "regs"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1279,
+     "tables": [
+      "cash_register_assignments",
+      "open_s",
+      "regs"
+     ]
+    }
+   ],
+   "fn_process_tenant_subscription_expirations": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_RENEWALS.sql",
+     "line": 311,
+     "tables": [
+      "billing_plan_prices",
+      "tenant_subscription_events",
+      "tenant_subscriptions",
+      "v_row"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 433,
+     "tables": [
+      "billing_plan_prices",
+      "tenant_subscription_events",
+      "tenant_subscriptions",
+      "v_row"
+     ]
+    }
+   ],
+   "fn_provision_public_subscription_signup": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 485,
+     "tables": [
+      "public_subscription_signups",
+      "tenant_subscription_events",
+      "tenant_subscription_periods",
+      "tenant_subscriptions",
+      "true"
+     ]
+    }
+   ],
+   "fn_recalc_layaway_totals": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 172,
+     "tables": [
+      "layaway_contracts",
+      "layaway_items",
+      "layaway_payments"
+     ]
+    }
+   ],
+   "fn_refresh_all_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_CUSTOMER_RECEIVABLE_ALERTS_REALTIME.sql",
+     "line": 100,
+     "tables": []
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_ALERTS_REALTIME.sql",
+     "line": 181,
+     "tables": []
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_ALERTS_REALTIME.sql",
+     "line": 116,
+     "tables": []
+    }
+   ],
+   "fn_refresh_customer_receivable_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_CUSTOMER_RECEIVABLE_ALERTS_REALTIME.sql",
+     "line": 16,
+     "tables": [
+      "customer_credit_accounts",
+      "customers",
+      "system_alerts"
+     ]
+    }
+   ],
+   "fn_refresh_expiration_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_ALERTS_REALTIME.sql",
+     "line": 38,
+     "tables": [
+      "system_alerts",
+      "vw_expiring_products"
+     ]
+    }
+   ],
+   "fn_refresh_layaway_alerts": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 950,
+     "tables": [
+      "customers",
+      "layaway_contracts",
+      "locations",
+      "system_alerts"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 226,
+     "tables": [
+      "layaway_contracts",
+      "locations",
+      "system_alerts",
+      "third_parties"
+     ]
+    }
+   ],
+   "fn_refresh_stock_alerts": [
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+     "line": 154,
+     "tables": [
+      "system_alerts",
+      "vw_stock_alerts"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 907,
+     "tables": [
+      "system_alerts",
+      "vw_stock_alerts"
+     ]
+    }
+   ],
+   "fn_refresh_stock_balances": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 192,
+     "tables": []
+    }
+   ],
+   "fn_refresh_supplier_payable_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_ALERTS_REALTIME.sql",
+     "line": 16,
+     "tables": [
+      "locations",
+      "purchases",
+      "supplier_payables",
+      "system_alerts",
+      "third_parties"
+     ]
+    }
+   ],
+   "fn_reject_online_manual_order": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_AUDIT_HISTORY.sql",
+     "line": 196,
+     "tables": [
+      "online_order_reservations",
+      "online_orders",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql",
+     "line": 599,
+     "tables": [
+      "online_order_reservations",
+      "online_orders",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_MANUAL_PAYMENT_HOLD_FLOW.sql",
+     "line": 611,
+     "tables": [
+      "online_order_reservations",
+      "online_orders",
+      "users"
+     ]
+    }
+   ],
+   "fn_release_batch_reservation": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+     "line": 228,
+     "tables": [
+      "inventory_batches"
+     ]
+    }
+   ],
+   "fn_release_expired_online_orders": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql",
+     "line": 36,
+     "tables": [
+      "loop",
+      "online_order_reservations",
+      "online_orders"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STOCK_TIMEOUT_CLEANUP.sql",
+     "line": 29,
+     "tables": [
+      "loop",
+      "online_order_reservations",
+      "online_orders",
+      "tenant_settings"
+     ]
+    }
+   ],
+   "fn_reserve_batch_stock": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+     "line": 185,
+     "tables": [
+      "inventory_batches"
+     ]
+    }
+   ],
+   "fn_set_dataimport_tenant_metadata": [
+    {
+     "file": "shared/supabase/migrations/SETUP_DATAIMPORT_BUCKET.sql",
+     "line": 68,
+     "tables": []
+    }
+   ],
+   "fn_start_production": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 219,
+     "tables": [
+      "fn_validate_bom_availability",
+      "production_orders"
+     ]
+    }
+   ],
+   "fn_superadmin_create_role_for_all_tenants": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 327,
+     "tables": [
+      "menu_items",
+      "role_menus",
+      "role_permissions",
+      "roles",
+      "tenants"
+     ]
+    }
+   ],
+   "fn_superadmin_list_all_payments": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 774,
+     "tables": [
+      "billing_plans",
+      "tenant_invoices",
+      "tenant_payments",
+      "tenant_subscriptions",
+      "tenants"
+     ]
+    }
+   ],
+   "fn_superadmin_list_public_subscription_signup_events": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 755,
+     "tables": [
+      "public_subscription_signup_events"
+     ]
+    }
+   ],
+   "fn_superadmin_list_public_subscription_signups": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 658,
+     "tables": [
+      "public_subscription_signup_events",
+      "public_subscription_signups"
+     ]
+    }
+   ],
+   "fn_superadmin_record_manual_payment": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_UPGRADE_EMAILS_MANUAL_PAYMENTS.sql",
+     "line": 152,
+     "tables": [
+      "tenant_invoices",
+      "tenant_payments",
+      "tenant_subscription_events",
+      "tenant_subscription_periods",
+      "tenant_subscriptions"
+     ]
+    }
+   ],
+   "fn_superadmin_sync_menus_to_role_all_tenants": [
+    {
+     "file": "shared/supabase/migrations/ROLES_MENUS_SYSTEM.sql",
+     "line": 404,
+     "tables": [
+      "menu_items",
+      "role_menu_templates",
+      "role_menus",
+      "roles",
+      "tenants"
+     ]
+    }
+   ],
+   "fn_sync_online_gateway_payment": [
+    {
+     "file": "shared/supabase/migrations/ADD_ONLINE_STORE_MERCADOPAGO_GATEWAY.sql",
+     "line": 487,
+     "tables": [
+      "of",
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "payment_methods"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_ONLINE_STORE_GATEWAY_SYNC_LOCK.sql",
+     "line": 7,
+     "tables": [
+      "of",
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "payment_methods"
+     ]
+    }
+   ],
+   "fn_tenant_gateway_credentials_touch_updated_at": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_MERCADOPAGO_CREDENTIALS.sql",
+     "line": 28,
+     "tables": []
+    }
+   ],
+   "fn_top_at_risk_products": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 387,
+     "tables": [
+      "vw_expiring_products"
+     ]
+    }
+   ],
+   "fn_top_manufactured_products_by_margin": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PRODUCTION_COST_REPORT.sql",
+     "line": 297,
+     "tables": [
+      "vw_production_cost_summary_by_product"
+     ]
+    }
+   ],
+   "fn_update_average_cost": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1320,
+     "tables": [
+      "product_variants",
+      "stock_balances"
+     ]
+    }
+   ],
+   "fn_update_credit_balance": [
+    {
+     "file": "shared/supabase/migrations/ADD_CREDIT_SALES.sql",
+     "line": 7,
+     "tables": [
+      "customer_credit_accounts"
+     ]
+    }
+   ],
+   "fn_update_min_stock": [
+    {
+     "file": "shared/supabase/migrations/AddMinStock.sql",
+     "line": 92,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_update_units_timestamp": [
+    {
+     "file": "shared/supabase/migrations/CREATE_UNITS_OF_MEASURE.sql",
+     "line": 340,
+     "tables": []
+    }
+   ],
+   "fn_upsert_online_order_alert": [
+    {
+     "file": "shared/supabase/migrations/ONLINE_ORDER_MOBILE_NOTIFICATIONS.sql",
+     "line": 8,
+     "tables": [
+      "locations",
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "system_alerts"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ONLINE_STORE_ALERTS_AND_NOTIFICATIONS.sql",
+     "line": 46,
+     "tables": [
+      "locations",
+      "online_order_lines",
+      "online_order_reservations",
+      "online_orders",
+      "online_stores",
+      "system_alerts"
+     ]
+    }
+   ],
+   "fn_upsert_third_party": [
+    {
+     "file": "shared/supabase/migrations/ADD_FE_COMPLEMENTARY.sql",
+     "line": 102,
+     "tables": [
+      "third_parties"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_THIRD_PARTIES_RPC.sql",
+     "line": 9,
+     "tables": [
+      "third_parties"
+     ]
+    }
+   ],
+   "fn_user_assigned_locations": [
+    {
+     "file": "shared/supabase/migrations/ADD_CORE_ROLE_LOCATION_RESTRICTIONS.sql",
+     "line": 22,
+     "tables": [
+      "cash_register_assignments",
+      "cash_registers",
+      "users"
+     ]
+    }
+   ],
+   "fn_user_can_use_cash_register": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 55,
+     "tables": [
+      "cash_register_assignments"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 47,
+     "tables": [
+      "cash_register_assignments"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1133,
+     "tables": [
+      "cash_register_assignments"
+     ]
+    }
+   ],
+   "fn_validate_bom_availability": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+     "line": 134,
+     "tables": [
+      "bom_components",
+      "fn_calculate_bom_cost",
+      "inventory_batches",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "fn_validate_bom_depth": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 279,
+     "tables": [
+      "bill_of_materials",
+      "bom_components",
+      "product_variants"
+     ]
+    }
+   ],
+   "fn_validate_bundle_availability": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 69,
+     "tables": [
+      "fn_explode_bundle",
+      "inventory_batches"
+     ]
+    }
+   ],
+   "fn_variant_requires_expiration": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE1.sql",
+     "line": 37,
+     "tables": [
+      "product_variants",
+      "products"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_TRACK_EXPIRY_FUNCTION.sql",
+     "line": 13,
+     "tables": [
+      "product_variants",
+      "products"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 94,
+     "tables": [
+      "categories",
+      "product_variants",
+      "products"
+     ]
+    }
+   ],
+   "generate_production_order_number": [
+    {
+     "file": "shared/supabase/migrations/FIX_PRODUCTION_ORDER_NUMBER.sql",
+     "line": 41,
+     "tables": [
+      "bill_of_materials",
+      "product_variants",
+      "production_orders"
+     ]
+    }
+   ],
+   "get_cash_movements_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_ROLE_FILTER_FUNCTIONS.sql",
+     "line": 230,
+     "tables": [
+      "cash_movements",
+      "cash_registers",
+      "cash_sessions",
+      "users"
+     ]
+    }
+   ],
+   "get_current_user_tenant_id": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 486,
+     "tables": [
+      "profiles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 51,
+     "tables": [
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 6,
+     "tables": [
+      "users"
+     ]
+    }
+   ],
+   "get_sale_lines_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_ROLE_FILTER_FUNCTIONS.sql",
+     "line": 100,
+     "tables": [
+      "cash_sessions",
+      "sale_lines",
+      "sales",
+      "users"
+     ]
+    }
+   ],
+   "get_sale_payments_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_ROLE_FILTER_FUNCTIONS.sql",
+     "line": 170,
+     "tables": [
+      "cash_sessions",
+      "sale_payments",
+      "sales",
+      "users"
+     ]
+    }
+   ],
+   "get_sales_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_ROLE_FILTER_FUNCTIONS.sql",
+     "line": 14,
+     "tables": [
+      "cash_sessions",
+      "sales",
+      "users"
+     ]
+    }
+   ],
+   "get_user_assigned_locations": [
+    {
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 12,
+     "tables": [
+      "cash_register_assignments",
+      "cash_registers",
+      "users"
+     ]
+    }
+   ],
+   "get_users_with_roles": [
+    {
+     "file": "shared/supabase/migrations/UserFunctions.sql",
+     "line": 138,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "has_permission": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 560,
+     "tables": [
+      "permissions",
+      "role_permissions",
+      "user_roles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/RLS_Security.sql",
+     "line": 16,
+     "tables": [
+      "permissions",
+      "role_permissions",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "is_user_admin": [
+    {
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 19,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 30,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "is_user_cashier": [
+    {
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_PRIVACY.sql",
+     "line": 35,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_RLS_CASHIER_RESTRICTIONS.sql",
+     "line": 49,
+     "tables": [
+      "roles",
+      "user_roles",
+      "users"
+     ]
+    }
+   ],
+   "sp_add_layaway_payment": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 401,
+     "tables": [
+      "cash_sessions",
+      "layaway_contracts",
+      "layaway_payments",
+      "payment_methods"
+     ]
+    }
+   ],
+   "sp_assign_cash_register_to_user": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 115,
+     "tables": [
+      "cash_register_assignments"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 102,
+     "tables": [
+      "cash_register_assignments"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1185,
+     "tables": [
+      "cash_register_assignments"
+     ]
+    }
+   ],
+   "sp_audit_rls_and_optionally_apply": [
+    {
+     "file": "shared/supabase/migrations/ADD_RLS_GLOBAL_AUDIT_AND_AUTOFIX.sql",
+     "line": 46,
+     "tables": [
+      "using",
+      "vw_rls_audit_public"
+     ]
+    }
+   ],
+   "sp_cancel_layaway": [
+    {
+     "file": "shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql",
+     "line": 526,
+     "tables": [
+      "coalesce",
+      "layaway_contracts",
+      "layaway_items",
+      "stock_reservations_log"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 609,
+     "tables": [
+      "coalesce",
+      "layaway_contracts",
+      "layaway_items",
+      "stock_reservations_log"
+     ]
+    }
+   ],
+   "sp_close_cash_session": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 493,
+     "tables": [
+      "cash_movements",
+      "cash_sessions",
+      "layaway_payments",
+      "payment_methods",
+      "sale_payments"
+     ]
+    }
+   ],
+   "sp_close_cash_session_secure": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 201,
+     "tables": [
+      "cash_sessions"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 174,
+     "tables": [
+      "cash_sessions"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1253,
+     "tables": [
+      "cash_sessions"
+     ]
+    }
+   ],
+   "sp_complete_layaway_to_sale": [
+    {
+     "file": "shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql",
+     "line": 305,
+     "tables": [
+      "inventory_moves",
+      "layaway_contracts",
+      "layaway_items",
+      "payment_methods",
+      "sale_lines",
+      "sale_payments",
+      "sales",
+      "stock_reservations_log"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 479,
+     "tables": [
+      "inventory_moves",
+      "layaway_contracts",
+      "layaway_items",
+      "payment_methods",
+      "sale_lines",
+      "sale_payments",
+      "sales",
+      "stock_reservations_log"
+     ]
+    }
+   ],
+   "sp_create_inventory_adjustment": [
+    {
+     "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+     "line": 103,
+     "tables": [
+      "inventory_moves",
+      "product_variants",
+      "stock_balances"
+     ]
+    }
+   ],
+   "sp_create_layaway": [
+    {
+     "file": "shared/supabase/migrations/LAYAWAY_OPERATIONAL_HARDENING.sql",
+     "line": 14,
+     "tables": [
+      "cash_sessions",
+      "layaway_contracts",
+      "layaway_installments",
+      "layaway_items",
+      "layaway_payments",
+      "payment_methods",
+      "product_variants",
+      "stock_balances",
+      "stock_reservations_log",
+      "tenant_settings"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 227,
+     "tables": [
+      "cash_sessions",
+      "layaway_contracts",
+      "layaway_installments",
+      "layaway_items",
+      "layaway_payments",
+      "payment_methods",
+      "stock_balances",
+      "stock_reservations_log"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_LAYAWAY_SP_DISCOUNT_TYPE.sql",
+     "line": 7,
+     "tables": [
+      "layaway_contracts",
+      "layaway_installments",
+      "layaway_items",
+      "layaway_payments",
+      "payment_methods",
+      "stock_balances",
+      "stock_reservations_log"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_LAYAWAY_SP_PRICE_INCLUDES_TAX.sql",
+     "line": 8,
+     "tables": [
+      "layaway_contracts",
+      "layaway_installments",
+      "layaway_items",
+      "layaway_payments",
+      "payment_methods",
+      "product_variants",
+      "stock_balances",
+      "stock_reservations_log"
+     ]
+    }
+   ],
+   "sp_create_manual_purchase_ingress": [
+    {
+     "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+     "line": 190,
+     "tables": [
+      "inventory_moves",
+      "product_variants"
+     ]
+    }
+   ],
+   "sp_create_purchase": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASES_TABLE.sql",
+     "line": 34,
+     "tables": [
+      "inventory_moves",
+      "product_variants",
+      "purchases"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_BATCH_NUMBER_BY_LOCATION.sql",
+     "line": 115,
+     "tables": [
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/INTEGRATE_BATCHES_WITH_PURCHASES.sql",
+     "line": 15,
+     "tables": [
+      "inventory_batches",
+      "inventory_moves",
+      "product_variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1460,
+     "tables": [
+      "inventory_moves",
+      "product_variants"
+     ]
+    }
+   ],
+   "sp_create_purchase_order": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+     "line": 70,
+     "tables": [
+      "product_variants",
+      "purchase_order_lines",
+      "purchase_orders"
+     ]
+    }
+   ],
+   "sp_create_purchase_return": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_RETURNS_CORE.sql",
+     "line": 67,
+     "tables": [
+      "inventory_moves",
+      "purchase_return_lines",
+      "purchase_returns",
+      "purchases",
+      "stock_balances"
+     ]
+    }
+   ],
+   "sp_create_return": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 344,
+     "tables": [
+      "inventory_moves",
+      "sale_lines",
+      "sale_return_lines",
+      "sale_returns",
+      "sales"
+     ]
+    }
+   ],
+   "sp_create_return_v2": [
+    {
+     "file": "shared/supabase/migrations/ADD_SALE_RETURNS_REFUNDS_V2.sql",
+     "line": 53,
+     "tables": [
+      "payment_methods",
+      "sale_return_refunds",
+      "sale_returns"
+     ]
+    }
+   ],
+   "sp_create_sale": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE4_SALES.sql",
+     "line": 43,
+     "tables": [
+      "cash_sessions",
+      "fn_allocate_stock_fefo",
+      "inventory_moves",
+      "jsonb_to_recordset",
+      "payment_methods",
+      "product_variants",
+      "sale_line_batches",
+      "sale_lines",
+      "sale_payments",
+      "sale_warnings",
+      "sales"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_SALE_ROUNDING.sql",
+     "line": 85,
+     "tables": [
+      "cash_sessions",
+      "fn_allocate_stock_fefo",
+      "inventory_moves",
+      "jsonb_to_recordset",
+      "payment_methods",
+      "product_variants",
+      "sale_line_batches",
+      "sale_lines",
+      "sale_payments",
+      "sales"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_SP_CREATE_SALE_INTEGRATED.sql",
+     "line": 26,
+     "tables": [
+      "cash_sessions",
+      "fn_allocate_stock_fefo",
+      "fn_explode_bundle_components",
+      "fn_validate_bom_availability",
+      "inventory_moves",
+      "jsonb_to_recordset",
+      "payment_methods",
+      "product_variants",
+      "sale_line_batches",
+      "sale_line_components",
+      "sale_lines",
+      "sale_payments",
+      "sales"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 124,
+     "tables": [
+      "cash_sessions",
+      "inventory_moves",
+      "payment_methods",
+      "product_variants",
+      "sale_lines",
+      "sale_payments",
+      "sales",
+      "stock_balances"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_SALE_SP_DISCOUNT_TYPE.sql",
+     "line": 7,
+     "tables": [
+      "cash_sessions",
+      "inventory_moves",
+      "payment_methods",
+      "product_variants",
+      "sale_lines",
+      "sale_payments",
+      "sales",
+      "stock_balances"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_SALE_SP_PRICE_INCLUDES_TAX.sql",
+     "line": 8,
+     "tables": [
+      "cash_sessions",
+      "inventory_moves",
+      "payment_methods",
+      "product_variants",
+      "sale_lines",
+      "sale_payments",
+      "sales",
+      "stock_balances"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_SP_CREATE_SALE_FE.sql",
+     "line": 37,
+     "tables": [
+      "cash_sessions",
+      "fn_allocate_stock_fefo",
+      "fn_explode_bundle_components",
+      "fn_validate_bom_availability",
+      "inventory_moves",
+      "jsonb_to_recordset",
+      "payment_methods",
+      "product_variants",
+      "sale_line_batches",
+      "sale_line_components",
+      "sale_lines",
+      "sale_payments",
+      "sales"
+     ]
+    }
+   ],
+   "sp_create_supplier_payable": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+     "line": 70,
+     "tables": [
+      "purchases",
+      "supplier_payables"
+     ]
+    }
+   ],
+   "sp_create_transfer_request": [
+    {
+     "file": "shared/supabase/migrations/ADD_TRANSFER_IN_TRANSIT_CORE.sql",
+     "line": 44,
+     "tables": [
+      "inventory_moves",
+      "stock_balances",
+      "transfer_requests"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+     "line": 255,
+     "tables": [
+      "inventory_moves",
+      "stock_balances",
+      "transfer_requests"
+     ]
+    }
+   ],
+   "sp_get_supplier_payables_dashboard": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_DASHBOARD_RPC.sql",
+     "line": 5,
+     "tables": [
+      "locations",
+      "purchases",
+      "supplier_payables",
+      "third_parties"
+     ]
+    }
+   ],
+   "sp_open_cash_session": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 152,
+     "tables": [
+      "cash_sessions"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 131,
+     "tables": [
+      "cash_sessions"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1212,
+     "tables": [
+      "cash_sessions"
+     ]
+    }
+   ],
+   "sp_receive_purchase_order": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_CORE.sql",
+     "line": 154,
+     "tables": [
+      "purchase_order_lines",
+      "purchase_orders"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_PARTIAL_RECEIPT.sql",
+     "line": 124,
+     "tables": [
+      "purchase_order_lines"
+     ]
+    }
+   ],
+   "sp_receive_purchase_order_partial": [
+    {
+     "file": "shared/supabase/migrations/ADD_PURCHASE_ORDERS_PARTIAL_RECEIPT.sql",
+     "line": 15,
+     "tables": [
+      "purchase_order_lines",
+      "purchase_orders"
+     ]
+    }
+   ],
+   "sp_receive_transfer_request": [
+    {
+     "file": "shared/supabase/migrations/ADD_TRANSFER_IN_TRANSIT_CORE.sql",
+     "line": 134,
+     "tables": [
+      "inventory_moves",
+      "transfer_requests"
+     ]
+    }
+   ],
+   "sp_register_supplier_payment": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_CORE.sql",
+     "line": 146,
+     "tables": [
+      "supplier_payable_payments",
+      "supplier_payables"
+     ]
+    }
+   ],
+   "sync_bom_component_quantity": [
+    {
+     "file": "shared/supabase/migrations/FIX_BOM_NAME_COLUMN.sql",
+     "line": 84,
+     "tables": []
+    }
+   ],
+   "sync_bom_name_code": [
+    {
+     "file": "shared/supabase/migrations/FIX_BOM_NAME_COLUMN.sql",
+     "line": 37,
+     "tables": []
+    }
+   ],
+   "sync_production_line_quantity": [
+    {
+     "file": "shared/supabase/migrations/FIX_BOM_NAME_COLUMN.sql",
+     "line": 180,
+     "tables": []
+    }
+   ],
+   "sync_production_order_audit_dates": [
+    {
+     "file": "shared/supabase/migrations/FIX_BOM_NAME_COLUMN.sql",
+     "line": 231,
+     "tables": []
+    }
+   ],
+   "sync_production_order_dates": [
+    {
+     "file": "shared/supabase/migrations/FIX_BOM_NAME_COLUMN.sql",
+     "line": 132,
+     "tables": []
+    }
+   ],
+   "trg_auto_create_default_variant_fn": [
+    {
+     "file": "shared/supabase/migrations/AUTO_CREATE_DEFAULT_VARIANT.sql",
+     "line": 146,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "trg_enqueue_bulk_import_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 553,
+     "tables": [
+      "users"
+     ]
+    }
+   ],
+   "trg_enqueue_credit_movement_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 600,
+     "tables": [
+      "customer_credit_accounts",
+      "customers",
+      "third_parties"
+     ]
+    }
+   ],
+   "trg_enqueue_layaway_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 361,
+     "tables": [
+      "customers",
+      "layaway_contracts",
+      "third_parties"
+     ]
+    }
+   ],
+   "trg_enqueue_layaway_payment_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 407,
+     "tables": [
+      "customers",
+      "layaway_contracts",
+      "third_parties"
+     ]
+    }
+   ],
+   "trg_enqueue_online_order_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 174,
+     "tables": [
+      "coalesce",
+      "tenant_settings"
+     ]
+    }
+   ],
+   "trg_enqueue_operational_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 459,
+     "tables": [
+      "tenant_settings",
+      "true"
+     ]
+    }
+   ],
+   "trg_enqueue_sale_customer_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 261,
+     "tables": [
+      "customers",
+      "sales",
+      "third_parties"
+     ]
+    }
+   ],
+   "trg_enqueue_sale_return_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 312,
+     "tables": [
+      "customers",
+      "sale_returns",
+      "sales",
+      "third_parties"
+     ]
+    }
+   ],
+   "trg_enqueue_subscription_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 722,
+     "tables": [
+      "tenant_settings",
+      "true"
+     ]
+    }
+   ],
+   "trg_enqueue_supplier_payable_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 651,
+     "tables": [
+      "tenant_settings",
+      "true"
+     ]
+    }
+   ],
+   "trg_enqueue_user_created_email": [
+    {
+     "file": "shared/supabase/migrations/ADD_CENTRAL_EMAIL_NOTIFICATION_OUTBOX.sql",
+     "line": 518,
+     "tables": []
+    }
+   ],
+   "trg_layaway_contracts_alert": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1083,
+     "tables": []
+    }
+   ],
+   "trg_pricing_rules_updated_at": [
+    {
+     "file": "shared/supabase/migrations/PricingRules.sql",
+     "line": 56,
+     "tables": []
+    }
+   ],
+   "trg_product_variants_alert": [
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+     "line": 128,
+     "tables": []
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1064,
+     "tables": []
+    }
+   ],
+   "trg_public_subscription_signups_updated_at": [
+    {
+     "file": "shared/supabase/migrations/ADD_PUBLIC_SUBSCRIPTION_SIGNUPS.sql",
+     "line": 56,
+     "tables": []
+    }
+   ],
+   "trg_refresh_customer_receivable_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_CUSTOMER_RECEIVABLE_ALERTS_REALTIME.sql",
+     "line": 69,
+     "tables": []
+    }
+   ],
+   "trg_refresh_expiration_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_ALERTS_REALTIME.sql",
+     "line": 97,
+     "tables": []
+    }
+   ],
+   "trg_refresh_stock_after_batch_change": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 214,
+     "tables": []
+    }
+   ],
+   "trg_refresh_supplier_payable_alerts": [
+    {
+     "file": "shared/supabase/migrations/ADD_SUPPLIER_PAYABLES_ALERTS_REALTIME.sql",
+     "line": 74,
+     "tables": []
+    }
+   ],
+   "trg_stock_balances_alert": [
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+     "line": 62,
+     "tables": [
+      "system_alerts",
+      "vw_stock_alerts"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1011,
+     "tables": [
+      "system_alerts",
+      "vw_stock_alerts"
+     ]
+    }
+   ],
+   "trg_touch_billing_updated_at": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 418,
+     "tables": []
+    }
+   ],
+   "trg_touch_chat_order_ai_cache": [
+    {
+     "file": "shared/supabase/migrations/ADD_CHAT_ORDER_AI_CACHE.sql",
+     "line": 26,
+     "tables": []
+    }
+   ],
+   "trg_update_average_cost": [
+    {
+     "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+     "line": 73,
+     "tables": [
+      "product_variants"
+     ]
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1419,
+     "tables": [
+      "product_variants"
+     ]
+    }
+   ],
+   "trg_update_batch_timestamp": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 130,
+     "tables": []
+    }
+   ],
+   "trg_validate_batch_expiration": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 94,
+     "tables": []
+    }
+   ],
+   "trg_validate_bom_on_save": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE1_HELPER_FUNCTIONS.sql",
+     "line": 350,
+     "tables": [
+      "bill_of_materials",
+      "fn_validate_bom_depth",
+      "tenant_settings"
+     ]
+    }
+   ],
+   "trg_validate_expiration_config": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE1.sql",
+     "line": 153,
+     "tables": []
+    }
+   ]
+  }
+ },
+ "views": {
+  "unique": 46,
+  "detail": {
+   "stock_balances": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 165
+    }
+   ],
+   "tenant_billing_summary": [
+    {
+     "file": "shared/supabase/migrations/ADD_TENANT_BILLING_MONETIZATION.sql",
+     "line": 1028
+    }
+   ],
+   "v_cash_movements_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+     "line": 103
+    }
+   ],
+   "v_cash_sessions_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+     "line": 75
+    }
+   ],
+   "v_products_with_tax_info": [
+    {
+     "file": "shared/supabase/migrations/ADD_PRICE_INCLUDES_TAX.sql",
+     "line": 85
+    }
+   ],
+   "v_sale_lines_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+     "line": 45
+    }
+   ],
+   "v_sale_lines_with_discounts": [
+    {
+     "file": "shared/supabase/migrations/ADD_DISCOUNT_TYPE.sql",
+     "line": 97
+    }
+   ],
+   "v_sale_payments_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+     "line": 55
+    }
+   ],
+   "v_sale_returns_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+     "line": 65
+    }
+   ],
+   "v_sales_by_role": [
+    {
+     "file": "shared/supabase/migrations/CREATE_SALES_VIEWS_BY_ROLE.sql",
+     "line": 15
+    }
+   ],
+   "vw_batch_rotation": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 180
+    }
+   ],
+   "vw_batch_traceability": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE3_FEFO.sql",
+     "line": 343
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 319
+    }
+   ],
+   "vw_component_consumption_detail": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+     "line": 401
+    }
+   ],
+   "vw_credit_debtors": [
+    {
+     "file": "shared/supabase/migrations/ADD_CREDIT_SALES.sql",
+     "line": 69
+    }
+   ],
+   "vw_expiration_dashboard": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 147
+    }
+   ],
+   "vw_expiring_by_variant": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 90
+    }
+   ],
+   "vw_expiring_products": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 22
+    }
+   ],
+   "vw_income_consolidated": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 789
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 167
+    }
+   ],
+   "vw_inventory_rotation_analysis": [
+    {
+     "file": "shared/supabase/migrations/PURCHASE_ANALYSIS_VIEWS.sql",
+     "line": 17
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1568
+    }
+   ],
+   "vw_kardex": [
+    {
+     "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+     "line": 31
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 616
+    }
+   ],
+   "vw_layaway_inventory": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 753
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 130
+    }
+   ],
+   "vw_layaway_payments": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 693
+    }
+   ],
+   "vw_layaway_payments_report": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 719
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 94
+    }
+   ],
+   "vw_layaway_report": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 667
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 40
+    }
+   ],
+   "vw_layaway_summary": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 671
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 290
+    }
+   ],
+   "vw_manufacturing_dashboard": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE456_FINAL.sql",
+     "line": 450
+    }
+   ],
+   "vw_ondemand_margin_analysis": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+     "line": 355
+    }
+   ],
+   "vw_ondemand_top_products": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE3_ON_DEMAND.sql",
+     "line": 440
+    }
+   ],
+   "vw_production_cost_report": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PRODUCTION_COST_REPORT.sql",
+     "line": 21
+    }
+   ],
+   "vw_production_cost_summary_by_product": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PRODUCTION_COST_REPORT.sql",
+     "line": 187
+    }
+   ],
+   "vw_products_expiration_config": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE1.sql",
+     "line": 99
+    }
+   ],
+   "vw_products_with_bom": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+     "line": 385
+    }
+   ],
+   "vw_purchases_summary": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1535
+    }
+   ],
+   "vw_rls_audit_public": [
+    {
+     "file": "shared/supabase/migrations/ADD_RLS_GLOBAL_AUDIT_AND_AUTOFIX.sql",
+     "line": 19
+    }
+   ],
+   "vw_sales_daily_history": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1790
+    }
+   ],
+   "vw_sales_summary": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 644
+    },
+    {
+     "file": "shared/supabase/migrations/UPDATE_VIEWS_TO_THIRD_PARTIES.sql",
+     "line": 14
+    }
+   ],
+   "vw_sales_with_customer": [
+    {
+     "file": "shared/supabase/migrations/MIGRATE_CUSTOMERS_TO_THIRD_PARTIES.sql",
+     "line": 89
+    }
+   ],
+   "vw_service_products": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+     "line": 317
+    }
+   ],
+   "vw_service_revenue": [
+    {
+     "file": "shared/supabase/migrations/MANUFACTURING_PHASE2_SERVICE_BOM.sql",
+     "line": 348
+    }
+   ],
+   "vw_stock_alerts": [
+    {
+     "file": "shared/supabase/migrations/AddMinStock.sql",
+     "line": 29
+    },
+    {
+     "file": "shared/supabase/migrations/FIX_STOCK_ALERTS_REALTIME.sql",
+     "line": 10
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 858
+    }
+   ],
+   "vw_stock_available": [
+    {
+     "file": "shared/supabase/migrations/PlanSepare.sql",
+     "line": 31
+    }
+   ],
+   "vw_stock_calculated": [
+    {
+     "file": "shared/supabase/migrations/INVENTORY_PURCHASE_HARDENING.sql",
+     "line": 8
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 592
+    }
+   ],
+   "vw_stock_current": [
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 574
+    }
+   ],
+   "vw_stock_for_cashier": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE5_REPORTS.sql",
+     "line": 249
+    }
+   ],
+   "vw_stock_with_batches": [
+    {
+     "file": "shared/supabase/migrations/ADD_EXPIRATION_BATCHES_PHASE2.sql",
+     "line": 236
+    }
+   ],
+   "vw_user_cash_registers": [
+    {
+     "file": "shared/supabase/migrations/AsignacionCajerosCaja.sql",
+     "line": 91
+    },
+    {
+     "file": "shared/supabase/migrations/EJECUTAR_MIGRACION_CAJAS.sql",
+     "line": 82
+    },
+    {
+     "file": "shared/supabase/migrations/SpVistasFN.sql",
+     "line": 1167
+    }
+   ]
+  }
+ },
+ "sensitive_columns": {
+  "ai_telemetry_events": [
+   [
+    "tokens_input",
+    "integer not null default 0 check (tokens_input"
+   ],
+   [
+    "tokens_output",
+    "integer not null default 0 check (tokens_output"
+   ]
+  ],
+  "customers": [
+   [
+    "address",
+    "text"
+   ],
+   [
+    "document",
+    "text"
+   ],
+   [
+    "email",
+    "text"
+   ],
+   [
+    "phone",
+    "text"
+   ]
+  ],
+  "fe_provider_config": [
+   [
+    "api_key",
+    "text"
+   ]
+  ],
+  "invoice_resolutions": [
+   [
+    "document_type",
+    "text not null default"
+   ]
+  ],
+  "locations": [
+   [
+    "address",
+    "text"
+   ]
+  ],
+  "notification_outbox": [
+   [
+    "recipient_email",
+    "text not null"
+   ]
+  ],
+  "online_orders": [
+   [
+    "customer_email",
+    "text null"
+   ],
+   [
+    "customer_phone",
+    "text null"
+   ]
+  ],
+  "online_stores": [
+   [
+    "support_whatsapp",
+    "text null"
+   ]
+  ],
+  "public_subscription_signups": [
+   [
+    "address",
+    "text"
+   ],
+   [
+    "admin_email",
+    "text not null"
+   ],
+   [
+    "phone",
+    "text"
+   ]
+  ],
+  "tenant_gateway_credentials": [
+   [
+    "access_token",
+    "text null"
+   ],
+   [
+    "account_email",
+    "text null"
+   ],
+   [
+    "gateway_credential_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "tenant_payment_methods": [
+   [
+    "provider_token",
+    "text not null"
+   ]
+  ],
+  "tenant_settings": [
+   [
+    "business_address",
+    "text"
+   ],
+   [
+    "business_phone",
+    "text"
+   ]
+  ],
+  "third_parties": [
+   [
+    "address",
+    "jsonb"
+   ],
+   [
+    "document_number",
+    "text"
+   ],
+   [
+    "document_type",
+    "text"
+   ],
+   [
+    "email",
+    "text"
+   ],
+   [
+    "fiscal_email",
+    "text"
+   ],
+   [
+    "phone",
+    "text"
+   ]
+  ],
+  "users": [
+   [
+    "email",
+    "text not null"
+   ]
+  ]
+ },
+ "financial_columns": {
+  "ai_telemetry_events": [
+   [
+    "estimated_cost",
+    "numeric(14"
+   ]
+  ],
+  "billing_plan_prices": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "plan_price_id",
+    "uuid primary key default gen_random_uuid()"
+   ],
+   [
+    "setup_fee",
+    "numeric(14"
+   ]
+  ],
+  "cash_movements": [
+   [
+    "amount",
+    "numeric(14"
+   ]
+  ],
+  "cash_sessions": [
+   [
+    "closing_amount_counted",
+    "numeric(14"
+   ],
+   [
+    "closing_amount_expected",
+    "numeric(14"
+   ],
+   [
+    "opening_amount",
+    "numeric(14"
+   ]
+  ],
+  "component_allocations": [
+   [
+    "total_cost",
+    "numeric(14"
+   ],
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "customer_credit_accounts": [
+   [
+    "credit_account_id",
+    "uuid primary key default gen_random_uuid()"
+   ],
+   [
+    "credit_limit",
+    "numeric(14"
+   ],
+   [
+    "current_balance",
+    "numeric(14"
+   ]
+  ],
+  "customer_credit_movements": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "credit_account_id",
+    "uuid not null references customer_credit_accounts(credit_account_id) on delete cascade"
+   ]
+  ],
+  "inventory_batches": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "inventory_moves": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "layaway_contracts": [
+   [
+    "balance",
+    "numeric(14"
+   ],
+   [
+    "discount_total",
+    "numeric(14"
+   ],
+   [
+    "paid_total",
+    "numeric(14"
+   ],
+   [
+    "subtotal",
+    "numeric(14"
+   ],
+   [
+    "tax_total",
+    "numeric(14"
+   ],
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "layaway_installments": [
+   [
+    "amount",
+    "numeric(14"
+   ]
+  ],
+  "layaway_items": [
+   [
+    "discount_amount",
+    "numeric(14"
+   ],
+   [
+    "line_total",
+    "numeric(14"
+   ],
+   [
+    "tax_amount",
+    "numeric(14"
+   ],
+   [
+    "tax_detail",
+    "jsonb"
+   ],
+   [
+    "unit_price",
+    "numeric(14"
+   ]
+  ],
+  "layaway_payments": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "layaway_payment_id",
+    "uuid primary key default gen_random_uuid()"
+   ],
+   [
+    "payment_method_id",
+    "uuid not null references payment_methods(payment_method_id)"
+   ]
+  ],
+  "online_order_lines": [
+   [
+    "line_total",
+    "numeric(14"
+   ],
+   [
+    "tax_amount",
+    "numeric(14"
+   ],
+   [
+    "tax_rate",
+    "numeric(8"
+   ],
+   [
+    "unit_price",
+    "numeric(14"
+   ]
+  ],
+  "online_orders": [
+   [
+    "discount_total",
+    "numeric(14"
+   ],
+   [
+    "payment_mode",
+    "text not null default"
+   ],
+   [
+    "payment_payload",
+    "jsonb not null default"
+   ],
+   [
+    "payment_reference",
+    "text null"
+   ],
+   [
+    "payment_status",
+    "text not null default"
+   ],
+   [
+    "subtotal",
+    "numeric(14"
+   ],
+   [
+    "tax_total",
+    "numeric(14"
+   ],
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "online_stores": [
+   [
+    "manual_payment_method_id",
+    "uuid null references payment_methods(payment_method_id) on delete set null"
+   ]
+  ],
+  "payment_methods": [
+   [
+    "credit",
+    "name text not null"
+   ],
+   [
+    "payment_method_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "price_list_items": [
+   [
+    "price",
+    "numeric(14"
+   ],
+   [
+    "price_list_id",
+    "uuid not null references price_lists(price_list_id) on delete cascade"
+   ]
+  ],
+  "price_lists": [
+   [
+    "price_list_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "pricing_rules": [
+   [
+    "price_rounding",
+    "text not null default"
+   ]
+  ],
+  "product_variants": [
+   [
+    "price",
+    "numeric(14"
+   ]
+  ],
+  "production_order_lines": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "production_orders": [
+   [
+    "actual_cost",
+    "numeric(14"
+   ],
+   [
+    "estimated_cost",
+    "numeric(14"
+   ],
+   [
+    "labor_cost",
+    "numeric(14"
+   ],
+   [
+    "overhead_cost",
+    "numeric(14"
+   ]
+  ],
+  "production_outputs": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "public_subscription_signups": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "mercado_pago_payment_id",
+    "text"
+   ],
+   [
+    "mercado_pago_preference_id",
+    "text"
+   ],
+   [
+    "mercado_pago_status",
+    "text"
+   ],
+   [
+    "mercado_pago_status_detail",
+    "text"
+   ],
+   [
+    "payment_payload",
+    "jsonb not null default"
+   ],
+   [
+    "plan_price_id",
+    "uuid not null references billing_plan_prices(plan_price_id)"
+   ],
+   [
+    "setup_fee",
+    "numeric(14"
+   ],
+   [
+    "tax_id",
+    "text"
+   ],
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "purchase_order_lines": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "purchase_orders": [
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "purchase_return_lines": [
+   [
+    "line_total",
+    "numeric(14"
+   ],
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "purchase_returns": [
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "purchases": [
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "sale_line_batches": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ],
+  "sale_lines": [
+   [
+    "discount_amount",
+    "numeric(14"
+   ],
+   [
+    "line_total",
+    "numeric(14"
+   ],
+   [
+    "tax_amount",
+    "numeric(14"
+   ],
+   [
+    "tax_detail",
+    "jsonb"
+   ],
+   [
+    "unit_cost",
+    "numeric(14"
+   ],
+   [
+    "unit_price",
+    "numeric(14"
+   ]
+  ],
+  "sale_payments": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "payment_method_id",
+    "uuid not null references payment_methods(payment_method_id)"
+   ],
+   [
+    "sale_payment_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "sale_return_lines": [
+   [
+    "line_total",
+    "numeric(14"
+   ],
+   [
+    "tax_amount",
+    "numeric(14"
+   ],
+   [
+    "unit_price",
+    "numeric(14"
+   ]
+  ],
+  "sale_return_refunds": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "payment_method_id",
+    "uuid not null references payment_methods(payment_method_id)"
+   ],
+   [
+    "refund_payment_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "sale_returns": [
+   [
+    "refund_total",
+    "numeric(14"
+   ]
+  ],
+  "sales": [
+   [
+    "discount_total",
+    "numeric(14"
+   ],
+   [
+    "subtotal",
+    "numeric(14"
+   ],
+   [
+    "tax_total",
+    "numeric(14"
+   ],
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "supplier_payable_payments": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "payable_payment_id",
+    "uuid primary key default gen_random_uuid()"
+   ],
+   [
+    "payment_method",
+    "text"
+   ]
+  ],
+  "supplier_payables": [
+   [
+    "balance",
+    "numeric(14"
+   ],
+   [
+    "paid_amount",
+    "numeric(14"
+   ],
+   [
+    "total_amount",
+    "numeric(14"
+   ]
+  ],
+  "tax_rules": [
+   [
+    "tax_id",
+    "uuid not null references taxes(tax_id)"
+   ],
+   [
+    "tax_rule_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "taxes": [
+   [
+    "tax_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "tenant_invoices": [
+   [
+    "subtotal",
+    "numeric(14"
+   ],
+   [
+    "tax_amount",
+    "numeric(14"
+   ],
+   [
+    "total",
+    "numeric(14"
+   ]
+  ],
+  "tenant_payment_methods": [
+   [
+    "tenant_payment_method_id",
+    "uuid primary key default gen_random_uuid()"
+   ]
+  ],
+  "tenant_payments": [
+   [
+    "amount",
+    "numeric(14"
+   ],
+   [
+    "payment_id",
+    "uuid primary key default gen_random_uuid()"
+   ],
+   [
+    "provider_payment_id",
+    "text"
+   ]
+  ],
+  "tenant_settings": [
+   [
+    "default_tax_included",
+    "boolean not null default false"
+   ]
+  ],
+  "tenant_subscriptions": [
+   [
+    "payment_provider",
+    "text"
+   ],
+   [
+    "plan_price_id",
+    "uuid references billing_plan_prices(plan_price_id)"
+   ]
+  ],
+  "tenants": [
+   [
+    "tax_id",
+    "text"
+   ]
+  ],
+  "third_parties": [
+   [
+    "default_payment_terms",
+    "int"
+   ],
+   [
+    "max_credit_amount",
+    "numeric(14"
+   ],
+   [
+    "tax_regime",
+    "text"
+   ],
+   [
+    "tax_responsibilities",
+    "text"
+   ]
+  ],
+  "transfer_requests": [
+   [
+    "unit_cost",
+    "numeric(14"
+   ]
+  ]
+ },
+ "inline_fks": {
+  "ai_telemetry_events": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "user_id",
+    "users",
+    "user_id"
+   ]
+  ],
+  "async_job_attempts": [
+   [
+    "job_id",
+    "async_jobs",
+    "job_id"
+   ]
+  ],
+  "async_jobs": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "bill_of_materials": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "updated_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "billing_plan_features": [
+   [
+    "plan_id",
+    "billing_plans",
+    "plan_id"
+   ]
+  ],
+  "billing_plan_limits": [
+   [
+    "plan_id",
+    "billing_plans",
+    "plan_id"
+   ]
+  ],
+  "billing_plan_prices": [
+   [
+    "plan_id",
+    "billing_plans",
+    "plan_id"
+   ]
+  ],
+  "bom_components": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "bom_id",
+    "bill_of_materials",
+    "bom_id"
+   ],
+   [
+    "component_variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "bulk_import_errors": [
+   [
+    "import_id",
+    "bulk_imports",
+    "import_id"
+   ]
+  ],
+  "bulk_imports": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "uploaded_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "bundle_compositions": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "bundle_variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "component_variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "cash_movements": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "cash_register_assignments": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_register_id",
+    "cash_registers",
+    "cash_register_id"
+   ],
+   [
+    "user_id",
+    "users",
+    "user_id"
+   ],
+   [
+    "assigned_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_register_id",
+    "cash_registers",
+    "cash_register_id"
+   ],
+   [
+    "user_id",
+    "users",
+    "user_id"
+   ],
+   [
+    "assigned_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_register_id",
+    "cash_registers",
+    "cash_register_id"
+   ],
+   [
+    "user_id",
+    "users",
+    "user_id"
+   ],
+   [
+    "assigned_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "cash_registers": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ]
+  ],
+  "cash_sessions": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_register_id",
+    "cash_registers",
+    "cash_register_id"
+   ],
+   [
+    "opened_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "closed_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "cash_register_id",
+    "cash_registers",
+    "cash_register_id"
+   ],
+   [
+    "opened_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "closed_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "categories": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "parent_category_id",
+    "categories",
+    "category_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "parent_category_id",
+    "categories",
+    "category_id"
+   ]
+  ],
+  "chat_order_ai_cache": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "cities": [
+   [
+    "department_id",
+    "departments",
+    "department_id"
+   ]
+  ],
+  "component_allocations": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "sale_line_id",
+    "sale_lines",
+    "sale_line_id"
+   ],
+   [
+    "component_variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "batch_id",
+    "inventory_batches",
+    "batch_id"
+   ]
+  ],
+  "customer_credit_accounts": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "customer_id",
+    "customers",
+    "customer_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "customer_id",
+    "customers",
+    "customer_id"
+   ]
+  ],
+  "customer_credit_movements": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "credit_account_id",
+    "customer_credit_accounts",
+    "credit_account_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "credit_account_id",
+    "customer_credit_accounts",
+    "credit_account_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "customers": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "fe_provider_config": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "inventory_batches": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "inventory_moves": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "to_location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "to_location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "invoice_resolutions": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "layaway_contracts": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "customer_id",
+    "customers",
+    "customer_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ]
+  ],
+  "layaway_installments": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "layaway_id",
+    "layaway_contracts",
+    "layaway_id"
+   ]
+  ],
+  "layaway_items": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "layaway_id",
+    "layaway_contracts",
+    "layaway_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "layaway_payments": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "layaway_id",
+    "layaway_contracts",
+    "layaway_id"
+   ],
+   [
+    "payment_method_id",
+    "payment_methods",
+    "payment_method_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ],
+   [
+    "paid_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "locations": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "menu_items": [
+   [
+    "parent_code",
+    "menu_items",
+    "code"
+   ]
+  ],
+  "menu_permissions": [
+   [
+    "menu_item_id",
+    "menu_items",
+    "menu_item_id"
+   ],
+   [
+    "permission_id",
+    "permissions",
+    "permission_id"
+   ]
+  ],
+  "notification_outbox": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "online_order_lines": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "online_order_id",
+    "online_orders",
+    "online_order_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "online_order_reservations": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "online_order_id",
+    "online_orders",
+    "online_order_id"
+   ],
+   [
+    "store_id",
+    "online_stores",
+    "store_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "online_order_id",
+    "online_orders",
+    "online_order_id"
+   ],
+   [
+    "store_id",
+    "online_stores",
+    "store_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "online_orders": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "store_id",
+    "online_stores",
+    "store_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ]
+  ],
+  "online_store_catalog": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "store_id",
+    "online_stores",
+    "store_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "online_stores": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "sold_by_user_id",
+    "users",
+    "user_id"
+   ],
+   [
+    "manual_payment_method_id",
+    "payment_methods",
+    "payment_method_id"
+   ]
+  ],
+  "payment_methods": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "price_list_items": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "price_list_id",
+    "price_lists",
+    "price_list_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "price_list_id",
+    "price_lists",
+    "price_list_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "price_lists": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "pricing_rules": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "category_id",
+    "categories",
+    "category_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "product_barcodes": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "product_tag_map": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "tag_id",
+    "product_tags",
+    "tag_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "tag_id",
+    "product_tags",
+    "tag_id"
+   ]
+  ],
+  "product_tags": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "product_variants": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ]
+  ],
+  "production_order_lines": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "production_order_id",
+    "production_orders",
+    "production_order_id"
+   ],
+   [
+    "component_variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "batch_id",
+    "inventory_batches",
+    "batch_id"
+   ]
+  ],
+  "production_orders": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "bom_id",
+    "bill_of_materials",
+    "bom_id"
+   ],
+   [
+    "product_variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "started_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "completed_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "cancelled_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "production_outputs": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "production_order_id",
+    "production_orders",
+    "production_order_id"
+   ],
+   [
+    "batch_id",
+    "inventory_batches",
+    "batch_id"
+   ],
+   [
+    "produced_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "products": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "category_id",
+    "categories",
+    "category_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "category_id",
+    "categories",
+    "category_id"
+   ]
+  ],
+  "public_subscription_signup_events": [
+   [
+    "signup_id",
+    "public_subscription_signups",
+    "signup_id"
+   ]
+  ],
+  "public_subscription_signups": [
+   [
+    "plan_id",
+    "billing_plans",
+    "plan_id"
+   ],
+   [
+    "plan_price_id",
+    "billing_plan_prices",
+    "plan_price_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "purchase_order_lines": [
+   [
+    "purchase_order_id",
+    "purchase_orders",
+    "purchase_order_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "purchase_orders": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "supplier_id",
+    "third_parties",
+    "third_party_id"
+   ],
+   [
+    "received_purchase_id",
+    "purchases",
+    "purchase_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "purchase_return_lines": [
+   [
+    "purchase_return_id",
+    "purchase_returns",
+    "purchase_return_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "purchase_id",
+    "purchases",
+    "purchase_id"
+   ],
+   [
+    "source_inventory_move_id",
+    "inventory_moves",
+    "inventory_move_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "purchase_returns": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "purchase_id",
+    "purchases",
+    "purchase_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "supplier_id",
+    "third_parties",
+    "third_party_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "purchases": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "supplier_id",
+    "third_parties",
+    "third_party_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "role_menus": [
+   [
+    "role_id",
+    "roles",
+    "role_id"
+   ],
+   [
+    "menu_item_id",
+    "menu_items",
+    "menu_item_id"
+   ]
+  ],
+  "role_permissions": [
+   [
+    "role_id",
+    "roles",
+    "role_id"
+   ],
+   [
+    "permission_id",
+    "permissions",
+    "permission_id"
+   ],
+   [
+    "role_id",
+    "roles",
+    "role_id"
+   ],
+   [
+    "permission_id",
+    "permissions",
+    "permission_id"
+   ]
+  ],
+  "roles": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "sale_counters": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ]
+  ],
+  "sale_line_batches": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "batch_id",
+    "inventory_batches",
+    "batch_id"
+   ]
+  ],
+  "sale_lines": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "sale_payments": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "payment_method_id",
+    "payment_methods",
+    "payment_method_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "payment_method_id",
+    "payment_methods",
+    "payment_method_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ]
+  ],
+  "sale_return_lines": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "return_id",
+    "sale_returns",
+    "return_id"
+   ],
+   [
+    "sale_line_id",
+    "sale_lines",
+    "sale_line_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "return_id",
+    "sale_returns",
+    "return_id"
+   ],
+   [
+    "sale_line_id",
+    "sale_lines",
+    "sale_line_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "sale_return_refunds": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "return_id",
+    "sale_returns",
+    "return_id"
+   ],
+   [
+    "payment_method_id",
+    "payment_methods",
+    "payment_method_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "sale_returns": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "sale_warnings": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ]
+  ],
+  "sales": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ],
+   [
+    "customer_id",
+    "customers",
+    "customer_id"
+   ],
+   [
+    "sold_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "cash_session_id",
+    "cash_sessions",
+    "cash_session_id"
+   ],
+   [
+    "customer_id",
+    "customers",
+    "customer_id"
+   ],
+   [
+    "sold_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "service_deliveries": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "sale_id",
+    "sales",
+    "sale_id"
+   ],
+   [
+    "sale_line_id",
+    "sale_lines",
+    "sale_line_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "performed_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "stock_alert_log": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "stock_balances": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "stock_reservations_log": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "layaway_id",
+    "layaway_contracts",
+    "layaway_id"
+   ],
+   [
+    "location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "supplier_payable_payments": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "payable_id",
+    "supplier_payables",
+    "payable_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "supplier_payables": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "supplier_id",
+    "third_parties",
+    "third_party_id"
+   ],
+   [
+    "purchase_id",
+    "purchases",
+    "purchase_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "system_alerts": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "tax_rules": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tax_id",
+    "taxes",
+    "tax_id"
+   ],
+   [
+    "category_id",
+    "categories",
+    "category_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tax_id",
+    "taxes",
+    "tax_id"
+   ],
+   [
+    "category_id",
+    "categories",
+    "category_id"
+   ],
+   [
+    "product_id",
+    "products",
+    "product_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ]
+  ],
+  "taxes": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "tenant_gateway_credentials": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "tenant_invoices": [
+   [
+    "subscription_id",
+    "tenant_subscriptions",
+    "subscription_id"
+   ],
+   [
+    "subscription_period_id",
+    "tenant_subscription_periods",
+    "subscription_period_id"
+   ]
+  ],
+  "tenant_payments": [
+   [
+    "invoice_id",
+    "tenant_invoices",
+    "invoice_id"
+   ]
+  ],
+  "tenant_settings": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "tenant_subscription_events": [
+   [
+    "subscription_id",
+    "tenant_subscriptions",
+    "subscription_id"
+   ]
+  ],
+  "tenant_subscription_periods": [
+   [
+    "subscription_id",
+    "tenant_subscriptions",
+    "subscription_id"
+   ]
+  ],
+  "tenant_subscriptions": [
+   [
+    "plan_id",
+    "billing_plans",
+    "plan_id"
+   ],
+   [
+    "plan_price_id",
+    "billing_plan_prices",
+    "plan_price_id"
+   ]
+  ],
+  "third_parties": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "transfer_requests": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "from_location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "to_location_id",
+    "locations",
+    "location_id"
+   ],
+   [
+    "variant_id",
+    "product_variants",
+    "variant_id"
+   ],
+   [
+    "created_by",
+    "users",
+    "user_id"
+   ],
+   [
+    "received_by",
+    "users",
+    "user_id"
+   ]
+  ],
+  "units_of_measure": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ],
+  "user_roles": [
+   [
+    "user_id",
+    "users",
+    "user_id"
+   ],
+   [
+    "role_id",
+    "roles",
+    "role_id"
+   ],
+   [
+    "user_id",
+    "users",
+    "user_id"
+   ],
+   [
+    "role_id",
+    "roles",
+    "role_id"
+   ]
+  ],
+  "users": [
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ],
+   [
+    "tenant_id",
+    "tenants",
+    "tenant_id"
+   ]
+  ]
+ }
+}

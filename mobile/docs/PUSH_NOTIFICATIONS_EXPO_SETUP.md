@@ -99,7 +99,7 @@ Archivo que debes colocar localmente:
 - `./google-services.json`
 
 Pasos:
-1. Crear o seleccionar tu app Android en Firebase con package `com.juan.d.ricardo.t.app`.
+1. Crear o seleccionar tu app Android en Firebase con package `com.ofirone.app`.
 2. Descargar `google-services.json`.
 3. Guardarlo en la raiz del proyecto como `google-services.json`.
 4. Recompilar con `npx expo run:android` o con EAS Build.
@@ -130,7 +130,7 @@ Si las notificaciones llegan a la campanita interna pero no a la barra del movil
 
 1. La app debe estar instalada como `dev build` o build nativa; no probar este flujo en Expo Go.
 2. Verificar permiso del sistema operativo para notificaciones en el dispositivo.
-3. Confirmar que existe `google-services.json` correcto para `com.juan.d.ricardo.t.app`.
+3. Confirmar que existe `google-services.json` correcto para `com.ofirone.app`.
 4. Confirmar que la credencial FCM V1 del proyecto Firebase fue cargada en `FIREBASE_SERVICE_ACCOUNT_JSON` en Supabase.
 5. Confirmar que `push-dispatcher` esta desplegada y que el cron `poslite_push_dispatcher_every_minute` esta activo.
 6. Revisar cola y errores en Supabase:

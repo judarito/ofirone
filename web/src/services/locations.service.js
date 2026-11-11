@@ -2,6 +2,8 @@ import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
 import tenantBillingService from './tenantBilling.service'
 import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
+import { backendLocations } from './backendReferenceLocationsClient'
+const USE_BACKEND_MASTERS = import.meta.env.VITE_USE_BACKEND_MASTERS === 'true'
 
 const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000
 
@@ -14,6 +16,13 @@ class LocationsService {
   async getLocations(tenantId, page = 1, pageSize = 10, search = '') {
     try {
       const normalizedSearch = String(search || '').trim().toLowerCase()
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendLocations.list({ limit: Math.min(pageSize, 100) })
+        const data = (result?.items || [])
+          .map(item => ({ ...item, location_id: item.location_id || item.id }))
+          .filter(item => !normalizedSearch || `${item.name} ${item.code} ${item.address || ''}`.toLowerCase().includes(normalizedSearch))
+        return { success: true, data, total: data.length }
+      }
       return await queryCache.getOrLoad(
         `locations:list:${JSON.stringify({ page, pageSize, search: normalizedSearch })}`,
         async () => {
@@ -63,6 +72,7 @@ class LocationsService {
   // Crear sede
   async createLocation(tenantId, location) {
     try {
+      if (USE_BACKEND_MASTERS) { const data=await backendLocations.create({id:crypto.randomUUID(),code:location.code||`LOC-${Date.now()}`,name:location.name,address:location.address||null,is_active:location.is_active!==false}); return {success:true,data} }
       if (location.is_active !== false) {
         const limitAccess = await tenantBillingService.ensurePlanLimit(
           tenantId,
@@ -96,6 +106,7 @@ class LocationsService {
   // Actualizar sede
   async updateLocation(tenantId, locationId, updates) {
     try {
+      if (USE_BACKEND_MASTERS) { const data=await backendLocations.update(locationId,{code:updates.code,name:updates.name,address:updates.address||null,is_active:updates.is_active!==false}); return {success:true,data} }
       const updateData = {
         name: updates.name,
         type: updates.type || 'STORE',
@@ -126,6 +137,7 @@ class LocationsService {
   // Eliminar sede
   async deleteLocation(tenantId, locationId) {
     try {
+      if (USE_BACKEND_MASTERS) { await backendLocations.deactivate(locationId); return {success:true} }
       const { error } = await supabaseService.delete(this.table, {
         tenant_id: tenantId,
         location_id: locationId
@@ -145,6 +157,13 @@ class LocationsService {
   // Obtener todas las sedes activas (sin paginación)
   async getActiveLocations(tenantId) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendLocations.list({ limit: 100 })
+        return {
+          success: true,
+          data: (result?.items || []).filter(location => location.is_active !== false)
+        }
+      }
       return await queryCache.getOrLoad(
         'locations:active',
         async () => {

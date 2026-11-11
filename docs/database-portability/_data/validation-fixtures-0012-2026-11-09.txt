@@ -1,0 +1,4 @@
+Fixtures SQL — validación
+base=ofirone_fixtures_20261109_211251
+migraciones=12 tablas=38 tenants=2 sales=1 layaway=1
+RESULTADO: PASS (fixtures aplicados y consistentes)

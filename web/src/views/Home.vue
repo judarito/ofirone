@@ -353,6 +353,7 @@ import { formatMoney } from '@/utils/formatters'
 import { getCashSessionState } from '../../../shared/utils/cashSessionUtils'
 
 const apexchart = VueApexCharts
+const USE_GO_MVP = import.meta.env.VITE_USE_BACKEND_POS_CONTEXT === 'true'
 
 const router = useRouter()
 const { t } = useI18n()

@@ -1,0 +1,4 @@
+Ejecución contrato N pendiente (N9/N10/N16/N17/N18/N19)
+base=ofirone_ncases_20261109_215626
+[PASS] script ejecutado completo (DDL + pruebas + rollback)
+objetos propuestos tras rollback: 0 tablas/vistas, 0 funciones

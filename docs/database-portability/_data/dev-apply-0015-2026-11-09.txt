@@ -1,0 +1,11 @@
+Aplicación 0015 en DEV
+fecha=2026-11-09T22:34:48.252240+00:00
+checksum=14b83b20896fcfdd2dd924114a20a4cd26cae2e93fce9c5f11679c37d13aef9e
+ledger_antes=14
+filas_antes=[0, 0, 0]
+[PASS] up + ledger 15 en una transacción
+tablas_caja=['cash_movements', 'cash_session_counts', 'cash_sessions']
+sales.cash_session_id=1
+ledger15=[[15, '0015_cash_sessions.up.sql', False, '14b83b20896fcfdd2dd924114a20a4cd26cae2e93fce9c5f11679c37d13aef9e']]
+filas_despues=[0, 0, 0]
+RESULTADO: PASS

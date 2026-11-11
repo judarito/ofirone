@@ -1,5 +1,7 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import { backendPaymentMethods } from './backendReferenceLocationsClient'
+const USE_BACKEND_MASTERS = import.meta.env.VITE_USE_BACKEND_MASTERS === 'true'
 
 const PAYMENT_METHODS_CACHE_TTL_MS = 10 * 60 * 1000
 
@@ -12,6 +14,14 @@ class PaymentMethodsService {
   async getPaymentMethods(tenantId, page = 1, pageSize = 10, search = '', options = {}) {
     try {
       const normalizedSearch = String(search || '').trim().toLowerCase()
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendPaymentMethods.list({ limit: Math.min(pageSize, 100) })
+        let data = result?.items || []
+        if (options.activeOnly) data = data.filter(item => item.is_active)
+        if (normalizedSearch) data = data.filter(item => `${item.name} ${item.code}`.toLowerCase().includes(normalizedSearch))
+        if (options.excludeCodes) data = data.filter(item => !options.excludeCodes.includes(item.code))
+        return { success: true, data, total: data.length }
+      }
       const cacheParams = {
         page,
         pageSize,
@@ -89,6 +99,7 @@ class PaymentMethodsService {
   // Crear método de pago
   async createPaymentMethod(tenantId, paymentMethod) {
     try {
+      if (USE_BACKEND_MASTERS) { const data=await backendPaymentMethods.create({id:crypto.randomUUID(),code:paymentMethod.code.toUpperCase(),name:paymentMethod.name,method_type:paymentMethod.method_type||'other',is_active:paymentMethod.is_active!==false,sort_order:paymentMethod.sort_order||0}); return {success:true,data} }
       const { data, error } = await supabaseService.insert(this.table, {
         tenant_id: tenantId,
         code: paymentMethod.code.toUpperCase(),
@@ -110,6 +121,7 @@ class PaymentMethodsService {
   // Actualizar método de pago
   async updatePaymentMethod(tenantId, paymentMethodId, updates) {
     try {
+      if (USE_BACKEND_MASTERS) { const data=await backendPaymentMethods.update(paymentMethodId,{code:updates.code?.toUpperCase(),name:updates.name,method_type:updates.method_type||'other',is_active:updates.is_active!==false,sort_order:updates.sort_order||0}); return {success:true,data} }
       const updateData = {
         name: updates.name,
         is_active: updates.is_active,
@@ -142,6 +154,7 @@ class PaymentMethodsService {
   // Eliminar método de pago
   async deletePaymentMethod(tenantId, paymentMethodId) {
     try {
+      if (USE_BACKEND_MASTERS) { await backendPaymentMethods.deactivate(paymentMethodId); return {success:true} }
       const { error } = await supabaseService.delete(this.table, {
         tenant_id: tenantId,
         payment_method_id: paymentMethodId

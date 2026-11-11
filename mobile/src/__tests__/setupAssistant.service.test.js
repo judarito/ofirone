@@ -77,7 +77,7 @@ describe('setupAssistant.service', () => {
 
     expect(overall.totalProcesses).toBeGreaterThan(0);
     expect(overall.nextAction).toBeTruthy();
-    expect(overall.nextAction.processTitle).toBe('Vender');
-    expect(overall.nextAction.screen).toBe('TenantConfig');
+    expect(overall.nextAction.processTitle).toBe('Controlar inventario');
+    expect(overall.nextAction.screen).toBe('Products');
   });
 });

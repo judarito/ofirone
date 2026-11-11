@@ -4,6 +4,9 @@ import { serviceErrorResult } from '@/utils/appErrors'
 import tenantBillingService from './tenantBilling.service'
 import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
 import { attachProductMediaSummary } from './productMedia.service'
+import { searchBackendVariants, listBackendVariants } from './backendDomainClient'
+import { listBackendProducts, createBackendProduct, updateBackendProduct, deleteBackendProduct, createBackendVariant, updateBackendVariant, deleteBackendVariant } from './backendCatalogClient'
+const USE_BACKEND_CATALOG = import.meta.env.VITE_USE_BACKEND_CATALOG === 'true'
 
 const VARIANT_SEARCH_TTL_MS = 45 * 1000
 const ACTIVE_VARIANTS_TTL_MS = 2 * 60 * 1000
@@ -86,6 +89,21 @@ class ProductsService {
 
   async getProducts(tenantId, page = 1, pageSize = 10, search = '', filters = {}) {
     try {
+      if (USE_BACKEND_CATALOG) {
+        const result = await listBackendProducts({ limit: Math.min(pageSize, 100), search })
+        const items = (result?.items || result?.Items || []).map(item => ({
+          ...item,
+          product_id: item.product_id || item.id || item.ID,
+          name: item.name || item.Name,
+          code: item.code || item.Code,
+          is_active: item.is_active ?? item.active ?? item.Active,
+          active: item.active ?? item.Active ?? item.is_active,
+          product_type: item.product_type || item.ProductType || 'stocked',
+          is_component: item.is_component ?? false,
+          product_variants: item.product_variants || []
+        })).filter(item => filters.is_component === undefined || Boolean(item.is_component) === Boolean(filters.is_component))
+        return { success: true, data: items, total: result?.total ?? result?.Total ?? items.length }
+      }
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
 
@@ -207,6 +225,15 @@ class ProductsService {
 
   async createProduct(tenantId, product) {
     try {
+      if (USE_BACKEND_CATALOG) {
+        const productId = crypto.randomUUID()
+        const code = product.code || `P-${Date.now()}`
+        const data = await createBackendProduct({ id: productId, code, name: product.name, product_type: product.product_type || 'stocked', active: product.is_active !== false })
+        // A sellable product must have one variant. The legacy UI allowed an
+        // empty product, which made POS variant search return no rows.
+        await createBackendVariant({ id: crypto.randomUUID(), product_id: productId, sku: code, name: 'Predeterminado', cost: Number(product.cost || 0), sale_price: Number(product.price || 0), active: true })
+        return { success: true, data }
+      }
       if (product.is_active !== false) {
         const limitAccess = await tenantBillingService.ensurePlanLimit(
           tenantId,
@@ -255,6 +282,7 @@ class ProductsService {
 
   async updateProduct(tenantId, productId, updates) {
     try {
+      if (USE_BACKEND_CATALOG) { const data=await updateBackendProduct(productId,{code:updates.code||'',name:updates.name,product_type:updates.product_type||'stocked',active:updates.is_active!==false}); return {success:true,data} }
       const { data, error } = await supabaseService.update(this.table, {
         name: updates.name,
         description: updates.description || null,
@@ -296,6 +324,7 @@ class ProductsService {
 
   async deleteProduct(tenantId, productId) {
     try {
+      if (USE_BACKEND_CATALOG) { const data=await deleteBackendProduct(productId); return {success:true,data} }
       const { error } = await supabaseService.delete(this.table, {
         tenant_id: tenantId, product_id: productId
       })
@@ -311,6 +340,7 @@ class ProductsService {
   // ---- Variantes ----
   async createVariant(tenantId, variant) {
     try {
+      if (USE_BACKEND_CATALOG) { const data=await createBackendVariant({id:crypto.randomUUID(),product_id:variant.product_id,sku:variant.sku,name:variant.variant_name||variant.name||'Predeterminado',cost:Number(variant.cost||0),sale_price:Number(variant.price||variant.sale_price||0),active:variant.is_active!==false}); return {success:true,data} }
       const { data, error } = await supabaseService.insert(this.variantsTable, {
         tenant_id: tenantId,
         product_id: variant.product_id,
@@ -339,6 +369,7 @@ class ProductsService {
 
   async updateVariant(tenantId, variantId, updates) {
     try {
+      if (USE_BACKEND_CATALOG) { const data=await updateBackendVariant(variantId,{product_id:updates.product_id,sku:updates.sku,name:updates.variant_name||updates.name||'Predeterminado',cost:Number(updates.cost||0),sale_price:Number(updates.price||updates.sale_price||0),active:updates.is_active!==false}); return {success:true,data} }
       const { data, error } = await supabaseService.update(this.variantsTable, {
         sku: updates.sku,
         variant_name: updates.variant_name || null,
@@ -365,6 +396,7 @@ class ProductsService {
 
   async deleteVariant(tenantId, variantId) {
     try {
+      if (USE_BACKEND_CATALOG) { const data=await deleteBackendVariant(variantId); return {success:true,data} }
       const { error } = await supabaseService.delete(this.variantsTable, {
         tenant_id: tenantId, variant_id: variantId
       })
@@ -433,8 +465,34 @@ class ProductsService {
   async searchVariants(tenantId, search, limit = 20, locationId = null, options = {}) {
     try {
       const normalizedSearch = String(search || '').trim()
-      if (!tenantId || !normalizedSearch) {
-        return { success: true, data: [] }
+      if (!tenantId) return { success: true, data: [] }
+      if (USE_BACKEND_CATALOG) {
+        const result = normalizedSearch
+          ? await searchBackendVariants(normalizedSearch, { limit, locationId })
+          : await listBackendVariants({ limit })
+        let rows = result.items || []
+        if (!rows.length) {
+          const products = await listBackendProducts({ limit: 100 })
+          const matches = (products.items || []).filter(product => `${product.name || product.Name || ''} ${product.code || product.Code || ''}`.toLowerCase().includes(normalizedSearch.toLowerCase()))
+          for (const product of matches) {
+            const productId = product.id || product.ID || product.product_id
+            const code = product.code || product.Code || `P-${productId.slice(0, 8)}`
+            try {
+              rows.push(await createBackendVariant({ id: crypto.randomUUID(), product_id: productId, sku: code, name: 'Predeterminado', cost: 0, sale_price: 0, active: true }))
+            } catch (_) { /* variant may already exist */ }
+          }
+        }
+        return { success: true, data: rows.map(v => ({
+          ...v,
+          variant_id: v.variant_id || v.id || v.ID,
+          variant_name: v.variant_name || v.name || v.Name,
+          sku: v.sku || v.SKU,
+          price: v.price ?? v.sale_price ?? v.SalePrice,
+          cost: v.cost ?? v.Cost ?? 0,
+          stock_on_hand: v.stock_on_hand ?? v.StockOnHand ?? 0,
+          stock_available: v.stock_available ?? v.StockAvailable ?? v.stock_on_hand ?? v.StockOnHand ?? 0,
+          product: { product_id: v.product_id || v.ProductID, name: v.product_name || v.ProductName || v.product?.name || '' }
+        })) }
       }
 
       const includeStock = options.includeStock !== false

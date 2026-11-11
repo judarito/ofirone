@@ -1,0 +1,15 @@
+EXT-28 — Stock general paginado
+fecha=2026-11-10
+
+Implementado:
+- GET /api/v1/inventory/stock-balances (location_id/variant_id opcionales)
+- inventory.ListStock + StockStore + PGStore.ListStock
+- keyset (updated_at, location_id:variant_id), límite 1..100
+- respuesta {items, has_more, next_updated_at, next_id}
+- adaptador web listBackendStockBalances ya apuntaba a esta ruta
+
+Tests:
+- go test ./internal/inventory ./internal/httpapi: PASS
+- casos HTTP: 200 sin filtros, 200 con location_id, 400 limit, 400 cursor incompleto, 401.
+
+Pendiente: prueba E2E contra base desechable (EXT-31).

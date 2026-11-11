@@ -1,0 +1,6 @@
+Validación ADR-011 identity_credentials auth
+base=ofirone_adr011_20261110_013134
+[PASS] auth lee credenciales de ambos tenants para login (2)
+[PASS] auth no puede INSERTAR: SQLSTATE 42501
+[PASS] auth no puede ACTUALIZAR: SQLSTATE 42501
+[PASS] API no ve credenciales (filas=0)

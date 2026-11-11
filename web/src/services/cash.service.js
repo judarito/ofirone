@@ -2,6 +2,9 @@ import supabaseService from './supabase.service'
 import { serviceErrorResult } from '@/utils/appErrors'
 import tenantBillingService from './tenantBilling.service'
 import { BILLING_LIMIT_CODES } from '../../../shared/utils/billingAccess'
+import { getBackendSession } from './backendAuthClient'
+import { backendLocations } from './backendReferenceLocationsClient'
+const USE_BACKEND_CASH = import.meta.env.VITE_USE_BACKEND_POS_CONTEXT === 'true'
 
 class CashService {
   constructor() {
@@ -35,6 +38,17 @@ class CashService {
 
   async getAllCashRegisters(tenantId, locationId = null) {
     try {
+      if (USE_BACKEND_CASH) {
+        const result = await backendLocations.list({ limit: 100 })
+        let data = (result?.items || []).filter(item => item.is_active !== false)
+        if (locationId) data = data.filter(item => item.location_id === locationId || item.id === locationId)
+        return { success: true, data: data.map(item => ({
+          cash_register_id: item.location_id || item.id,
+          name: item.name,
+          location_id: item.location_id || item.id,
+          location: { name: item.name, location_id: item.location_id || item.id }
+        })), total: data.length }
+      }
       let query = supabaseService.client
         .from(this.registersTable)
         .select('cash_register_id, name, location_id, location:location_id(name)')
@@ -110,6 +124,15 @@ class CashService {
   // ---- Sesiones de caja ----
   async getCashSessions(tenantId, page = 1, pageSize = 10, search = '', status = null) {
     try {
+      if (USE_BACKEND_CASH) {
+        const token = getBackendSession()?.accessToken
+        const base = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+        const query = new URLSearchParams({ limit: String(Math.min(pageSize, 100)) })
+        if (typeof page === 'object' && page?.sessionId) query.set('session_id', page.sessionId)
+        const response = await fetch(`${base}/api/v1/cash-sessions?${query}`, { headers: { accept: 'application/json', authorization: `Bearer ${token}` } })
+        const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.message || `Backend respondió ${response.status}`)
+        return { success: true, data: payload.items || [], total: (payload.items || []).length }
+      }
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
 
@@ -137,6 +160,14 @@ class CashService {
 
   async getOpenSession(tenantId, cashRegisterId) {
     try {
+      if (USE_BACKEND_CASH) {
+        const token = getBackendSession()?.accessToken
+        const base = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+        const query = new URLSearchParams({ location_id: cashRegisterId })
+        const response = await fetch(`${base}/api/v1/cash-sessions?${query}`, { headers: { accept: 'application/json', authorization: `Bearer ${token}` } })
+        const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.message || `Backend respondió ${response.status}`)
+        return { success: true, data: payload.items?.[0] || null }
+      }
       const { data, error } = await supabaseService.client
         .from(this.sessionsTable)
         .select('*')
@@ -247,6 +278,14 @@ class CashService {
   // Retorna sesiones OPEN que llevan más de hoursThreshold horas abiertas
   async getExpiredSessions(tenantId, hoursThreshold = 24) {
     try {
+      if (USE_BACKEND_CASH) {
+        const token = getBackendSession()?.accessToken
+        const base = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+        const response = await fetch(`${base}/api/v1/cash-sessions/expired?hours=${hoursThreshold}`, { headers: { accept: 'application/json', authorization: `Bearer ${token}` } })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload?.message || `Backend respondió ${response.status}`)
+        return { success: true, data: payload.items || [] }
+      }
       const cutoff = new Date(Date.now() - hoursThreshold * 3600 * 1000).toISOString()
       const { data, error } = await supabaseService.client
         .from(this.sessionsTable)

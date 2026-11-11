@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const invokeMock = vi.fn()
-const ensureFeatureAccessMock = vi.fn()
+const { invokeMock, ensureFeatureAccessMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  ensureFeatureAccessMock: vi.fn(),
+}))
 
 vi.mock('@/services/supabase.service', () => ({
   default: {

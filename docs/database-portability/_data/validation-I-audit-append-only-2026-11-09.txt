@@ -1,0 +1,5 @@
+Slice I — auditoría append-only
+base=ofirone_i_20261110_014213
+[PASS] RLS: A sólo ve su evento (1)
+[PASS] UPDATE rechazado: 23514
+[PASS] DELETE rechazado: 23514

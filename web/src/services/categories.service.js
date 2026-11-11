@@ -1,5 +1,12 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import { getBackendSession } from './backendAuthClient'
+const USE_BACKEND_MASTERS = import.meta.env.VITE_USE_BACKEND_MASTERS === 'true'
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+async function backendCategory(path = '', options = {}) {
+  const r = await fetch(`${BACKEND}/api/v1/categories${path}`, { ...options, headers: { accept: 'application/json', 'content-type': 'application/json', authorization: `Bearer ${getBackendSession()?.accessToken}`, ...(options.headers || {}) } })
+  const body = await r.json().catch(() => ({})); if (!r.ok) throw new Error(body?.message || `Backend respondió ${r.status}`); return body
+}
 
 const CATEGORIES_CACHE_TTL_MS = 10 * 60 * 1000
 
@@ -10,6 +17,11 @@ class CategoriesService {
 
   async getCategories(tenantId, page = 1, pageSize = 10, search = '') {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const q = new URLSearchParams({ limit: String(Math.min(pageSize, 100)) }); if (search) q.set('search', search)
+        const result = await backendCategory(`?${q}`)
+        return { success: true, data: (result.items || []).map(x => ({ ...x, category_id: x.id, parent_category_id: x.parent_category_id || null, parent: null })), total: (result.items || []).length }
+      }
       const normalizedSearch = String(search || '').trim().toLowerCase()
       return await queryCache.getOrLoad(
         `categories:list:${JSON.stringify({ page, pageSize, search: normalizedSearch })}`,
@@ -49,6 +61,10 @@ class CategoriesService {
 
   async getAllCategories(tenantId) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendCategory('?limit=100')
+        return { success: true, data: (result.items || []).map(x => ({ ...x, category_id: x.id, parent_category_id: x.parent_category_id || null })) }
+      }
       return await queryCache.getOrLoad(
         'categories:all',
         async () => {
@@ -115,6 +131,7 @@ class CategoriesService {
 
   async createCategory(tenantId, category) {
     try {
+      if (USE_BACKEND_MASTERS) { const data = await backendCategory('', { method: 'POST', body: JSON.stringify({ code: category.code || category.name.toLowerCase().replace(/\s+/g, '-').slice(0, 100), name: category.name, parent_category_id: category.parent_category_id || null }) }); return { success: true, data } }
       const { data, error } = await supabaseService.insert(this.table, {
         tenant_id: tenantId,
         name: category.name,
@@ -130,6 +147,7 @@ class CategoriesService {
 
   async updateCategory(tenantId, categoryId, updates) {
     try {
+      if (USE_BACKEND_MASTERS) { const data = await backendCategory(`/${categoryId}`, { method: 'PATCH', body: JSON.stringify({ name: updates.name, parent_category_id: updates.parent_category_id || null }) }); return { success: true, data } }
       const { data, error } = await supabaseService.update(this.table, {
         name: updates.name,
         parent_category_id: updates.parent_category_id || null
@@ -144,6 +162,7 @@ class CategoriesService {
 
   async deleteCategory(tenantId, categoryId) {
     try {
+      if (USE_BACKEND_MASTERS) { await backendCategory(`/${categoryId}`, { method: 'DELETE' }); return { success: true } }
       const { error } = await supabaseService.delete(this.table, {
         tenant_id: tenantId, category_id: categoryId
       })

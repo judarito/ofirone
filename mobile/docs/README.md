@@ -39,6 +39,12 @@ Este directorio contiene la documentación del sistema POS Lite.
 - Carga masiva por foto OCR + IA:
   - `/docs/PHOTO_PRODUCT_IMPORT_IA.md`
 
+## Flags seguros
+
+- `EXPO_PUBLIC_AI_TELEMETRY_REMOTE_ENABLED=false` mantiene la telemetría IA solo local.
+- Actívalo en `true` únicamente cuando las migraciones de `ai_telemetry_events` y sus funciones RPC estén aplicadas en Supabase.
+- Los flujos operativos deben seguir funcionando aunque este flag no exista.
+
 ## 📘 Manual de Usuario
 
 El manual de usuario completo está disponible en dos ubicaciones:

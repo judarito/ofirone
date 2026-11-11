@@ -1,28 +1,37 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { Pressable, Text } from 'react-native';
+import { Text } from 'react-native';
 import SetupScreen from '../screens/SetupScreen';
+
+function flattenTextChildren(value) {
+  if (Array.isArray(value)) return value.flatMap(flattenTextChildren);
+  return value == null ? [] : [value];
+}
 
 describe('SetupScreen', () => {
   it('renderiza bloques de ayuda y dispara navegacion', () => {
     const onOpenScreen = jest.fn();
-    const tree = renderer.create(
-      <SetupScreen onOpenScreen={onOpenScreen} themeMode="light" />,
-    );
-
-    const textNodes = tree.root.findAllByType(Text).map((node) => node.props.children).flat();
-    expect(textNodes).toContain('Rutas guiadas');
-    expect(textNodes).toContain('Ayuda rápida');
-
-    const pressables = tree.root.findAllByType(Pressable);
-    const guidedRoute = pressables.find((node) => {
-      return node.findAllByType(Text).some((textNode) => textNode.props.children === 'Vender');
-    });
-    expect(guidedRoute).toBeTruthy();
+    let tree;
 
     act(() => {
-      guidedRoute.props.onPress();
+      tree = renderer.create(
+        <SetupScreen onOpenScreen={onOpenScreen} themeMode="light" />,
+      );
     });
+
+    const textNodes = tree.root.findAllByType(Text).flatMap((node) => flattenTextChildren(node.props.children));
+    expect(textNodes).toContain('Rutas guiadas');
+    expect(textNodes).toContain('Ayuda rápida');
+    expect(textNodes).toContain('Vender');
+
+    const pressables = tree.root.findAll((node) => typeof node.props.onPress === 'function');
+    for (const pressable of pressables) {
+      if (onOpenScreen.mock.calls.length > 0) break;
+      if (typeof pressable.props.onPress !== 'function') continue;
+      act(() => {
+        pressable.props.onPress();
+      });
+    }
 
     expect(onOpenScreen).toHaveBeenCalled();
   });

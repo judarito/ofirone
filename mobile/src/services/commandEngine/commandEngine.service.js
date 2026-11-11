@@ -4,6 +4,7 @@ import { parseSaleCommandWithLocalLlm } from './localLlm.service';
 import { parseDeterministicSaleCommand } from './deterministicParser.service';
 import { recordCommandEngineMetric, recordCommandEngineResolutionSource } from './metrics.service';
 import { hashNormalizedText, normalizeCommandText } from './normalize.service';
+import { recordCommandResolutionTelemetry } from './telemetry.service';
 
 function buildEngineMeta({
   source,
@@ -81,6 +82,7 @@ async function recordResolutionMetric({
 
 export async function resolveSaleCommandFromText({
   tenantId,
+  userId = null,
   inputText,
   inputType = 'text',
   cacheInputType = null,
@@ -151,6 +153,20 @@ export async function resolveSaleCommandFromText({
         inputType,
         cacheCrossInput: effectiveCacheInputType !== inputType,
       });
+      await recordCommandResolutionTelemetry({
+        tenantId,
+        userId,
+        feature: 'command_engine_sale',
+        inputType,
+        text,
+        result,
+        source: 'local_cache',
+        startedAtMs,
+        success: true,
+        cacheHit: true,
+        model: result?.model || null,
+        fallback: result?.engine?.fallback_chain?.join('>') || null,
+      });
       return {
         success: true,
         data: result,
@@ -196,6 +212,20 @@ export async function resolveSaleCommandFromText({
         tenantId,
         source: 'deterministic_parser',
         inputType,
+      });
+      await recordCommandResolutionTelemetry({
+        tenantId,
+        userId,
+        feature: 'command_engine_sale',
+        inputType,
+        text,
+        result,
+        source: 'deterministic_parser',
+        startedAtMs,
+        success: true,
+        cacheHit: false,
+        model: result?.model || null,
+        fallback: result?.engine?.fallback_chain?.join('>') || null,
       });
       return { success: true, data: result };
     }
@@ -246,6 +276,20 @@ export async function resolveSaleCommandFromText({
         source: 'local_llm',
         inputType,
       });
+      await recordCommandResolutionTelemetry({
+        tenantId,
+        userId,
+        feature: 'command_engine_sale',
+        inputType,
+        text,
+        result,
+        source: 'local_llm',
+        startedAtMs,
+        success: true,
+        cacheHit: false,
+        model: result?.model || 'local-llm',
+        fallback: result?.engine?.fallback_chain?.join('>') || null,
+      });
       return { success: true, data: result };
     }
     await recordLayerMetric({
@@ -268,6 +312,18 @@ export async function resolveSaleCommandFromText({
       cacheHit: false,
       startedAtMs,
     });
+    await recordCommandResolutionTelemetry({
+      tenantId,
+      userId,
+      feature: 'command_engine_sale',
+      inputType,
+      text,
+      source: 'unknown',
+      startedAtMs,
+      success: false,
+      error: `Sin conexión: parser local no pudo interpretar el comando.${localHint}`,
+      fallback: 'offline_no_match',
+    });
     return {
       success: false,
       error: `Sin conexión: parser local no pudo interpretar el comando.${localHint}`,
@@ -287,6 +343,18 @@ export async function resolveSaleCommandFromText({
       success: false,
       cacheHit: false,
       startedAtMs,
+    });
+    await recordCommandResolutionTelemetry({
+      tenantId,
+      userId,
+      feature: 'command_engine_sale',
+      inputType,
+      text,
+      source: 'cloud_llm',
+      startedAtMs,
+      success: false,
+      error: cloud.error || 'No fue posible interpretar comando con IA cloud.',
+      fallback: fallbackChain.join('>') || null,
     });
     return { success: false, error: cloud.error || 'No fue posible interpretar comando con IA cloud.' };
   }
@@ -319,6 +387,20 @@ export async function resolveSaleCommandFromText({
     tenantId,
     source: 'cloud_llm',
     inputType,
+  });
+  await recordCommandResolutionTelemetry({
+    tenantId,
+    userId,
+    feature: 'command_engine_sale',
+    inputType,
+    text,
+    result: cloudResult,
+    source: 'cloud_llm',
+    startedAtMs,
+    success: true,
+    cacheHit: Boolean(cloud?.data?.cache_hit),
+    model: cloudResult?.model || null,
+    fallback: cloudResult?.engine?.fallback_chain?.join('>') || null,
   });
 
   return {

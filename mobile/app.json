@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.juan.d.ricardo.t.app",
+      "bundleIdentifier": "com.ofirone.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "OfirOne necesita acceso al microfono para procesar comandos de voz."
       }
@@ -24,7 +24,7 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "package": "com.juan.d.ricardo.t.app",
+      "package": "com.ofirone.app",
       "permissions": [
         "POST_NOTIFICATIONS",
         "RECORD_AUDIO"

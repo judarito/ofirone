@@ -1,0 +1,14 @@
+[PASS] P1 compra: recepción parcial 4/10: ['partially_received', Decimal('4.000000')]
+[PASS] P1 compra: recepción completa 10/10: ['received', Decimal('10.000000')]
+[PASS] P1 compra: recibir más de lo pedido rechazado: SQLSTATE 23514
+[PASS] P1 compra: estado inválido rechazado: SQLSTATE 23514
+[PASS] P1 compra: transición received→draft: rechazada (23514)
+[PASS] P1 apartado: abono 40, saldo 60: [Decimal('40.000000'), Decimal('60.000000')]
+[PASS] P1 apartado: cierre pagado: 
+[PASS] P1 apartado: sobrepago rechazado: SQLSTATE 23514
+[PASS] P1 apartado→venta: existe enlace
+[PASS] P1 aging CxP: 0-30=50 y 31-60=70: {'0-30': 50, '31-60': 70}
+[HALLAZGO] P1 CxP: pago que excede el saldo: aceptado: falta control de sobrepago
+Base temporal eliminada: ofirone_p1_20261110_020158
+
+RESULTADO: PASS=10 FAIL=0 BLOQ-P1=0 HALLAZGO=1

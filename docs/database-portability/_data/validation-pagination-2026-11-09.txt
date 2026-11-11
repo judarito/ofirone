@@ -1,0 +1,38 @@
+Migraciones aplicadas: 23; filas por listado: 130
+[PASS] Keyset productos: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset productos: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset ventas: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset ventas: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset compras: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset compras: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset movimientos: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset movimientos: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset clientes: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset clientes: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset terceros: 131 filas sin duplicados: filas=131 páginas=8
+[PASS] Keyset terceros: sin omisiones: únicas=131 esperadas=131
+[PASS] Keyset variantes: 131 filas sin duplicados: filas=131 páginas=8
+[PASS] Keyset variantes: sin omisiones: únicas=131 esperadas=131
+[PASS] Keyset apartados: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset apartados: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset jobs: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset jobs: sin omisiones: únicas=130 esperadas=130
+[PASS] Keyset auditoría: 130 filas sin duplicados: filas=130 páginas=8
+[PASS] Keyset auditoría: sin omisiones: únicas=130 esperadas=130
+[PASS] Cursor repetido devuelve la misma página: filas=17
+[PASS] Cursor inválido rechazado: SQLSTATE 22P02
+[PASS] Límite máximo devuelve el conjunto completo: filas=130
+[PASS] Página vacía tras el último cursor: filas=0
+[PASS] Cambio concurrente aparece tras el cursor: filas_siguientes=130
+[PASS] EXPLAIN ventas: nodo=Limit, índice=sales_page_idx
+  plan ventas: [{"Plan": {"Node Type": "Limit", "Parallel Aware": false, "Async Capable": false, "Startup Cost": 0.4, "Total Cost": 3.26, "Plan Rows": 17, "Plan Width": 24, "Actual Startup Time": 0.04, "Actual Total Time": 0.055, "Actual Rows": 17.0, "Actual Loops": 1, "Disabled": false, "Shared Hit Blocks": 2, "Shared Read Blocks": 0, "Shared Dirtied Blocks": 0, "Shared Written Blocks": 0, "Local Hit Blocks": 0
+[PASS] EXPLAIN productos: nodo=Limit, índice=products_tenant_id_code_key
+  plan productos: [{"Plan": {"Node Type": "Limit", "Parallel Aware": false, "Async Capable": false, "Startup Cost": 23.32, "Total Cost": 23.36, "Plan Rows": 17, "Plan Width": 28, "Actual Startup Time": 0.103, "Actual Total Time": 0.105, "Actual Rows": 17.0, "Actual Loops": 1, "Disabled": false, "Shared Hit Blocks": 4, "Shared Read Blocks": 0, "Shared Dirtied Blocks": 0, "Shared Written Blocks": 0, "Local Hit Blocks
+[PASS] EXPLAIN clientes: nodo=Limit, índice=customers_page_idx
+  plan clientes: [{"Plan": {"Node Type": "Limit", "Parallel Aware": false, "Async Capable": false, "Startup Cost": 0.4, "Total Cost": 2.73, "Plan Rows": 17, "Plan Width": 24, "Actual Startup Time": 0.019, "Actual Total Time": 0.024, "Actual Rows": 17.0, "Actual Loops": 1, "Disabled": false, "Shared Hit Blocks": 2, "Shared Read Blocks": 0, "Shared Dirtied Blocks": 0, "Shared Written Blocks": 0, "Local Hit Blocks": 
+[PASS] EXPLAIN jobs: nodo=Limit, índice=async_jobs_tenant_page_idx
+  plan jobs: [{"Plan": {"Node Type": "Limit", "Parallel Aware": false, "Async Capable": false, "Startup Cost": 0.4, "Total Cost": 3.04, "Plan Rows": 17, "Plan Width": 24, "Actual Startup Time": 0.017, "Actual Total Time": 0.022, "Actual Rows": 17.0, "Actual Loops": 1, "Disabled": false, "Shared Hit Blocks": 2, "Shared Read Blocks": 0, "Shared Dirtied Blocks": 0, "Shared Written Blocks": 0, "Local Hit Blocks": 
+Base temporal eliminada: ofirone_pagination_20261110_041325
+Rol temporal eliminado: ofirone_pagination_actor
+
+RESULTADO GLOBAL: PASS (PASS=29, FAIL=0, BLOQ=0)

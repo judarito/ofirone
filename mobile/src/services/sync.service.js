@@ -6,49 +6,13 @@ import {
   resetStuckProcessingOps,
 } from '../storage/sqlite/database';
 import { createSale } from './pos.service';
-
-const MAX_RETRIES = 8;
-const RETRY_BASE_MS = 15000;
-const RETRY_MAX_MS = 15 * 60 * 1000;
-
-function toLowerText(value) {
-  return String(value || '').toLowerCase();
-}
-
-function isTaggedNoRetry(message) {
-  return String(message || '').startsWith('NO_RETRY:');
-}
-
-function isNonRetriableSyncError(message) {
-  const text = toLowerText(message);
-  return (
-    text.includes('stock insuficiente') ||
-    text.includes('insufficient stock') ||
-    (text.includes('disponible:') && text.includes('requerido:')) ||
-    text.includes('sp_create_sale_idempotent') ||
-    text.includes('does not exist')
-  );
-}
-
-function computeRetryDelayMs(retryCount) {
-  const count = Math.max(1, Number(retryCount || 1));
-  const multiplier = 2 ** Math.max(0, count - 1);
-  return Math.min(RETRY_BASE_MS * multiplier, RETRY_MAX_MS);
-}
-
-function parseIsoDateMs(value) {
-  const parsed = new Date(value || '').getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function shouldDeferRetry(op, nowMs) {
-  if (op?.status !== 'FAILED') return false;
-  const retries = Number(op?.retryCount || 0);
-  if (retries <= 0) return false;
-  const referenceMs = parseIsoDateMs(op?.updatedAt) || parseIsoDateMs(op?.createdAt);
-  if (!referenceMs) return false;
-  return nowMs - referenceMs < computeRetryDelayMs(retries);
-}
+import {
+  DEFAULT_SYNC_RETRY_POLICY,
+  isTaggedNoRetry,
+  resolveSyncFailureMessage,
+  shouldDeferRetry,
+  tagNoRetry,
+} from '../../../shared/sync/retryPolicy';
 
 // ─── Operation handlers ───────────────────────────────────────────────────────
 // Register a handler here to add support for a new op_type.
@@ -87,10 +51,16 @@ async function runSyncPendingOperations({ limit = 20, tenantId = null, userId = 
   const nowMs = Date.now();
 
   for (const op of pending) {
-    if (Number(op?.retryCount || 0) >= MAX_RETRIES && !isTaggedNoRetry(op?.lastError)) {
+    if (
+      Number(op?.retryCount || 0) >= DEFAULT_SYNC_RETRY_POLICY.maxRetries &&
+      !isTaggedNoRetry(op?.lastError)
+    ) {
       await markPendingOpFailed(
         op.opId,
-        `NO_RETRY:Se alcanzo el maximo de reintentos (${MAX_RETRIES}). Error previo: ${op.lastError || 'sin detalle'}`,
+        tagNoRetry(
+          `Se alcanzo el maximo de reintentos (${DEFAULT_SYNC_RETRY_POLICY.maxRetries}). Error previo: ${op.lastError || 'sin detalle'}`
+        ),
+        'MAX_RETRIES_REACHED'
       );
       failed += 1;
       continue;
@@ -103,7 +73,11 @@ async function runSyncPendingOperations({ limit = 20, tenantId = null, userId = 
 
     const handler = OP_HANDLERS[op.opType];
     if (!handler) {
-      await markPendingOpFailed(op.opId, `NO_RETRY:Tipo de operacion no soportado: ${op.opType}`);
+      await markPendingOpFailed(
+        op.opId,
+        `NO_RETRY:Tipo de operacion no soportado: ${op.opType}`,
+        'UNSUPPORTED_OP_TYPE'
+      );
       failed += 1;
       continue;
     }
@@ -114,13 +88,8 @@ async function runSyncPendingOperations({ limit = 20, tenantId = null, userId = 
       await markPendingOpDone(op.opId);
       processed += 1;
     } catch (error) {
-      const baseMessage = error?.message || 'Error de sincronizacion';
       const nextRetryCount = Number(op?.retryCount || 0) + 1;
-      const shouldStopRetrying = isNonRetriableSyncError(baseMessage) || nextRetryCount >= MAX_RETRIES;
-      const taggedMessage = shouldStopRetrying
-        ? `NO_RETRY:${baseMessage}`
-        : baseMessage;
-      await markPendingOpFailed(op.opId, taggedMessage);
+      await markPendingOpFailed(op.opId, resolveSyncFailureMessage(error, { nextRetryCount }));
       failed += 1;
     }
   }
@@ -139,10 +108,9 @@ export async function syncPendingOperations(options = {}) {
     return activeSyncPromise;
   }
 
-  activeSyncPromise = runSyncPendingOperations(options)
-    .finally(() => {
-      activeSyncPromise = null;
-    });
+  activeSyncPromise = runSyncPendingOperations(options).finally(() => {
+    activeSyncPromise = null;
+  });
 
   return activeSyncPromise;
 }

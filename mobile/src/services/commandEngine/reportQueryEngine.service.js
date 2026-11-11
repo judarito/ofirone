@@ -4,6 +4,7 @@ import { parseReportQueryWithLocalLlm } from './reportLocalLlm.service';
 import { parseDeterministicReportQuery } from './reportDeterministicParser.service';
 import { recordCommandEngineMetric, recordCommandEngineResolutionSource } from './metrics.service';
 import { hashNormalizedText, normalizeCommandText } from './normalize.service';
+import { recordCommandResolutionTelemetry } from './telemetry.service';
 
 const VALID_TABS = new Set(['sales', 'cash', 'inventory', 'financial', 'production']);
 
@@ -201,6 +202,7 @@ function buildReportsCatalogFingerprint(locationOptions = []) {
 
 export async function resolveReportQueryFromText({
   tenantId,
+  userId = null,
   inputText,
   inputType = 'text',
   cacheInputType = null,
@@ -274,6 +276,20 @@ export async function resolveReportQueryFromText({
         inputType,
         cacheCrossInput: effectiveCacheInputType !== inputType,
       });
+      await recordCommandResolutionTelemetry({
+        tenantId,
+        userId,
+        feature: 'command_engine_report',
+        inputType,
+        text,
+        result,
+        source: 'local_cache',
+        startedAtMs,
+        success: true,
+        cacheHit: true,
+        model: result?.model || null,
+        fallback: result?.engine?.fallback_chain?.join('>') || null,
+      });
       return { success: true, data: result };
     }
 
@@ -321,6 +337,20 @@ export async function resolveReportQueryFromText({
         tenantId,
         source: 'deterministic_parser',
         inputType,
+      });
+      await recordCommandResolutionTelemetry({
+        tenantId,
+        userId,
+        feature: 'command_engine_report',
+        inputType,
+        text,
+        result,
+        source: 'deterministic_parser',
+        startedAtMs,
+        success: true,
+        cacheHit: false,
+        model: result?.model || null,
+        fallback: result?.engine?.fallback_chain?.join('>') || null,
       });
       return { success: true, data: result };
     }
@@ -374,6 +404,20 @@ export async function resolveReportQueryFromText({
         source: 'local_llm',
         inputType,
       });
+      await recordCommandResolutionTelemetry({
+        tenantId,
+        userId,
+        feature: 'command_engine_report',
+        inputType,
+        text,
+        result,
+        source: 'local_llm',
+        startedAtMs,
+        success: true,
+        cacheHit: false,
+        model: result?.model || 'local-llm',
+        fallback: result?.engine?.fallback_chain?.join('>') || null,
+      });
       return { success: true, data: result };
     }
 
@@ -397,6 +441,18 @@ export async function resolveReportQueryFromText({
       cacheHit: false,
       startedAtMs,
     });
+    await recordCommandResolutionTelemetry({
+      tenantId,
+      userId,
+      feature: 'command_engine_report',
+      inputType,
+      text,
+      source: 'unknown',
+      startedAtMs,
+      success: false,
+      error: `Sin conexión: no fue posible interpretar la consulta en caché/parser/LLM local.${localHint}`,
+      fallback: 'offline_no_match',
+    });
     return {
       success: false,
       error: `Sin conexión: no fue posible interpretar la consulta en caché/parser/LLM local.${localHint}`,
@@ -417,6 +473,18 @@ export async function resolveReportQueryFromText({
       success: false,
       cacheHit: false,
       startedAtMs,
+    });
+    await recordCommandResolutionTelemetry({
+      tenantId,
+      userId,
+      feature: 'command_engine_report',
+      inputType,
+      text,
+      source: 'cloud_llm',
+      startedAtMs,
+      success: false,
+      error: cloud.error || 'No fue posible interpretar consulta con IA cloud.',
+      fallback: fallbackChain.join('>') || null,
     });
     return {
       success: false,
@@ -453,6 +521,20 @@ export async function resolveReportQueryFromText({
     tenantId,
     source: 'cloud_llm',
     inputType,
+  });
+  await recordCommandResolutionTelemetry({
+    tenantId,
+    userId,
+    feature: 'command_engine_report',
+    inputType,
+    text,
+    result: cloudResult,
+    source: 'cloud_llm',
+    startedAtMs,
+    success: true,
+    cacheHit: Boolean(cloud?.data?.cache_hit),
+    model: cloudResult?.model || null,
+    fallback: cloudResult?.engine?.fallback_chain?.join('>') || null,
   });
 
   return {

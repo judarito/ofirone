@@ -1,0 +1,16 @@
+Slice L — Reconciliación y performance P0 (base desechable)
+Fecha: 2026-11-09
+
+Evidencia base:
+- Business suite 0001–0021: 62 PASS, 0 FAIL, 0 BLOQ, 1 HALLAZGO (validation-business-0021-2026-11-09.txt).
+- Paginación/rendimiento 0012–0021: 24 PASS (validation-pagination-0012-2026-11-09.txt).
+- Caja 0015: 14 PASS; P0 venta: 21 PASS; reportes: 8/8.
+
+Cobertura L:
+- Catálogo/productos/variantes/precios: business suite (5 productos/variantes) + búsqueda y precio.
+- Inventario, clientes, ventas, compras, cartera y apartados: conteos/sumas y reconciliación línea-nivel PASS.
+- Caja: arqueo, sesión única, append-only y cierre (14 PASS).
+- Keyset: productos, ventas, compras, movimientos, clientes, terceros, apartados, jobs y auditoría (130 filas cada uno; 24 PASS).
+- EXPLAIN (ANALYZE, BUFFERS): sales_page_idx, products_page_idx, customers_page_idx, async_jobs_tenant_page_idx (PASS).
+- Variantes: 130 filas + variante de inventario; keyset de 131 filas PASS (26 PASS en la suite de paginación).
+Resultado: PASS — variantes a escala y 9 listados cubiertos.

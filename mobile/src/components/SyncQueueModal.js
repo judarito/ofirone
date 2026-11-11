@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllQueuedOps, discardPendingOp, retryPendingOp } from '../storage/sqlite/database';
 import { syncPendingOperations } from '../services/sync.service';
@@ -23,7 +31,9 @@ function formatRelativeTime(isoDate) {
 }
 
 function cleanError(lastError) {
-  return String(lastError || '').replace(/^NO_RETRY:/, '').trim();
+  return String(lastError || '')
+    .replace(/^NO_RETRY:/, '')
+    .trim();
 }
 
 /**
@@ -90,7 +100,6 @@ export function SyncQueueModal({
       <View style={s.overlay}>
         <Pressable style={s.backdrop} onPress={onClose} />
         <View style={[s.sheet, isLightTheme ? s.sheetLight : null]}>
-
           {/* Header */}
           <View style={[s.header, isLightTheme ? s.headerLight : null]}>
             <View style={s.headerLeft}>
@@ -103,8 +112,13 @@ export function SyncQueueModal({
                 Cola de sincronización
               </Text>
             </View>
-            <Pressable onPress={onClose} style={[s.closeBtn, isLightTheme ? s.closeBtnLight : null]}>
-              <Text style={[s.closeBtnText, isLightTheme ? s.closeBtnTextLight : null]}>Cerrar</Text>
+            <Pressable
+              onPress={onClose}
+              style={[s.closeBtn, isLightTheme ? s.closeBtnLight : null]}
+            >
+              <Text style={[s.closeBtnText, isLightTheme ? s.closeBtnTextLight : null]}>
+                Cerrar
+              </Text>
             </Pressable>
           </View>
 
@@ -121,12 +135,13 @@ export function SyncQueueModal({
             <Pressable
               onPress={handleSyncNow}
               disabled={offlineMode || syncing}
-              style={[s.syncNowBtn, (offlineMode || syncing) ? s.syncNowBtnDisabled : null]}
+              style={[s.syncNowBtn, offlineMode || syncing ? s.syncNowBtnDisabled : null]}
             >
-              {syncing
-                ? <ActivityIndicator size="small" color="#ffffff" />
-                : <Text style={s.syncNowText}>{offlineMode ? 'Sin red' : 'Sync ahora'}</Text>
-              }
+              {syncing ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={s.syncNowText}>{offlineMode ? 'Sin red' : 'Sync ahora'}</Text>
+              )}
             </Pressable>
           </View>
 
@@ -152,7 +167,12 @@ export function SyncQueueModal({
                   ]}
                 >
                   <View style={s.opTopRow}>
-                    <View style={[s.opTypeBadge, op.isNoRetry ? s.opTypeBadgeBlocked : s.opTypeBadgePending]}>
+                    <View
+                      style={[
+                        s.opTypeBadge,
+                        op.isNoRetry ? s.opTypeBadgeBlocked : s.opTypeBadgePending,
+                      ]}
+                    >
                       <Text style={s.opTypeBadgeText}>
                         {OP_TYPE_LABELS[op.opType] || op.opType}
                       </Text>
@@ -166,6 +186,11 @@ export function SyncQueueModal({
                     <Text style={[s.opMetaText, isLightTheme ? s.opMetaTextLight : null]}>
                       Reintentos: {op.retryCount}
                     </Text>
+                    {op.errorCode ? (
+                      <View style={s.errorCodeBadge}>
+                        <Text style={s.errorCodeText}>{op.errorCode}</Text>
+                      </View>
+                    ) : null}
                     {op.isNoRetry && (
                       <View style={s.blockedBadge}>
                         <Ionicons name="ban-outline" size={11} color="#fca5a5" />
@@ -175,7 +200,10 @@ export function SyncQueueModal({
                   </View>
 
                   {op.lastError ? (
-                    <Text style={[s.opError, isLightTheme ? s.opErrorLight : null]} numberOfLines={2}>
+                    <Text
+                      style={[s.opError, isLightTheme ? s.opErrorLight : null]}
+                      numberOfLines={2}
+                    >
                       {cleanError(op.lastError)}
                     </Text>
                   ) : null}
@@ -194,7 +222,11 @@ export function SyncQueueModal({
                       style={[s.actionBtn, s.discardBtn, isLightTheme ? s.discardBtnLight : null]}
                       disabled={syncing || loading}
                     >
-                      <Ionicons name="trash-outline" size={13} color={isLightTheme ? '#dc2626' : '#fca5a5'} />
+                      <Ionicons
+                        name="trash-outline"
+                        size={13}
+                        color={isLightTheme ? '#dc2626' : '#fca5a5'}
+                      />
                       <Text style={[s.discardBtnText, isLightTheme ? s.discardBtnTextLight : null]}>
                         Descartar
                       </Text>
@@ -412,6 +444,17 @@ const s = StyleSheet.create({
     color: '#fca5a5',
     fontSize: 10,
     fontWeight: '700',
+  },
+  errorCodeBadge: {
+    backgroundColor: '#1e293b',
+    borderRadius: 5,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+  },
+  errorCodeText: {
+    color: '#93c5fd',
+    fontSize: 10,
+    fontWeight: '600',
   },
   opError: {
     color: '#f87171',

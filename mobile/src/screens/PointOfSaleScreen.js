@@ -42,7 +42,11 @@ import {
 } from '../services/pos.service';
 import { resolveApplicableRule, applyPriceRule } from '../../../shared/utils/pricingRuleEngine';
 import { listProductCoverImageUrls } from '../services/productsCatalog.service';
-import { analyzeInvoiceWithImage, matchInvoiceLinesToCatalog } from '../services/invoiceAgent.service';
+import {
+  analyzeInvoiceWithImage,
+  matchInvoiceLinesToCatalog,
+  recordInvoiceImageOcrTelemetry,
+} from '../services/invoiceAgent.service';
 import {
   cancelVoskTranscription,
   ensureEmbeddedModelReady,
@@ -56,9 +60,17 @@ import {
   resolveSaleCommandFromText,
   transcribeWithVosk,
 } from '../services/commandEngine';
+import { recordCartManualCorrection } from '../services/commandEngine/telemetry.service';
 import { askOpsRagAgent } from '../services/opsRagAgent.service';
+import {
+  analyzeInvoiceOcrQuality,
+  resolveOcrPolicyMode,
+  scoreInvoiceOcrText,
+  shouldTryCloudOcr,
+} from '../services/ocrPolicy.service';
 import { enqueuePendingOp, getPendingOpsCount } from '../storage/sqlite/database';
 import { getOrCreateDeviceId } from '../services/device.service';
+import { createLegacySalePendingOp } from '../services/syncOutbox.service';
 import { getSimpleCache, saveSimpleCache } from '../services/offlineCache.service';
 import { playCartAddSound } from '../services/soundFeedback.service';
 
@@ -390,23 +402,6 @@ function formatSaleDateTimeDisplay(value) {
   return parsed.toLocaleString();
 }
 
-function scoreOcrTextForInvoice(text) {
-  const normalized = String(text || '').replace(/\r/g, '\n');
-  const lines = normalized
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (!lines.length) return 0;
-
-  const usefulLines = lines.filter((line) => /[a-zA-ZáéíóúÁÉÍÓÚñÑ]{3,}/.test(line)).length;
-  const itemSignals = lines.filter((line) => /\b(cant|cantidad|descripcion|descripción|talla)\b/i.test(line)).length;
-  const qtySignals = lines.filter((line) => /^\d+\s+/.test(line)).length;
-  const longWords = lines.filter((line) => /\b[a-zA-ZáéíóúÁÉÍÓÚñÑ]{5,}\b/.test(line)).length;
-  const charScore = Math.min(2000, normalized.length) * 0.005;
-
-  return usefulLines + itemSignals * 2 + qtySignals * 2 + longWords * 0.8 + charScore;
-}
-
 function calculateDiscount(subtotal, discountValue, discountType) {
   const value = Number(discountValue || 0);
   if (!value || value <= 0) return 0;
@@ -598,6 +593,7 @@ export default function PointOfSaleScreen({
   const [voicePreviewText, setVoicePreviewText] = useState('');
   const [voiceAvailable, setVoiceAvailable] = useState(() => isVoskSttAvailable());
   const [commandEngineMetrics, setCommandEngineMetrics] = useState(null);
+  const lastAiCartApplyRef = useRef(null);
   const [embeddedLlmStatus, setEmbeddedLlmStatus] = useState(null);
   const [preparingEmbeddedLlm, setPreparingEmbeddedLlm] = useState(false);
   const [embeddedDownloadProgress, setEmbeddedDownloadProgress] = useState(0);
@@ -1387,8 +1383,9 @@ export default function PointOfSaleScreen({
     }
     const ocrStatus = await getNativeOcrStatus();
     const nativeOcrAvailable = Boolean(ocrStatus?.available);
-    const cloudPreferred = !offlineMode;
-    if (!cloudPreferred && !nativeOcrAvailable) {
+    const ocrPolicyMode = resolveOcrPolicyMode({ offlineMode });
+    const cloudPreferred = ocrPolicyMode === 'cloud-first' && !offlineMode;
+    if (offlineMode && !nativeOcrAvailable) {
       setError('OCR nativo no disponible en modo offline. Instala expo-text-extractor y recompila la app.');
       return;
     }
@@ -1436,39 +1433,49 @@ export default function PointOfSaleScreen({
       let ocrText = '';
       let ocrEngine = '';
       let ocrFailureReason = '';
+      let nativeQuality = null;
+      let nativeOcrStartedAt = null;
 
-      if (cloudPreferred) {
+      const runCloudOcr = async (fallbackReason = null) => {
         setAiWorkingLabel('Leyendo texto de imagen (OCR cloud)...');
         const imageResult = await buildOptimizedImageForOcr(asset);
         if (!imageResult.success) {
-          ocrFailureReason = imageResult.error || 'No fue posible optimizar la imagen para OCR cloud.';
-          setError(ocrFailureReason);
+          return { success: false, error: imageResult.error || 'No fue posible optimizar la imagen para OCR cloud.' };
+        }
+        const cloudOcrResult = await analyzeInvoiceWithImage({
+          tenantId: tenant.tenant_id,
+          imageBase64: imageResult.data.base64,
+          mimeType: imageResult.data.mimeType || 'image/jpeg',
+          fallback: fallbackReason,
+        });
+        if (!cloudOcrResult.success) return cloudOcrResult;
+
+        let text = String(cloudOcrResult?.data?.ocr_text || '').trim();
+        if (!text) {
+          text = (cloudOcrResult?.data?.line_items || [])
+            .map((line) => `${Math.max(1, Number(line?.quantity || 1))} ${String(line?.raw_name || '').trim()}`)
+            .filter(Boolean)
+            .join('\n')
+            .trim();
+        }
+
+        return { success: Boolean(text), text, engine: 'cloud_ocr_edge', error: text ? null : 'OCR cloud no detecto texto util.' };
+      };
+
+      if (cloudPreferred) {
+        const cloud = await runCloudOcr('diagnostic_cloud_first');
+        if (cloud.success) {
+          ocrText = cloud.text;
+          ocrEngine = cloud.engine;
         } else {
-          const cloudOcrResult = await analyzeInvoiceWithImage({
-            tenantId: tenant.tenant_id,
-            imageBase64: imageResult.data.base64,
-            mimeType: imageResult.data.mimeType || 'image/jpeg',
-          });
-          if (!cloudOcrResult.success) {
-            ocrFailureReason = cloudOcrResult.error || 'Fallo OCR cloud.';
-            showFloatingNotice(`${ocrFailureReason} Intentando OCR nativo...`, 'error', 4200);
-          } else {
-            ocrText = String(cloudOcrResult?.data?.ocr_text || '').trim();
-            if (!ocrText) {
-              const synthesized = (cloudOcrResult?.data?.line_items || [])
-                .map((line) => `${Math.max(1, Number(line?.quantity || 1))} ${String(line?.raw_name || '').trim()}`)
-                .filter(Boolean)
-                .join('\n')
-                .trim();
-              ocrText = synthesized;
-            }
-            ocrEngine = 'cloud_ocr_edge';
-          }
+          ocrFailureReason = cloud.error || 'Fallo OCR cloud.';
+          showFloatingNotice(`${ocrFailureReason} Intentando OCR nativo...`, 'error', 4200);
         }
       }
 
       if (!ocrText && nativeOcrAvailable) {
         setAiWorkingLabel('Leyendo texto de imagen (OCR nativo)...');
+        nativeOcrStartedAt = Date.now();
         const enhancedResult = await buildEnhancedImageForNativeOcr(asset);
         const candidateUris = [asset.uri];
         if (enhancedResult?.success && enhancedResult?.data?.uri && enhancedResult.data.uri !== asset.uri) {
@@ -1481,7 +1488,7 @@ export default function PointOfSaleScreen({
           if (!passResult?.success) continue;
           const candidateText = String(passResult?.data?.text || '').trim();
           if (!candidateText) continue;
-          const candidateScore = scoreOcrTextForInvoice(candidateText);
+          const candidateScore = scoreInvoiceOcrText(candidateText);
           if (!bestNative || candidateScore > bestNative.score) {
             bestNative = {
               text: candidateText,
@@ -1492,12 +1499,39 @@ export default function PointOfSaleScreen({
         }
 
         if (bestNative) {
-          ocrText = bestNative.text;
-          ocrEngine = bestNative.engine;
-        } else if (!cloudPreferred) {
+          nativeQuality = analyzeInvoiceOcrQuality(bestNative.text);
+          if (nativeQuality.sufficient) {
+            ocrText = bestNative.text;
+            ocrEngine = bestNative.engine;
+            await recordInvoiceImageOcrTelemetry({
+              tenantId: tenant.tenant_id,
+              userId: userProfile?.user_id || null,
+              engine: ocrEngine,
+              latencyMs: Date.now() - nativeOcrStartedAt,
+              confidence: nativeQuality.score ? Math.min(1, nativeQuality.score / 20) : null,
+              success: true,
+            });
+          } else {
+            ocrFailureReason = 'OCR nativo devolvio texto con baja calidad.';
+          }
+        } else {
           ocrFailureReason = 'No fue posible extraer texto con OCR nativo.';
-          setError(ocrFailureReason);
-          return;
+        }
+      }
+
+      const cloudFallback = shouldTryCloudOcr({
+        policyMode: ocrPolicyMode,
+        offlineMode,
+        nativeAvailable: nativeOcrAvailable,
+        nativeQuality,
+      });
+      if (!ocrText && !cloudPreferred && cloudFallback.shouldTry) {
+        const cloud = await runCloudOcr(cloudFallback.reason);
+        if (cloud.success) {
+          ocrText = cloud.text;
+          ocrEngine = cloud.engine;
+        } else {
+          ocrFailureReason = cloud.error || ocrFailureReason || 'Fallo OCR cloud.';
         }
       }
 
@@ -1610,6 +1644,7 @@ export default function PointOfSaleScreen({
 
       const commandResolveParams = {
         tenantId: tenant.tenant_id,
+        userId: userProfile?.user_id || null,
         inputText: text,
         inputType,
         cacheInputType: 'text',
@@ -1794,6 +1829,17 @@ export default function PointOfSaleScreen({
         });
       }
 
+      const appliedProductIds = matched
+        .map((item) => item?.variant?.product?.product_id)
+        .filter(Boolean);
+      if (appliedProductIds.length) {
+        lastAiCartApplyRef.current = {
+          at: Date.now(),
+          productIds: new Set(appliedProductIds),
+          source: engineSummary.source || 'unknown',
+        };
+      }
+
       const aiNotes = String(aiResult?.data?.order?.notes || '').trim();
       if (aiNotes) {
         setSaleNote((prev) => {
@@ -1909,8 +1955,25 @@ export default function PointOfSaleScreen({
     }
   };
 
+  const recordCartCorrectionIfAiApplied = (line, { kind, previousValue = null, nextValue = null }) => {
+    const applied = lastAiCartApplyRef.current;
+    if (!applied || !line?.productId) return;
+    if (!applied.productIds.has(line.productId)) return;
+    recordCartManualCorrection({
+      tenantId: tenant?.tenant_id,
+      userId: userProfile?.user_id || null,
+      appliedAt: applied.at,
+      productId: line.productId,
+      kind,
+      previousValue,
+      nextValue,
+      source: applied.source,
+    }).catch(() => null);
+  };
+
   const updateLineQuantity = (index, raw) => {
     const qty = Math.max(1, Number(raw || 1));
+    const previousLine = cart[index];
     setCart((prev) => {
       const next = [...prev];
       let line = { ...next[index] };
@@ -1924,6 +1987,13 @@ export default function PointOfSaleScreen({
       upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
       return next;
     });
+    if (previousLine && previousLine.quantity !== qty) {
+      recordCartCorrectionIfAiApplied(previousLine, {
+        kind: 'quantity',
+        previousValue: previousLine.quantity,
+        nextValue: qty,
+      });
+    }
   };
 
   const updateLineDiscount = (index, raw) => {
@@ -1959,11 +2029,15 @@ export default function PointOfSaleScreen({
   };
 
   const removeLine = (index) => {
+    const removedLine = cart[index];
     setCart((prev) => {
       const next = prev.filter((_, i) => i !== index);
       upsertSinglePaymentIfNeeded(next.reduce((sum, l) => sum + (l.line_total || 0), 0));
       return next;
     });
+    if (removedLine) {
+      recordCartCorrectionIfAiApplied(removedLine, { kind: 'remove' });
+    }
   };
 
   const addPayment = () => {
@@ -2236,14 +2310,13 @@ export default function PointOfSaleScreen({
 
       if (offlineMode) {
         const deviceId = await getOrCreateDeviceId();
-        await enqueuePendingOp({
-          opId: operationId,
-          opType: 'CREATE_SALE',
+        await enqueuePendingOp(createLegacySalePendingOp({
+          operationId,
           tenantId: tenant.tenant_id,
           userId: userProfile.user_id,
           deviceId,
           payload,
-        });
+        }));
         const pendingCount = await getPendingOpsCount({
           tenantId: tenant?.tenant_id || null,
           userId: userProfile?.user_id || null,
@@ -2270,14 +2343,13 @@ export default function PointOfSaleScreen({
       if (!result.success) {
         if (isTransientNetworkError(result.error)) {
           const deviceId = await getOrCreateDeviceId();
-          await enqueuePendingOp({
-            opId: operationId,
-            opType: 'CREATE_SALE',
+          await enqueuePendingOp(createLegacySalePendingOp({
+            operationId,
             tenantId: tenant.tenant_id,
             userId: userProfile.user_id,
             deviceId,
             payload,
-          });
+          }));
           const pendingCount = await getPendingOpsCount({
             tenantId: tenant?.tenant_id || null,
             userId: userProfile?.user_id || null,

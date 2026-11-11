@@ -1,0 +1,8 @@
+Validación propuesta ADR-007 (sales.customer_id)
+base=ofirone_adr007_20261109_215537
+[PASS] DDL up aplicado (columna + FK compuesta + índice parcial)
+[PASS] venta atribuida a cliente A: 81000000-0000-0000-0000-0000000000a1
+[PASS] cross-tenant rechazado: SQLSTATE 23503
+[PASS] venta anónima (customer_id NULL) permitida
+[PASS] índice parcial creado
+[PASS] down elimina la columna

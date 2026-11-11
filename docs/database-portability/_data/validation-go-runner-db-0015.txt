@@ -1,0 +1,2 @@
+RUNNER1 PASS: version15=0015_cash_sessions.up.sql dirty=false
+RUNNER2 PASS: segunda ejecución no duplica (version15 filas=1)

@@ -1,0 +1,8 @@
+EXT-15 — concurrencia
+base=ofirone_c_20261110_041617
+ventas concurrentes misma key: [('sale', 1, 'ok'), ('sale', 2, 'err', '23505')]
+[PASS] una venta y un rechazo 23505
+refresh concurrente: [1, 0]
+[PASS] sólo un consumidor gana
+runner locks: BLOQ (runner no puede aplicar desde vacío; ver EXT-07/K)
+RESULTADO: PASS en ventas/refresh; locks del runner BLOQ

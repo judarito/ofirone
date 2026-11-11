@@ -67,3 +67,13 @@ ios/app/GoogleService-Info.plist
 
 # ─── TypeScript ─────────────────────────────────────────
 *.tsbuildinfo
+
+# Credenciales locales de bases de datos
+/conecionesNEO.txt
+/.env.database.local
+.local-run/
+
+# Artefactos de ejecución y compilación local
+/backend-go/api
+__pycache__/
+*.py[cod]

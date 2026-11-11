@@ -1,0 +1,64 @@
+[DEV] db=[redactado] pg=180006 read_only=False
+
+== objects ==
+  constraints: 105
+  extensiones: 1
+  funciones: 3
+  indices: 33
+  matviews: 0
+  tablas: 10
+  triggers: 7
+  vistas: 0
+  extensiones: plpgsql
+
+== tenantless ==
+  tablas: 10; sin tenant_id: 3
+  - public.identities
+  - public.permissions (global conocida)
+  - public.schema_migrations (global conocida)
+
+== tenant-counts ==
+  - tenants: 0 filas en 0 tenants
+  - tenant_memberships: 0 filas en 0 tenants
+  - roles: 0 filas en 0 tenants
+  - role_permissions: 0 filas en 0 tenants
+  - membership_roles: 0 filas en 0 tenants
+  - sessions: 0 filas en 0 tenants
+  - refresh_tokens: 0 filas en 0 tenants
+
+== orphans ==
+  FKs evaluadas: 9
+
+== indexes ==
+  FKs sin índice líder: 0
+  columnas de filtro sin índice: 18
+  - tenants.updated_at
+  - tenants.status
+  - identities.created_at
+  - identities.updated_at
+  - identities.status
+  - tenant_memberships.created_at
+  - tenant_memberships.updated_at
+  - tenant_memberships.status
+  - roles.created_at
+  - roles.updated_at
+  - permissions.created_at
+  - permissions.updated_at
+  - role_permissions.created_at
+  - membership_roles.created_at
+  - sessions.created_at
+  - sessions.updated_at
+  - refresh_tokens.created_at
+  - refresh_tokens.updated_at
+
+== duplicates ==
+  - identities.email: 0 grupos duplicados
+  - permissions.code: 0 grupos duplicados
+  - roles.code: 0 grupos duplicados
+  - tenants.slug: 0 grupos duplicados
+
+== function-deps ==
+  funciones: 3
+  SECURITY DEFINER sin search_path: 0
+  funciones con auth.*: 0
+  dependencias función→función: 0

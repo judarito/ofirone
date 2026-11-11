@@ -116,6 +116,7 @@ function getLayawayStatusLabel(status) {
 
 export default function ReportsScreen({
   tenant,
+  userProfile,
   offlineMode,
   formatMoney,
   initialTab = 'sales',
@@ -230,6 +231,7 @@ export default function ReportsScreen({
     try {
       const result = await resolveReportQueryFromText({
         tenantId: tenant.tenant_id,
+        userId: userProfile?.user_id || null,
         inputText: text,
         inputType: 'text',
         offlineMode,

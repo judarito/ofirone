@@ -1,0 +1,10 @@
+Validación contratos de reportes (0012)
+base=ofirone_reports_20261109_221159
+[PASS] reporte 1: filas=1 muestra=[[datetime.date(2026, 11, 9), 1, Decimal('20.000000'), Decimal('20.000000')]]
+[PASS] reporte 2: filas=1 muestra=[[UUID('60000000-0000-0000-0000-0000000000a1'), UUID('71000000-0000-0000-0000-0000000000a1'), Decimal('98.000000')]]
+[PASS] reporte 3: filas=1 muestra=[[UUID('82000000-0000-0000-0000-0000000000a1'), 1, 'partially_received', Decimal('10.000000'), Decimal('4.000000'), Decimal('6.000000')]]
+[PASS] reporte 4: filas=1 muestra=[['0-30', 1, Decimal('100.000000')]]
+[PASS] reporte 5: filas=1 muestra=[[UUID('81000000-0000-0000-0000-0000000000a1'), Decimal('500.000000'), Decimal('20.000000'), 'ok']]
+[PASS] reporte 6: filas=1 muestra=[[UUID('85000000-0000-0000-0000-0000000000a1'), 1, Decimal('100.000000'), None, None]]
+[PASS] reporte 7: filas=1 muestra=[['queued', 1, 0]]
+[PASS] reporte 8: filas=1 muestra=[[datetime.datetime(2026, 11, 9, 22, 12, 1, 966409, tzinfo=datetime.timezone.utc), 'sale.created', 'sale', UUID('73000000-0000-0000-0000-0000000000a1')]]

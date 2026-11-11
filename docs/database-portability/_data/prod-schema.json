@@ -1,0 +1,16 @@
+{
+ "target": "prod",
+ "status": "blocked",
+ "captured_at": "2026-11-09T02:48:00.215132+00:00",
+ "meta": {
+  "db": "[redactado]",
+  "user": "[redactado]",
+  "pg_version": "18.6 (ac70818)",
+  "is_superuser": false,
+  "can_create_public": true,
+  "can_create_db": true,
+  "_nota": "Identificadores de infraestructura redactados por politica de secretos."
+ },
+ "read_only_user": false,
+ "blocked_reason": "El usuario de PROD no es de solo lectura (superuser o con CREATE). No se ejecuta ningún análisis; reportar bloqueo."
+}

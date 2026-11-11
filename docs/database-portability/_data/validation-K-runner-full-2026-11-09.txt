@@ -1,0 +1,2 @@
+K2 APPLY FAIL: migrations: version 3 execute: ERROR: relation "schema_migrations" already exists (SQLSTATE 42P07)
+exit status 1

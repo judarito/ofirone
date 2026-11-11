@@ -11,6 +11,18 @@ import './style.css'
 
 const app = createApp(App)
 
+// Any protected Go request that returns 401 invalidates the local session.
+// This prevents the shell from remaining visible with an expired token.
+const nativeFetch = window.fetch.bind(window)
+window.fetch = async (...args) => {
+  const response = await nativeFetch(...args)
+  const requestUrl = typeof args[0] === 'string' ? args[0] : args[0]?.url || ''
+  if (response.status === 401 && requestUrl.includes('/api/v1/')) {
+    window.dispatchEvent(new CustomEvent('ofirone:backend-unauthorized'))
+  }
+  return response
+}
+
 // Hacer Supabase disponible globalmente
 app.config.globalProperties.$supabase = supabase
 

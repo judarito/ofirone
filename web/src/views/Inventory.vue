@@ -234,6 +234,7 @@
 
       <!-- KARDEX -->
       <v-window-item value="kardex">
+        <v-alert v-if="kardexError" type="error" variant="tonal" class="mb-3">{{ kardexError }}</v-alert>
         <ListView
           title="Kardex de Movimientos"
           icon="mdi-history"
@@ -492,7 +493,9 @@ const { userProfile } = useAuth()
 const tab = ref('stock')
 const locations = ref([])
 const allowedTabs = ['stock', 'components', 'kardex', 'operations']
-const CLIENT_FILTER_FETCH_LIMIT = 1000
+// El backend aplica paginación keyset y limita cada página a 100 registros.
+// Mantener este valor dentro del contrato evita respuestas 400 al filtrar por sede.
+const CLIENT_FILTER_FETCH_LIMIT = 100
 
 // Stock
 const stockItems = ref([])
@@ -501,6 +504,8 @@ const stockPage = ref(1)
 const stockPageSize = computed(() => defaultPageSize.value)
 const stockLocationFilter = ref(null)
 const loadingStock = ref(false)
+let stockRequestKey = ''
+let stockRequestInFlight = null
 
 // Kardex
 const kardexItems = ref([])
@@ -510,6 +515,9 @@ const kardexPageSize = computed(() => defaultPageSize.value)
 const kardexLocationFilter = ref(null)
 const kardexTypeFilter = ref(null)
 const loadingKardex = ref(false)
+const kardexError = ref('')
+let kardexRequestKey = ''
+let kardexRequestInFlight = null
 
 // Components
 const componentItems = ref([])
@@ -696,6 +704,15 @@ const searchVariant3 = (s) => doSearchVariant(s, variantResults3, searchingVaria
 // Cargar stock (solo productos para venta, excluir insumos)
 const loadStock = async () => {
   if (!tenantId.value) return
+  const requestKey = JSON.stringify([
+    tenantId.value,
+    stockPage.value,
+    stockPageSize.value,
+    stockLocationFilter.value || null,
+  ])
+  if (stockRequestInFlight && stockRequestKey === requestKey) return stockRequestInFlight
+  stockRequestKey = requestKey
+  stockRequestInFlight = (async () => {
   loadingStock.value = true
   try {
     const r = await inventoryService.getStockBalances(tenantId.value, 1, CLIENT_FILTER_FETCH_LIMIT, {
@@ -720,13 +737,30 @@ const loadStock = async () => {
   } finally {
     loadingStock.value = false
   }
+  })()
+  try {
+    await stockRequestInFlight
+  } finally {
+    stockRequestInFlight = null
+  }
 }
 
 // Cargar kardex
 const loadKardex = async () => {
   if (!tenantId.value) return
+  const requestKey = JSON.stringify([
+    tenantId.value,
+    kardexPage.value,
+    kardexPageSize.value,
+    kardexLocationFilter.value || null,
+    kardexTypeFilter.value || null,
+  ])
+  if (kardexRequestInFlight && kardexRequestKey === requestKey) return kardexRequestInFlight
+  kardexRequestKey = requestKey
+  kardexRequestInFlight = (async () => {
   loadingKardex.value = true
   try {
+    kardexError.value = ''
     const r = await inventoryService.getInventoryMoves(tenantId.value, kardexPage.value, kardexPageSize.value, {
       location_id: kardexLocationFilter.value || undefined,
       move_type: kardexTypeFilter.value || undefined
@@ -734,12 +768,22 @@ const loadKardex = async () => {
     if (r.success) {
       kardexItems.value = (r.data || []).map(move => ({
         ...move,
-        _list_key: move.inventory_move_id
+        _list_key: move.inventory_move_id || move.movement_id
       }))
       kardexTotal.value = r.total
+    } else {
+      kardexItems.value = []
+      kardexTotal.value = 0
+      kardexError.value = r.error || 'No se pudieron cargar los movimientos.'
     }
   } finally {
     loadingKardex.value = false
+  }
+  })()
+  try {
+    await kardexRequestInFlight
+  } finally {
+    kardexRequestInFlight = null
   }
 }
 
@@ -896,16 +940,25 @@ const loadLocations = async () => {
   if (r.success) locations.value = r.data
 }
 
-// Recargar datos al cambiar de tab
-watch(tab, (newTab) => {
+// Cargar únicamente la fuente de datos de la pestaña activa.
+// Los traslados pendientes no deben consultarse al entrar a Stock/Kardex.
+const handleTabChange = (newTab) => {
   if (newTab === 'stock') {
     loadStock()
   } else if (newTab === 'components') {
     loadComponents()
   } else if (newTab === 'kardex') {
     loadKardex()
+  } else if (newTab === 'operations') {
+    loadPendingTransfers()
   }
-})
+}
+
+// v-window can render the selected panel after the tabs event. Watching the
+// model guarantees that direct route changes and UI clicks both load Kardex.
+watch(tab, (newTab) => {
+  if (newTab) handleTabChange(newTab)
+}, { immediate: true })
 
 watch(
   () => route.query.tab,
@@ -914,15 +967,17 @@ watch(
   }
 )
 
+// La sesión Go hidrata el tenant de forma asíncrona. Si Inventario monta antes,
+// las cargas salen temprano y nunca se reintentan (especialmente Kardex).
+watch(tenantId, (id, previousId) => {
+  if (!id || id === previousId) return
+  loadLocations()
+  handleTabChange(tab.value)
+})
+
 onMounted(async () => {
   await loadLocations()
   applyRouteContext()
-  loadStock()
-  loadKardex()
-  loadPendingTransfers()
-  if (tab.value === 'components') {
-    loadComponents()
-  }
 })
 </script>
 

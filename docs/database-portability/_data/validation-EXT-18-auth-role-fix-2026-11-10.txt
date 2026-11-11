@@ -1,0 +1,9 @@
+EXT-10/EXT-18 — ofirone_auth endurecido
+fecha=2026-11-10
+grant temporal de membresía: OK
+[PASS] auth SELECT credenciales: 1 filas
+[PASS] auth INSERT rechazado: 42501
+policy: identity_credentials_auth_read (SELECT to ofirone_auth)
+rol: rolbypassrls=false
+0025 aplicada y registrada en ledger (25; 0023/0024 reconciliados)
+RESULTADO: PASS

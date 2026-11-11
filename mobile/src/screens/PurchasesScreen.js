@@ -9,7 +9,18 @@ import { usePaginatedList } from '../hooks/usePaginatedList';
 import { useAndroidBottomInset } from '../lib/useAndroidBottomInset';
 import { useThemeMode } from '../lib/themeMode';
 import { extractTextWithNativeOcr, getNativeOcrStatus } from '../services/commandEngine';
-import { analyzeInvoiceWithImage, analyzeInvoiceWithText, matchInvoiceLinesToCatalog } from '../services/invoiceAgent.service';
+import {
+  analyzeInvoiceWithImage,
+  analyzeInvoiceWithText,
+  matchInvoiceLinesToCatalog,
+  recordInvoiceImageOcrTelemetry,
+} from '../services/invoiceAgent.service';
+import {
+  analyzeInvoiceOcrQuality,
+  resolveOcrPolicyMode,
+  scoreInvoiceOcrText,
+  shouldTryCloudOcr,
+} from '../services/ocrPolicy.service';
 import { listCatalogCandidatesForMatching } from '../services/pos.service';
 import { suggestCatalogProductFromInvoiceLine } from '../services/purchaseInvoiceAssistant.service';
 import { listLocations, listPurchases } from '../services/inventoryCatalog.service';
@@ -188,23 +199,6 @@ async function buildEnhancedImageForNativeOcr(asset) {
       error: error?.message || 'No se pudo mejorar la imagen para OCR nativo.',
     };
   }
-}
-
-function scoreOcrTextForInvoice(text) {
-  const normalized = String(text || '').replace(/\r/g, '\n');
-  const lines = normalized
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (!lines.length) return 0;
-
-  const usefulLines = lines.filter((line) => /[a-zA-ZáéíóúÁÉÍÓÚñÑ]{3,}/.test(line)).length;
-  const itemSignals = lines.filter((line) => /\b(cant|cantidad|descripcion|descripción|talla)\b/i.test(line)).length;
-  const qtySignals = lines.filter((line) => /^\d+\s+/.test(line)).length;
-  const longWords = lines.filter((line) => /\b[a-zA-ZáéíóúÁÉÍÓÚñÑ]{5,}\b/.test(line)).length;
-  const charScore = Math.min(2000, normalized.length) * 0.005;
-
-  return usefulLines + itemSignals * 2 + qtySignals * 2 + longWords * 0.8 + charScore;
 }
 
 function createInvoiceImportLine(line, index) {
@@ -1321,25 +1315,37 @@ export default function PurchasesScreen({
     try {
       const asset = picked.asset;
       let analysisResult = null;
-      let ocrEngine = 'cloud_ocr_edge';
+      let ocrEngine = '';
       let ocrText = '';
+      let nativeQuality = null;
+      let nativeOcrStartedAt = null;
+      const nativeStatus = await getNativeOcrStatus();
+      const nativeOcrAvailable = Boolean(nativeStatus?.available);
+      const ocrPolicyMode = resolveOcrPolicyMode({ offlineMode: false });
 
-      const optimized = await buildOptimizedImageForOcr(asset);
-      if (optimized.success) {
-        const cloudResult = await analyzeInvoiceWithImage({
+      const runCloudInvoiceOcr = async (fallbackReason = null) => {
+        const optimized = await buildOptimizedImageForOcr(asset);
+        if (!optimized.success) return { success: false, error: optimized.error };
+        return analyzeInvoiceWithImage({
           tenantId: tenant.tenant_id,
           imageBase64: optimized.data.base64,
           mimeType: optimized.data.mimeType || asset.mimeType || 'image/jpeg',
+          fallback: fallbackReason,
         });
+      };
+
+      if (ocrPolicyMode === 'cloud-first') {
+        const cloudResult = await runCloudInvoiceOcr('diagnostic_cloud_first');
         if (cloudResult.success) {
           analysisResult = cloudResult;
           ocrText = String(cloudResult?.data?.ocr_text || '').trim();
+          ocrEngine = 'cloud_ocr_edge';
         }
       }
 
-      if (!analysisResult?.success) {
-        const nativeStatus = await getNativeOcrStatus();
+      if (!analysisResult?.success && ocrPolicyMode !== 'cloud-first') {
         if (nativeStatus?.available) {
+          nativeOcrStartedAt = Date.now();
           const enhancedResult = await buildEnhancedImageForNativeOcr(asset);
           const candidateUris = [asset.uri];
           if (enhancedResult?.success && enhancedResult?.data?.uri && enhancedResult.data.uri !== asset.uri) {
@@ -1352,7 +1358,7 @@ export default function PurchasesScreen({
             if (!passResult?.success) continue;
             const candidateText = String(passResult?.data?.text || '').trim();
             if (!candidateText) continue;
-            const candidateScore = scoreOcrTextForInvoice(candidateText);
+            const candidateScore = scoreInvoiceOcrText(candidateText);
             if (!bestNative || candidateScore > bestNative.score) {
               bestNative = {
                 text: candidateText,
@@ -1363,16 +1369,42 @@ export default function PurchasesScreen({
           }
 
           if (bestNative?.text) {
-            const textResult = await analyzeInvoiceWithText({
-              tenantId: tenant.tenant_id,
-              ocrText: bestNative.text,
-            });
-            if (textResult.success) {
-              analysisResult = textResult;
-              ocrText = bestNative.text;
-              ocrEngine = bestNative.engine || 'native_ocr';
+            nativeQuality = analyzeInvoiceOcrQuality(bestNative.text);
+            if (nativeQuality.sufficient) {
+              const textResult = await analyzeInvoiceWithText({
+                tenantId: tenant.tenant_id,
+                ocrText: bestNative.text,
+              });
+              if (textResult.success) {
+                analysisResult = textResult;
+                ocrText = bestNative.text;
+                ocrEngine = bestNative.engine || 'native_ocr';
+                await recordInvoiceImageOcrTelemetry({
+                  tenantId: tenant.tenant_id,
+                  userId: userProfile?.user_id || null,
+                  engine: ocrEngine,
+                  latencyMs: Date.now() - nativeOcrStartedAt,
+                  confidence: nativeQuality.score ? Math.min(1, nativeQuality.score / 20) : null,
+                  success: true,
+                });
+              }
             }
           }
+        }
+      }
+
+      const cloudFallback = shouldTryCloudOcr({
+        policyMode: ocrPolicyMode,
+        offlineMode: false,
+        nativeAvailable: nativeOcrAvailable,
+        nativeQuality,
+      });
+      if (!analysisResult?.success && cloudFallback.shouldTry && ocrPolicyMode !== 'cloud-first') {
+        const cloudResult = await runCloudInvoiceOcr(cloudFallback.reason);
+        if (cloudResult.success) {
+          analysisResult = cloudResult;
+          ocrText = String(cloudResult?.data?.ocr_text || '').trim();
+          ocrEngine = 'cloud_ocr_edge';
         }
       }
 

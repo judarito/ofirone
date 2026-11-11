@@ -1,0 +1,14 @@
+# Build de la imagen del backend OfirOne para Cloud Run.
+# Uso: gcloud builds submit . --config cloudbuild.yaml --substitutions _IMAGE=...
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'backend/Dockerfile'
+      - '-t'
+      - '$_IMAGE'
+      - '.'
+images:
+  - '$_IMAGE'
+timeout: '1200s'

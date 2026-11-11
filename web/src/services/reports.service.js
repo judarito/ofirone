@@ -1,5 +1,8 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import { getBackendDashboardSummary } from './backendReportsClient'
+
+const USE_BACKEND_REPORTS = import.meta.env.VITE_USE_BACKEND_REPORTS === 'true'
 
 const DASHBOARD_SUMMARY_TTL_MS = 60 * 1000
 const getDateKey = (value) => {
@@ -1054,6 +1057,10 @@ class ReportsService {
       return await queryCache.getOrLoad(
         `reports:dashboard-summary:${locationId || 'all'}`,
         async () => {
+          if (USE_BACKEND_REPORTS) {
+            const data = await getBackendDashboardSummary({ location_id: locationId || '' })
+            return { success: true, kpis: data.kpis || null, dailySeries: data.daily_series || [], topProducts: data.top_products || [], paymentMethods: data.payment_methods || [] }
+          }
           const { data, error } = await supabaseService.client.rpc('fn_reports_dashboard_summary', {
             p_tenant_id: tenantId,
             p_location_id: locationId || null

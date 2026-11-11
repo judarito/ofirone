@@ -1,5 +1,7 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import { USE_BACKEND_CATALOG } from './backendDomainClient'
+import { getBackendTaxInfoForVariant } from './backendReferenceTaxClient'
 
 const TAX_INFO_TTL_MS = 5 * 60 * 1000
 
@@ -171,6 +173,9 @@ class TaxesService {
   // Obtener información completa del impuesto para una variante
   async getTaxInfoForVariant(tenantId, variantId) {
     try {
+      if (USE_BACKEND_CATALOG) {
+        return await getBackendTaxInfoForVariant(variantId)
+      }
       return await queryCache.getOrLoad(
         `taxes:variant-info:${variantId}`,
         async () => {

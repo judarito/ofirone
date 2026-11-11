@@ -7,7 +7,8 @@
       </v-card-title>
 
       <v-card-subtitle class="pb-0">
-        Empezamos por el rol, la identificación y el contacto. Lo fiscal y comercial queda disponible sin convertir esto en un formulario pesado.
+        Empezamos por el rol, la identificación y el contacto. Lo fiscal y comercial queda
+        disponible sin convertir esto en un formulario pesado.
       </v-card-subtitle>
 
       <v-card-text>
@@ -29,18 +30,15 @@
 
         <v-window v-model="step">
           <v-window-item :value="1">
-            <div class="text-subtitle-1 font-weight-bold mb-2">{{ isEditMode ? '¿Qué tercero estás editando?' : '¿Qué tercero vas a crear?' }}</div>
+            <div class="text-subtitle-1 font-weight-bold mb-2">
+              {{ isEditMode ? '¿Qué tercero estás editando?' : '¿Qué tercero vas a crear?' }}
+            </div>
             <div class="text-body-2 text-medium-emphasis mb-4">
               Escoge el rol principal y registra la identidad fiscal del tercero.
             </div>
 
             <v-row>
-              <v-col
-                v-for="typeOption in typeProfiles"
-                :key="typeOption.id"
-                cols="12"
-                sm="4"
-              >
+              <v-col v-for="typeOption in typeProfiles" :key="typeOption.id" cols="12" sm="4">
                 <v-card
                   class="profile-card h-100"
                   :class="{ 'profile-card--active': formData.type === typeOption.id }"
@@ -182,14 +180,21 @@
           <v-window-item :value="3">
             <div class="text-subtitle-1 font-weight-bold mb-2">Resumen y ajustes</div>
             <div class="text-body-2 text-medium-emphasis mb-4">
-              El tercero ya queda usable con lo anterior. Aquí dejas activos solo los ajustes comerciales y fiscales que sí apliquen.
+              El tercero ya queda usable con lo anterior. Aquí dejas activos solo los ajustes
+              comerciales y fiscales que sí apliquen.
             </div>
 
             <v-card variant="tonal" color="primary" class="mt-2">
               <v-card-text class="text-body-2">
                 <div><strong>Resumen:</strong> {{ selectedType.title }}</div>
                 <div>Nombre: {{ formData.legal_name || 'Pendiente' }}</div>
-                <div>Documento: {{ [formData.document_type, formData.document_number].filter(Boolean).join(' ') || 'Pendiente' }}</div>
+                <div>
+                  Documento:
+                  {{
+                    [formData.document_type, formData.document_number].filter(Boolean).join(' ') ||
+                    'Pendiente'
+                  }}
+                </div>
                 <div>Contacto: {{ summaryContact }}</div>
                 <div>Estado: {{ formData.is_active ? 'Activo' : 'Inactivo' }}</div>
               </v-card-text>
@@ -202,7 +207,11 @@
                 :prepend-icon="showAdvancedOptions ? 'mdi-chevron-up' : 'mdi-tune-variant'"
                 @click="showAdvancedOptions = !showAdvancedOptions"
               >
-                {{ showAdvancedOptions ? 'Ocultar ajustes especiales' : 'Necesito configuración fiscal o comercial' }}
+                {{
+                  showAdvancedOptions
+                    ? 'Ocultar ajustes especiales'
+                    : 'Necesito configuración fiscal o comercial'
+                }}
               </v-btn>
             </div>
 
@@ -211,7 +220,8 @@
                 <v-card-text>
                   <div class="text-subtitle-2 font-weight-bold mb-1">Ajustes avanzados</div>
                   <div class="text-body-2 text-medium-emphasis mb-4">
-                    Usa esto cuando el tercero necesite crédito, términos de pago o datos de facturación electrónica.
+                    Usa esto cuando el tercero necesite crédito, términos de pago o datos de
+                    facturación electrónica.
                   </div>
 
                   <v-row>
@@ -286,12 +296,7 @@
                       />
                     </v-col>
                     <v-col cols="12" sm="6">
-                      <v-switch
-                        v-model="formData.is_active"
-                        label="Activo"
-                        color="success"
-                        inset
-                      />
+                      <v-switch v-model="formData.is_active" label="Activo" color="success" inset />
                     </v-col>
                   </v-row>
                 </v-card-text>
@@ -315,12 +320,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
-import thirdPartiesService from '@/services/thirdParties.service'
-import {
-  DOCUMENT_TYPE_CODES,
-  TAX_REGIME_OPTIONS_WEB,
-} from '../../../shared/constants/thirdParty'
+import { computed, ref, watch } from 'vue';
+import thirdPartiesService from '@/services/thirdParties.service';
+import lookupsService from '@/services/lookups.service';
+import { DOCUMENT_TYPE_CODES, TAX_REGIME_OPTIONS_WEB } from '../../../shared/constants/thirdParty';
 import {
   THIRD_PARTY_WIZARD_TYPES,
   buildInitialThirdPartyDraft,
@@ -329,7 +332,7 @@ import {
   getThirdPartyTypeHelpText,
   getThirdPartyWizardType,
   sanitizeThirdPartyDraft,
-} from '../../../shared/utils/thirdPartyWizard'
+} from '../../../shared/utils/thirdPartyWizard';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -337,117 +340,158 @@ const props = defineProps({
   mode: { type: String, default: 'create' },
   initialThirdParty: { type: Object, default: null },
   forcedType: { type: String, default: '' },
-})
+});
 
-const emit = defineEmits(['update:modelValue', 'saved'])
+const emit = defineEmits(['update:modelValue', 'saved']);
 
 const wizardSteps = [
   { value: 1, label: 'Identidad' },
   { value: 2, label: 'Contacto' },
   { value: 3, label: 'Ajustes' },
-]
+];
 
 const rules = {
   required: (value) => Boolean(String(value || '').trim()) || 'Campo requerido',
+};
+
+// Tipos de documento: se cargan vía lookupsService (pasa por el backend
+// cuando VITE_USE_BACKEND_LOOKUPS=true, con fallback a Supabase directo).
+// Si la API devuelve vacío/falla, se conserva la lista de códigos estática.
+const fallbackDocumentTypeOptions = DOCUMENT_TYPE_CODES.map((code) => ({ code, label: code }));
+const documentTypeOptions = ref([...fallbackDocumentTypeOptions]);
+
+async function loadDocumentTypeOptions() {
+  try {
+    const rows = await lookupsService.listDocumentTypes();
+    const mapped = (rows || [])
+      .map((item) => ({
+        code: item.code ?? item.document_type_code ?? item.label ?? null,
+        label: item.label ?? item.code ?? null,
+      }))
+      .filter((item) => item.code);
+    if (mapped.length) documentTypeOptions.value = mapped;
+  } catch (_error) {
+    // Fallback: se mantiene la lista estática ya asignada al ref.
+  }
 }
 
-const documentTypeOptions = DOCUMENT_TYPE_CODES.map((code) => ({ code, label: code }))
-const taxRegimeOptions = TAX_REGIME_OPTIONS_WEB
-const typeProfiles = THIRD_PARTY_WIZARD_TYPES
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) void loadDocumentTypeOptions();
+  },
+  { immediate: true }
+);
 
-const isEditMode = computed(() => props.mode === 'edit')
-const buildFormFromProps = () => (
+const taxRegimeOptions = TAX_REGIME_OPTIONS_WEB;
+const typeProfiles = THIRD_PARTY_WIZARD_TYPES;
+
+const isEditMode = computed(() => props.mode === 'edit');
+const buildFormFromProps = () =>
   isEditMode.value && props.initialThirdParty
     ? buildThirdPartyDraftFromExisting(props.initialThirdParty, { forcedType: props.forcedType })
-    : buildInitialThirdPartyDraft(props.forcedType)
-)
+    : buildInitialThirdPartyDraft(props.forcedType);
 
-const step = ref(1)
-const saving = ref(false)
-const errorMessage = ref('')
-const showAdvancedOptions = ref(false)
-const formData = ref(buildFormFromProps())
+const step = ref(1);
+const saving = ref(false);
+const errorMessage = ref('');
+const showAdvancedOptions = ref(false);
+const formData = ref(buildFormFromProps());
 
-const previewDraft = computed(() => sanitizeThirdPartyDraft(formData.value, { forcedType: props.forcedType }))
-const selectedType = computed(() => getThirdPartyWizardType(formData.value.type, props.forcedType))
-const typeHelpText = computed(() => getThirdPartyTypeHelpText(formData.value.type, props.forcedType))
-const summaryContact = computed(() => (
-  [previewDraft.value.phone, previewDraft.value.email].filter(Boolean).join(' · ') || 'Sin datos de contacto'
-))
+const previewDraft = computed(() =>
+  sanitizeThirdPartyDraft(formData.value, { forcedType: props.forcedType })
+);
+const selectedType = computed(() => getThirdPartyWizardType(formData.value.type, props.forcedType));
+const typeHelpText = computed(() =>
+  getThirdPartyTypeHelpText(formData.value.type, props.forcedType)
+);
+const summaryContact = computed(
+  () =>
+    [previewDraft.value.phone, previewDraft.value.email].filter(Boolean).join(' · ') ||
+    'Sin datos de contacto'
+);
 
 const resetWizard = () => {
-  step.value = 1
-  saving.value = false
-  errorMessage.value = ''
-  showAdvancedOptions.value = false
-  formData.value = buildFormFromProps()
-}
+  step.value = 1;
+  saving.value = false;
+  errorMessage.value = '';
+  showAdvancedOptions.value = false;
+  formData.value = buildFormFromProps();
+};
 
 watch(
   () => [props.modelValue, props.initialThirdParty, props.mode, props.forcedType],
   (state) => {
-    if (state[0]) resetWizard()
-  },
-)
+    if (state[0]) resetWizard();
+  }
+);
 
 const emitToggle = (value) => {
-  emit('update:modelValue', value)
-}
+  emit('update:modelValue', value);
+};
 
 const selectType = (type) => {
-  if (props.forcedType) return
-  formData.value = sanitizeThirdPartyDraft({
-    ...formData.value,
-    type,
-  }, { forcedType: props.forcedType })
-}
+  if (props.forcedType) return;
+  formData.value = sanitizeThirdPartyDraft(
+    {
+      ...formData.value,
+      type,
+    },
+    { forcedType: props.forcedType }
+  );
+};
 
 const goNext = () => {
-  errorMessage.value = ''
-  if (!String(formData.value.legal_name || '').trim() || !String(formData.value.document_number || '').trim()) {
-    errorMessage.value = 'Nombre y documento son obligatorios.'
-    return
+  errorMessage.value = '';
+  if (
+    !String(formData.value.legal_name || '').trim() ||
+    !String(formData.value.document_number || '').trim()
+  ) {
+    errorMessage.value = 'Nombre y documento son obligatorios.';
+    return;
   }
-  if (step.value < 3) step.value += 1
-}
+  if (step.value < 3) step.value += 1;
+};
 
 const submit = async () => {
-  errorMessage.value = ''
+  errorMessage.value = '';
   if (!props.tenantId) {
-    errorMessage.value = 'No hay tenant activo para guardar el tercero.'
-    return
+    errorMessage.value = 'No hay tenant activo para guardar el tercero.';
+    return;
   }
 
   const payload = buildThirdPartyPayloadForSave(formData.value, {
     tenantId: props.tenantId,
     forcedType: props.forcedType,
-  })
+  });
 
   if (!payload.legal_name || !payload.document_number) {
-    errorMessage.value = 'Nombre y documento son obligatorios.'
-    step.value = 1
-    return
+    errorMessage.value = 'Nombre y documento son obligatorios.';
+    step.value = 1;
+    return;
   }
 
-  saving.value = true
+  saving.value = true;
   try {
     if (isEditMode.value) {
-      await thirdPartiesService.update(props.initialThirdParty.third_party_id, payload)
+      await thirdPartiesService.update(props.initialThirdParty.third_party_id, payload);
     } else {
-      await thirdPartiesService.create(payload)
+      await thirdPartiesService.create(payload);
     }
 
     emit('saved', {
-      message: isEditMode.value ? 'Tercero actualizado correctamente.' : 'Tercero creado correctamente.',
-    })
-    emitToggle(false)
+      message: isEditMode.value
+        ? 'Tercero actualizado correctamente.'
+        : 'Tercero creado correctamente.',
+    });
+    emitToggle(false);
   } catch (error) {
-    console.error('third-party wizard save error', error)
-    errorMessage.value = 'No se pudo guardar el tercero.'
+    console.error('third-party wizard save error', error);
+    errorMessage.value = 'No se pudo guardar el tercero.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
-}
+};
 </script>
 
 <style scoped>
@@ -458,7 +502,10 @@ const submit = async () => {
 .profile-card {
   cursor: pointer;
   border-radius: 18px;
-  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .profile-card:hover {

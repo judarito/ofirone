@@ -1,7 +1,18 @@
 import supabaseService from './supabase.service'
+import { getBackendSession } from './backendAuthClient'
 import queryCache from '@/utils/queryCache'
 
 const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000
+const USE_BACKEND_TENANT_CONFIG = import.meta.env.VITE_USE_BACKEND_TENANT_CONFIG === 'true'
+const BACKEND_BASE = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+async function backendRequest(path, options = {}) {
+  const token = getBackendSession()?.accessToken
+  if (!BACKEND_BASE || !token) throw new Error('Sesión Go requerida para configuración.')
+  const response = await fetch(`${BACKEND_BASE}${path}`, { ...options, headers: { accept: 'application/json', ...(options.body ? { 'content-type': 'application/json' } : {}), authorization: `Bearer ${token}`, ...(options.headers || {}) } })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body?.message || `Backend respondió ${response.status}.`)
+  return body
+}
 
 class TenantSettingsService {
   constructor() {
@@ -83,6 +94,7 @@ class TenantSettingsService {
   // Obtener configuración del tenant
   async getSettings(tenantId, options = {}) {
     try {
+      if (USE_BACKEND_TENANT_CONFIG) return { success: true, data: await backendRequest('/api/v1/tenant/settings') }
       return await queryCache.getOrLoad(
         'tenant-settings:settings',
         async () => {
@@ -141,6 +153,7 @@ class TenantSettingsService {
   // Guardar/actualizar configuración (upsert)
   async saveSettings(tenantId, settings) {
     try {
+      if (USE_BACKEND_TENANT_CONFIG) return { success: true, data: await backendRequest('/api/v1/tenant/settings', { method: 'PUT', body: JSON.stringify(this.buildSettingsPayload(tenantId, settings)) }) }
       let payload = this.buildSettingsPayload(tenantId, settings)
       let data
 

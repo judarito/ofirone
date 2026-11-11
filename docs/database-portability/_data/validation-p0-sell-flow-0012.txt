@@ -1,0 +1,27 @@
+[PASS] P0 identidad: tenant/membresía/rol visibles: 
+[PASS] P0 identidad: sólo su identidad: 
+[PASS] P0 productos: 30 visibles: filas=30
+[PASS] P0 búsqueda por nombre/código: filas=30
+[PASS] P0 variante con precio: precio=20.000000
+[PASS] P0 stock inicial = 100: stock=100.000000
+[PASS] P0 lote coincide con movimientos: 
+[PASS] P0 clientes: 20 visibles: filas=20
+[PASS] P0 venta registrada (total 20): count=1 total=20.000000
+[PASS] P0 pago registrado = total: pagado=20.000000
+[PASS] P0 stock tras venta = 99: stock=99.000000
+[PASS] P0 paginación productos sin duplicados/omisiones: filas=30 únicas=30 páginas=5
+[PASS] P0 paginación clientes sin duplicados/omisiones: filas=20 únicas=20 páginas=3
+[PASS] P0 aislamiento: A no ve producto B: 
+[PASS] P0 aislamiento: A no ve venta B: 
+[PASS] P0 aislamiento: venta cross-tenant rechazada: SQLSTATE 42501
+[PASS] P0 aislamiento: B sólo ve su producto: 
+[PASS] P0 aislamiento: B no ve venta A: 
+[PASS] P0 venta atribuida a cliente: customer_id=89000000-0000-0000-0000-000000000000
+[PASS] P0 venta con cliente de otro tenant rechazada: SQLSTATE 23503
+[PASS] P0 caja disponible: tablas_caja=3
+[BLOQ-P2] P2 capacidades diferidas: BLOQ-P2: ausentes online_store_catalog, bom, manufacturing_orders, notifications, realtime_events
+Base temporal eliminada: ofirone_p0_20261109_223508
+Rol temporal eliminado: ofirone_p0_actor
+
+RESPUESTA P0: SÍ — consulta de productos, existencias y venta sin fuga de tenant; brechas P0/P1/P2 documentadas.
+RESULTADO: PASS=21 FAIL=0 BLOQ-P0=0 BLOQ-P1=0 BLOQ-P2=1

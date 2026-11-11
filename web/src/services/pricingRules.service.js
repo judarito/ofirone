@@ -1,4 +1,12 @@
 import supabaseService from './supabase.service'
+import {
+  USE_BACKEND_PRICING,
+  listBackendPricingRules,
+  createBackendPricingRule,
+  updateBackendPricingRule,
+  deleteBackendPricingRule,
+  listBackendLocations,
+} from './backendDomainClient'
 
 class PricingRulesService {
   constructor() {
@@ -10,6 +18,10 @@ class PricingRulesService {
    */
   async getPricingRules(tenantId, page = 1, pageSize = 50, filters = {}) {
     try {
+      if (USE_BACKEND_PRICING) {
+        const result = await listBackendPricingRules({ page, pageSize, scope: filters.scope, isActive: filters.is_active })
+        return { success: true, data: result.data || [], total: result.total || 0 }
+      }
       let query = supabaseService.client
         .from(this.table)
         .select(`
@@ -77,6 +89,10 @@ class PricingRulesService {
    */
   async createPricingRule(tenantId, rule) {
     try {
+      if (USE_BACKEND_PRICING) {
+        const data = await createBackendPricingRule(this.toBackendRule(rule))
+        return { success: true, data }
+      }
       const { data, error } = await supabaseService.insert(this.table, {
         tenant_id: tenantId,
         scope: rule.scope,
@@ -105,6 +121,10 @@ class PricingRulesService {
    */
   async updatePricingRule(tenantId, pricingRuleId, updates) {
     try {
+      if (USE_BACKEND_PRICING) {
+        const data = await updateBackendPricingRule(pricingRuleId, this.toBackendRule(updates))
+        return { success: true, data }
+      }
       const { data, error } = await supabaseService.update(this.table, {
         pricing_method: updates.pricing_method,
         markup_percentage: updates.markup_percentage,
@@ -127,6 +147,10 @@ class PricingRulesService {
    */
   async deletePricingRule(tenantId, pricingRuleId) {
     try {
+      if (USE_BACKEND_PRICING) {
+        await deleteBackendPricingRule(pricingRuleId)
+        return { success: true }
+      }
       const { error } = await supabaseService.delete(this.table, {
         tenant_id: tenantId,
         pricing_rule_id: pricingRuleId
@@ -184,6 +208,10 @@ class PricingRulesService {
    */
   async getLocations(tenantId) {
     try {
+      if (USE_BACKEND_PRICING) {
+        const result = await listBackendLocations({ limit: 100 })
+        return { success: true, data: (result.data || []).map((item) => ({ location_id: item.id, name: item.name })) }
+      }
       const { data, error } = await supabaseService.client
         .from('locations')
         .select('location_id, name')
@@ -196,6 +224,22 @@ class PricingRulesService {
     } catch (error) {
       console.error('Error al obtener sedes:', error)
       return { success: false, error: error.message }
+    }
+  }
+
+  toBackendRule(rule) {
+    return {
+      scope: rule.scope,
+      location_id: rule.location_id || null,
+      category_id: rule.category_id || null,
+      product_id: rule.product_id || null,
+      variant_id: rule.variant_id || null,
+      pricing_method: rule.pricing_method || 'MARKUP',
+      markup_percentage: Number(rule.markup_percentage ?? 20),
+      price_rounding: rule.price_rounding || 'NONE',
+      rounding_to: Number(rule.rounding_to ?? 1),
+      priority: Number(rule.priority ?? 0),
+      is_active: rule.is_active !== false,
     }
   }
 }

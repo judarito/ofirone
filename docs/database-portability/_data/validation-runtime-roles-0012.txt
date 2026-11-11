@@ -1,0 +1,17 @@
+Prueba de roles propuestos (NOBYPASSRLS)
+base=ofirone_roles_20261109_211557
+[PASS] roles creados (migrator/auth/api, NOBYPASSRLS)
+[PASS] API ve 1 producto de su tenant: 
+[PASS] API ve 1 venta de su tenant: 
+[PASS] API no lee schema_migrations: SQLSTATE 42501
+[PASS] API no lee identities: SQLSTATE 42501
+[PASS] API no crea tablas: SQLSTATE 42501
+[PASS] API no inserta venta de otro tenant: SQLSTATE 42501
+[PASS] API no cambia tenant_id de venta: SQLSTATE 42501
+[PASS] API inserta venta válida de su tenant: 
+[PASS] AUTH ve su identidad: 
+[PASS] AUTH no lee productos: SQLSTATE 42501
+[PASS] roles sin BYPASSRLS: [['ofirone_test_api', False], ['ofirone_test_auth', False], ['ofirone_test_migrator', False]]
+base temporal eliminada
+
+RESULTADO GLOBAL: PASS

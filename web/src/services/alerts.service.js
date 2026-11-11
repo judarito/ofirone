@@ -1,5 +1,8 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import { listBackendAlerts } from './backendAlertsClient'
+
+const USE_BACKEND_ALERTS = import.meta.env.VITE_USE_BACKEND_ALERTS === 'true'
 
 const ALERTS_CACHE_TTL_MS = 60 * 1000
 const ALERTS_SELECT_FIELDS = 'alert_id, alert_type, alert_level, created_at, updated_at, data'
@@ -11,6 +14,10 @@ const alertsService = {
   async getAlerts(tenantId, options = {}) {
     try {
       const limit = Math.max(1, Number(options.limit || 200))
+      if (USE_BACKEND_ALERTS) {
+        const result = await listBackendAlerts({ limit: Math.min(limit, 100) })
+        return { success: true, data: result.items || [], has_more: result.has_more === true, next_created_at: result.next_created_at, next_id: result.next_id }
+      }
       return await queryCache.getOrLoad(
         `alerts:list:${limit}`,
         async () => {
@@ -46,6 +53,10 @@ const alertsService = {
   async getAlertsByType(tenantId, alertType, options = {}) {
     try {
       const limit = Math.max(1, Number(options.limit || 80))
+      if (USE_BACKEND_ALERTS) {
+        const result = await listBackendAlerts({ limit, alertType })
+        return { success: true, data: result.items || [], has_more: result.has_more === true, next_created_at: result.next_created_at, next_id: result.next_id }
+      }
       return await queryCache.getOrLoad(
         `alerts:type:${alertType}:${limit}`,
         async () => {

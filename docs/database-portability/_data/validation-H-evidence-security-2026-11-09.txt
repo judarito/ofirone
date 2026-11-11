@@ -1,0 +1,6 @@
+Slice H — seguridad de evidencias
+fecha=2026-11-09
+[PASS] snapshot dev: db/user redactados
+[PASS] snapshot prod: db/user redactados
+[PASS] escáner de secretos: PASS: sin credenciales, URLs con password, JWT ni identificadores de infraestructura en el paquete.
+[PASS] sin URLs con credenciales en docs (0 hallazgos)

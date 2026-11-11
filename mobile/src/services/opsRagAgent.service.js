@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { ensureTenantBillingFeature } from './tenantBilling.service';
 import { BILLING_FEATURE_CODES } from '../../../shared/utils/billingAccess';
+import { estimateAITokens, recordAITelemetryEvent } from './aiTelemetry.service';
 
 const OPS_RAG_EDGE_FUNCTION =
   process.env.EXPO_PUBLIC_OPS_RAG_EDGE_FUNCTION || 'ops-rag-agent';
@@ -48,6 +49,7 @@ export async function askOpsRagAgent({
   maxItemsPerBlock = 5,
   useCache = true,
 } = {}) {
+  const startedAt = Date.now();
   const text = String(query || '').trim();
   if (!text) {
     return { success: false, error: 'query es requerido', data: null };
@@ -79,6 +81,17 @@ export async function askOpsRagAgent({
 
   if (error) {
     const details = await extractInvokeError(error);
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'ops_rag_agent',
+      input_type: 'text',
+      engine: 'deepseek',
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens(body),
+      success: false,
+      error: details,
+    });
     return {
       success: false,
       error: `Error invocando Edge Function "${OPS_RAG_EDGE_FUNCTION}": ${details}.`,
@@ -87,12 +100,38 @@ export async function askOpsRagAgent({
   }
 
   if (!data?.success || !data?.data) {
+    await recordAITelemetryEvent({
+      tenant_id: tenantId,
+      feature: 'ops_rag_agent',
+      input_type: 'text',
+      engine: 'deepseek',
+      resolution_source: 'cloud_llm',
+      latency_ms: Date.now() - startedAt,
+      tokens_input: estimateAITokens(body),
+      success: false,
+      error: data?.error || data?.details || 'payload inválido',
+    });
     return {
       success: false,
       error: data?.error || data?.details || 'La Edge Function no devolvió un payload válido.',
       data: null,
     };
   }
+
+  await recordAITelemetryEvent({
+    tenant_id: tenantId,
+    feature: 'ops_rag_agent',
+    input_type: 'text',
+    engine: 'deepseek',
+    model: data?.data?.model || data?.model || null,
+    resolution_source: data?.data?.cache_hit ? 'local_cache' : 'cloud_llm',
+    latency_ms: Date.now() - startedAt,
+    confidence: data?.data?.confidence,
+    tokens_input: estimateAITokens(body),
+    tokens_output: estimateAITokens(data.data),
+    cache_hit: data?.data?.cache_hit === true,
+    success: true,
+  });
 
   return {
     success: true,

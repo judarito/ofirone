@@ -1,0 +1,11 @@
+Aplicación 0017-0020 en DEV
+fecha=2026-11-10T01:25:50.930074+00:00
+[PASS] 17 0017_sale_line_batches aplicada ledger=0e984361da89
+[PASS] 18 0018_online_store_catalog aplicada ledger=245b2a19e644
+[PASS] 19 0019_portable_views aplicada ledger=eac3ac316c78
+[PASS] 20 0020_async_job_functions aplicada ledger=2a688238942e
+RESULTADO: PASS
+ledger=[[1, '0001_core.up.sql', False], [2, '0002_identity.up.sql', False], [3, '0003_migration_control.up.sql', False], [4, '0004_reference_catalog.up.sql', False], [5, '0005_products.up.sql', False], [6, '0006_inventory.up.sql', False], [7, '0007_sales.up.sql', False], [8, '0008_parties.up.sql', False], [9, '0009_purchases.up.sql', False], [10, '0010_credit_payables.up.sql', False], [11, '0011_layaway.up.sql', False], [12, '0012_jobs_audit.up.sql', False], [13, '0013_sale_idempotency.up.sql', False], [14, '0014_sales_customer_link.up.sql', False], [15, '0015_cash_sessions.up.sql', False], [16, '0016_identity_credentials.up.sql', False], [17, '0017_sale_line_batches.up.sql', False], [18, '0018_online_store_catalog.up.sql', False], [19, '0019_portable_views.up.sql', False], [20, '0020_async_job_functions.up.sql', False]]
+tablas=45
+vistas=2
+funciones=2

@@ -1,0 +1,9 @@
+Validación propuesta ADR-008 (caja)
+base=ofirone_adr008_20261109_215731
+[PASS] DDL up aplicado
+[PASS] sesión abierta (opening_float 100)
+[PASS] única sesión abierta: 23505
+[PASS] cierre con arqueo (100/100, diferencia 0)
+[PASS] cerrada inmutable: 23514
+[PASS] venta cross-tenant rechazada: 23514 (guard/FK)
+[PASS] down elimina columna/tablas

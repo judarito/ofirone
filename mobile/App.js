@@ -404,6 +404,7 @@ const ActiveModuleScreen = memo(function ActiveModuleScreen({
       return (
         <ReportsScreen
           tenant={tenant}
+          userProfile={userProfile}
           themeMode={themeMode}
           offlineMode={offlineMode}
           formatMoney={formatMoney}

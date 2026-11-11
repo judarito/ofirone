@@ -2,6 +2,12 @@ import { computed, ref, watch } from 'vue'
 import { useTenant } from './useTenant'
 import { supabase } from '@/plugins/supabase'
 
+// In the Go-backed MVP the setup assistant must not probe Supabase tables.
+// Those probes generate HEAD traffic on startup and can report stale legacy
+// state. The module screens remain the source of truth until their readiness
+// endpoints are consolidated.
+const USE_GO_MVP = import.meta.env.VITE_USE_BACKEND_POS_CONTEXT === 'true'
+
 const STATE_META = {
   BLOCKED: {
     label: 'Bloqueado',
@@ -468,6 +474,29 @@ export function useSetupAssistant() {
 
     try {
       const tid = tenantId.value
+      if (USE_GO_MVP) {
+        const emptySnapshot = {
+          settings: null,
+          locationsCount: 0,
+          registersCount: 0,
+          paymentMethodsCount: 0,
+          productsCount: 0,
+          productVariantsCount: 0,
+          inventoryProductsCount: 0,
+          cashAssignmentsCount: 0,
+          salesCount: 0,
+          suppliersCount: 0,
+          purchasesCount: 0,
+          stockWithQtyCount: 0,
+          inventoryMovesCount: 0,
+          cashSessionsCount: 0,
+          accountingAccountsCount: 0,
+          accountingEntriesCount: 0
+        }
+        processes.value = buildProcesses(emptySnapshot)
+        lastLoadedAt.value = new Date().toISOString()
+        return processes.value
+      }
       const [
         settings,
         locationsCount,

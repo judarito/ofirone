@@ -1,0 +1,47 @@
+Migraciones validadas: 0001_core.up.sql, 0002_identity.up.sql, 0003_migration_control.up.sql, 0004_reference_catalog.up.sql, 0005_products.up.sql, 0006_inventory.up.sql, 0007_sales.up.sql
+  0001_core.up.sql sha256=b9c7c3bc85f71df8db57e44c21fc2b3d10a2eb27365dd5c385d016d84eed9b09
+  0002_identity.up.sql sha256=601deb5022541fe8abb2fbf33062cf1c4649be2317208fa7d555eb375542c83f
+  0003_migration_control.up.sql sha256=63fb1f09aeff303e90cee3cd030acfaab4d994fa1358e4e6658a1cf8dcaacf7b
+  0004_reference_catalog.up.sql sha256=4b4b7ace92ab219397c1f0936957770103f7d6de635237ca4b5e54efae0e06c9
+  0005_products.up.sql sha256=a5854c9f4e0a5ebeac5bb6a120f00faeb02574133c1608e015240a9e6b6d6385
+  0006_inventory.up.sql sha256=6721aa3ced8822dc808149ca115c7ca909e32d85d196e414bea2e0a019b2d63a
+  0007_sales.up.sql sha256=3bfd4ff8c267abdcfd822919e13e09ef753b4415f469fb50de1863aed318adf3
+[PASS] Checksums de archivos coinciden con ledger DEV: versiones=7, discrepancias=[]
+[PASS] up de 7 migraciones en base vacía: 
+[PASS] Tablas tras up: tablas=24
+[PASS] Siembra sintética (identidad+catálogo+productos+inventario+ventas): 
+[PASS] N1 sin contexto: sales invisible: 
+[PASS] N2 sin contexto: INSERT sales rechazado: SQLSTATE 42501
+[PASS] N3 contexto A: sales de B invisibles: 
+[PASS] N4 contexto A: venta B por id invisible: 
+[PASS] N5 contexto A: UPDATE tenant_id de venta A rechazado: SQLSTATE 42501
+[PASS] N6 contexto A: sale_line con venta B rechazada: SQLSTATE 23503
+[PASS] N7 contexto A: venta con sede B rechazada: SQLSTATE 23503
+[BLOQ] N8 aislamiento: BLOQ: user_roles no existe
+[BLOQ] N9 aislamiento: BLOQ: sale_line_batches no existe
+[BLOQ] N10 aislamiento: BLOQ: online_store_catalog no existe
+[BLOQ] N11 aislamiento: BLOQ: third_parties no existe
+[PASS] N12 SKU duplicado en tenant A rechazado: SQLSTATE 23505
+[PASS] N13 SKU igual permitido entre tenants: tenants con SKU-0=2
+[PASS] N14 contexto B: sólo ventas de B: 
+[PASS] N15 reset de contexto: sales invisible: 
+[BLOQ] N16 aislamiento: BLOQ: matview stock_balances no existe
+[BLOQ] N17 aislamiento: BLOQ: vw_sales_summary no existe
+[BLOQ] N18 aislamiento: BLOQ: async_jobs no existe
+[BLOQ] N19 aislamiento: BLOQ: async_jobs no existe
+[BLOQ] N20 aislamiento: BLOQ: audit_log no existe
+[PASS] Ventas A: 2 ventas, suma 50: count=2 sum=50.000000
+[PASS] Inventario A: suma de movimientos = 98: sum=98.000000
+[PASS] Productos A: 5: count=5
+[BLOQ] Conteos/sumas de Compras: BLOQ: purchases no existe
+[BLOQ] Conteos/sumas de Cartera: BLOQ: receivables no existe
+[PASS] Keyset productos sin duplicados: filas=5
+[PASS] Keyset productos sin omisiones (5): únicas=5
+[PASS] Keyset ventas sin duplicados/omisiones (2): únicas=2
+[HALLAZGO] Segunda ejecución no rompe: no idempotente ({'S': 'ERROR', 'V': 'ERROR', 'C': '42P06', 'M': 'schema "app_private" already exists', 'F': 'pg_namespace.c', 'L': '62',); el ledger debe impedir re-aplicar
+[PASS] down deja 0 tablas: restantes=0
+[PASS] Ciclo up→down→up completo: 
+Base temporal eliminada: ofirone_business_20261109_183122
+Rol temporal eliminado: ofirone_business_validation_actor
+
+RESULTADO GLOBAL: PASS (PASS=23, FAIL=0, BLOQ=11, HALLAZGO=1)

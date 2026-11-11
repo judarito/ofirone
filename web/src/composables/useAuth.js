@@ -5,12 +5,40 @@ import router from '@/router'
 import { useTenant } from './useTenant'
 import { clearRecoveryIntent, persistRecoveryIntent } from '@/utils/authRecovery'
 import queryCache from '@/utils/queryCache'
+import { loginBackend, getBackendMe, getBackendSession, logoutBackend, clearBackendSession, USE_BACKEND_AUTH } from '@/services/backendAuthClient'
 
 // Estado global de autenticación
 const user = ref(null)
 const session = ref(null)
 const loading = ref(false)
 const userProfile = ref(null) // Datos del usuario desde la tabla users
+let backendHydrationStarted = false
+
+async function hydrateBackendAuth() {
+  if (!USE_BACKEND_AUTH || backendHydrationStarted || user.value) return
+  backendHydrationStarted = true
+  const stored = getBackendSession()
+  if (!stored?.accessToken) return
+  try {
+    const me = await getBackendMe(stored.accessToken)
+    user.value = { id: me.identity_id, email: null }
+    session.value = { access_token: stored.accessToken, refresh_token: stored.refreshToken, user: user.value }
+    userProfile.value = {
+      user_id: me.identity_id,
+      auth_user_id: me.identity_id,
+      tenant_id: me.tenant_id,
+      permissions: me.permissions || [],
+      permissionCodes: (me.permissions || []).map((permission) => permission.code || permission),
+    }
+    useTenant().saveTenant({ tenant_id: me.tenant_id, tenant_name: 'DEV Local' })
+  } catch (error) {
+    console.warn('No se pudo restaurar la sesión Go:', error.message)
+    // Un JWT emitido por una instancia anterior (por ejemplo, tras reiniciar
+    // el backend con una clave efímera) no debe dejar la app en un estado de
+    // carga permanente ni volver a fallar en cada recarga.
+    clearBackendSession()
+  }
+}
 
 function normalizeAbsoluteUrl(value) {
   const raw = String(value || '').trim()
@@ -200,6 +228,7 @@ function handleSessionExpired() {
 }
 
 export const useAuth = () => {
+  void hydrateBackendAuth()
   // Configurar el listener una sola vez
   if (!authListener) {
     setupAuthListener()
@@ -210,6 +239,17 @@ export const useAuth = () => {
   // Inicializar sesión
   const initAuth = async () => {
     try {
+      // Go owns the session when the migration flag is enabled. Do not ask
+      // Supabase for a parallel session on a hard refresh: that race clears
+      // the hydrated profile and leaves the shell stuck on “Cargando menú”.
+      if (USE_BACKEND_AUTH) {
+        await hydrateBackendAuth()
+        return {
+          success: true,
+          session: session.value,
+          isAuthenticated: !!session.value
+        }
+      }
       const { clearTenant } = useTenant()
       const validSession = await supabaseService.getValidSession({
         redirectOnFail: false,
@@ -255,6 +295,38 @@ export const useAuth = () => {
   const signIn = async (email, password) => {
     loading.value = true
     try {
+      if (USE_BACKEND_AUTH) {
+        const tenantStore = useTenant()
+        tenantStore.loadTenant()
+        const tenantId = tenantStore.tenantId.value || import.meta.env.VITE_BACKEND_DEFAULT_TENANT_ID || ''
+        const backend = await loginBackend({ email, password, tenantId })
+        const me = await getBackendMe(backend.AccessToken || backend.access_token)
+        const backendSession = {
+          access_token: backend.AccessToken || backend.access_token,
+          refresh_token: backend.RefreshToken || backend.refresh_token,
+          user: { id: me.identity_id || backend.IdentityID || backend.identity_id || null, email },
+        }
+        session.value = backendSession
+        user.value = backendSession.user
+        userProfile.value = {
+          user_id: backendSession.user.id,
+          auth_user_id: backendSession.user.id,
+          email,
+          tenant_id: me.tenant_id || tenantId,
+          permissions: me.permissions || [],
+          permissionCodes: (me.permissions || []).map((permission) => permission.code || permission),
+        }
+        const { saveTenant } = useTenant()
+        saveTenant({ tenant_id: me.tenant_id || tenantId, tenant_name: 'DEV Local' })
+        return {
+          success: true,
+          data: { user: backendSession.user, session: backendSession },
+          tenant: {
+            tenant_id: me.tenant_id || backend.TenantID || backend.tenant_id || tenantId,
+            name: 'DEV Local',
+          },
+        }
+      }
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -312,6 +384,26 @@ export const useAuth = () => {
   const signOut = async () => {
     loading.value = true
     try {
+      if (USE_BACKEND_AUTH) {
+        const stored = getBackendSession()
+        try {
+          if (stored?.accessToken) await logoutBackend(stored)
+        } catch (backendError) {
+          // A restarted backend may reject an old token. Logout is still
+          // successful locally and must not leave the shell authenticated.
+          console.warn('Sesión Go ya no válida; limpiando sesión local:', backendError.message)
+        } finally {
+          clearBackendSession()
+        }
+        session.value = null
+        user.value = null
+        userProfile.value = null
+        clearRecoveryIntent()
+        queryCache.clearAll()
+        useTenant().clearTenant()
+        router.replace('/login')
+        return { success: true }
+      }
       const { error } = await supabase.auth.signOut()
       
       if (error) throw error

@@ -1,0 +1,8 @@
+Slice J — acceso seguro auth
+base=ofirone_j_20261110_014336
+[PASS] login A/tenant A devuelve 1 fila (1)
+[PASS] login A/tenant B no devuelve filas
+[PASS] auth no lee tabla: 42501
+[PASS] auth revoca sesión
+[PASS] auth consume refresh
+[PASS] refresh consumido no reutilizado (0)

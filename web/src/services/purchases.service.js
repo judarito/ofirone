@@ -1,5 +1,6 @@
 import supabaseService from './supabase.service'
 import aiPurchaseAdvisor from './ai-purchase-advisor.service'
+import { USE_BACKEND_PURCHASES, listBackendPurchases, createBackendPurchase, getBackendPurchase, cancelBackendPurchase } from './backendPurchasesClient'
 
 function normalizeText(value) {
   return String(value || '').trim()
@@ -79,6 +80,7 @@ class PurchasesService {
    */
   async getPurchaseSuggestions(tenantId, minPriority = 3, limit = 50) {
     try {
+      if (USE_BACKEND_PURCHASES) return { success: true, data: [] }
       const { data, error } = await supabaseService.client.rpc('fn_get_purchase_suggestions', {
         p_tenant_id: tenantId,
         p_min_priority: minPriority,
@@ -200,6 +202,28 @@ class PurchasesService {
    */
   async getPurchases(tenantId, page = 1, pageSize = 20, filters = {}) {
     try {
+      if (USE_BACKEND_PURCHASES) {
+        const result = await listBackendPurchases({ limit: pageSize })
+        const rows = result.items || result.Items || []
+        const data = rows.map((row) => {
+          const lines = row.lines || row.Lines || []
+          const first = lines[0] || {}
+          const qty = lines.reduce((sum, line) => sum + Number(line.quantity ?? line.Quantity ?? 0), 0)
+          return {
+            purchase_id: row.purchase_id || row.ID || row.id,
+            supplier_name: row.supplier_name || row.SupplierName || 'Sin proveedor',
+            items_count: lines.length,
+            qty_total: qty,
+            sku: first.sku || first.SKU || '',
+            product_name: first.product_name || first.ProductName || '',
+            variant_name: first.variant_name || first.VariantName || '',
+            total: Number(row.total ?? row.Total ?? 0),
+            purchased_at: row.purchased_at || row.PurchasedAt || row.created_at || row.CreatedAt,
+            items_summary: lines.length ? `${first.product_name || first.ProductName || 'Producto'}${first.variant_name || first.VariantName ? ` - ${first.variant_name || first.VariantName}` : ''}` : 'Compra'
+          }
+        })
+        return { success: true, data, total: data.length }
+      }
       const from = (page - 1) * pageSize
       const to = from + pageSize - 1
 
@@ -218,7 +242,6 @@ class PurchasesService {
         `, { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
-        .range(from, to)
 
       if (filters.location_id) {
         query = query.eq('location_id', filters.location_id)
@@ -230,7 +253,7 @@ class PurchasesService {
         query = query.lte('created_at', filters.to_date)
       }
 
-      const { data, error, count } = await query
+      const { data, error, count } = await query.range(from, to)
 
       if (error) throw error
 
@@ -293,6 +316,33 @@ class PurchasesService {
    */
   async getPurchaseDetail(tenantId, purchaseId) {
     try {
+      if (USE_BACKEND_PURCHASES) {
+        const payload = await getBackendPurchase(purchaseId)
+        const purchase = payload.purchase || payload.Purchase || payload
+        const rawLines = payload.lines || payload.Lines || []
+        const lines = rawLines.map((line) => ({
+          ...line,
+          variant_id: line.variant_id || line.VariantID,
+          product_name: line.product_name || line.ProductName || 'Producto',
+          variant_name: line.variant_name || line.VariantName || '',
+          sku: line.sku || line.SKU || '',
+          quantity: Number(line.quantity ?? line.Quantity ?? 0),
+          unit_cost: Number(line.unit_cost ?? line.UnitCost ?? 0),
+          line_total: Number(line.line_total ?? line.LineTotal ?? 0),
+          returned_qty: 0,
+        }))
+        return { success: true, data: {
+          ...purchase,
+          purchase_id: purchase.purchase_id || purchase.ID || purchase.id,
+          total: Number(purchase.total ?? purchase.Total ?? 0),
+          items_count: lines.length,
+          location_name: purchase.location_name || purchase.LocationName || '',
+          supplier: (purchase.supplier_name || purchase.SupplierName) ? { legal_name: purchase.supplier_name || purchase.SupplierName } : null,
+          created_at: purchase.created_at || purchase.CreatedAt || purchase.purchased_at || purchase.PurchasedAt,
+          lines,
+          returns: [],
+        } }
+      }
       // Obtener cabecera de la compra (incluye proveedor)
       const { data: header } = await supabaseService.client
         .from('purchases')
@@ -408,6 +458,13 @@ class PurchasesService {
     }
   }
 
+  async cancelPurchase(tenantId, purchaseId) {
+    try {
+      if (USE_BACKEND_PURCHASES) return { success: true, data: await cancelBackendPurchase(purchaseId) }
+      return { success: false, error: 'Cancelación legacy no disponible en este servicio.' }
+    } catch (error) { return serviceErrorResult(error) }
+  }
+
   /**
    * Crear orden de compra en estado DRAFT (sin afectar inventario).
    * @param {Object} payload
@@ -420,6 +477,16 @@ class PurchasesService {
    */
   async createPurchaseOrder({ tenantId, locationId, supplierId = null, createdBy, lines, note = null }) {
     try {
+      if (USE_BACKEND_PURCHASES) {
+        const payload = {
+          purchase_id: crypto.randomUUID(), location_id: locationId, supplier_id: supplierId,
+          status: 'received', lines: (lines || []).map((line) => ({ variant_id: line.variant_id, quantity: Number(line.quantity), unit_cost: Number(line.unit_cost || line.cost || 0) })),
+          tax_total: 0, discount: 0, subtotal: (lines || []).reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_cost || line.cost || 0), 0),
+        }
+        payload.total = payload.subtotal
+        const data = await createBackendPurchase(payload)
+        return { success: true, data }
+      }
       const { data, error } = await supabaseService.client.rpc('sp_create_purchase_order', {
         p_tenant: tenantId,
         p_location: locationId,
@@ -583,6 +650,7 @@ class PurchasesService {
    */
   async getOpenPurchaseOrders(tenantId) {
     try {
+      if (USE_BACKEND_PURCHASES) return { success: true, data: [] }
       const { data, error } = await supabaseService.client
         .from('purchase_orders')
         .select(`
@@ -754,6 +822,7 @@ class PurchasesService {
    */
   async getSupplierPayableByPurchase(tenantId, purchaseId) {
     try {
+      if (USE_BACKEND_PURCHASES) return { success: true, data: null }
       const { data, error } = await supabaseService.client
         .from('supplier_payables')
         .select(`
@@ -877,6 +946,7 @@ class PurchasesService {
     pageSize = 20
   }) {
     try {
+      if (USE_BACKEND_PURCHASES) return { success: true, data: [], total: 0, page, pageSize, totalPages: 0 }
       const safePage = Number.isInteger(page) && page > 0 ? page : 1
       const safePageSize = Number.isInteger(pageSize) && pageSize > 0 ? pageSize : 20
       const from = (safePage - 1) * safePageSize

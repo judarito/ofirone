@@ -1,0 +1,4 @@
+Migración sobre datos sintéticos (0001-0011 -> 0012)
+base=ofirone_migdata_20261109_211458
+antes=[1, 1, 1] despues=[1, 1, 1] tablas_nuevas=2
+RESULTADO: PASS

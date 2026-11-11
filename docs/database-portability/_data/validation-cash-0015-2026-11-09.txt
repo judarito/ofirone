@@ -1,0 +1,16 @@
+[PASS] Migraciones 0001–0015 en base vacía: 
+[PASS] Sesión A abierta: 
+[PASS] Una sola sesión abierta por sede: SQLSTATE 23505
+[PASS] Venta/pago cash en sesión abierta: 
+[PASS] Arqueo 130 y movimiento cash_in 10: 
+[PASS] Cierre expected=counted=130, diferencia 0: 
+[PASS] Sesión cerrada inmutable: SQLSTATE 23514
+[PASS] Venta después del cierre rechazada: SQLSTATE 23514
+[PASS] RLS: A no ve sesión B: filas=0
+[PASS] Venta cross-tenant con sesión A rechazada: SQLSTATE 23514
+[PASS] Movimiento append-only: UPDATE rechazado: SQLSTATE 23514
+[PASS] Movimiento append-only: DELETE rechazado: SQLSTATE 23514
+[PASS] Down elimina caja y columna: tables=0 col=0
+[PASS] Re-up recrea 3 tablas: tables=3
+
+RESULTADO: PASS=14 FAIL=0

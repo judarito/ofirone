@@ -135,7 +135,12 @@ export function sanitizeProductDraft(draft = {}) {
     seed_variant_min_stock: clampToZero(draft.seed_variant_min_stock),
   }
 
-  if (next.is_component) {
+  if (
+    next.is_component &&
+    next.inventory_behavior !== 'SERVICE' &&
+    next.inventory_behavior !== 'BUNDLE' &&
+    next.inventory_behavior !== 'MANUFACTURED'
+  ) {
     next.inventory_behavior = 'RESELL'
   }
 
@@ -241,7 +246,7 @@ export function buildSeedVariantPayload(draft = {}) {
     variant_name: variantName,
     cost: sanitized.seed_variant_cost,
     price: sanitized.seed_variant_price,
-    min_stock: sanitized.track_inventory ? sanitized.seed_variant_min_stock : 0,
+    min_stock: sanitized.seed_variant_min_stock,
     price_includes_tax: false,
     allow_backorder: false,
     is_active: true,

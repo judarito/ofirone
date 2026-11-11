@@ -1,0 +1,93 @@
+Migraciones validadas: 0001_core.up.sql, 0002_identity.up.sql, 0003_migration_control.up.sql, 0004_reference_catalog.up.sql, 0005_products.up.sql, 0006_inventory.up.sql, 0007_sales.up.sql, 0008_parties.up.sql, 0009_purchases.up.sql, 0010_credit_payables.up.sql, 0011_layaway.up.sql, 0012_jobs_audit.up.sql, 0013_sale_idempotency.up.sql, 0014_sales_customer_link.up.sql, 0015_cash_sessions.up.sql, 0016_identity_credentials.up.sql, 0017_sale_line_batches.up.sql, 0018_online_store_catalog.up.sql, 0019_portable_views.up.sql, 0020_async_job_functions.up.sql, 0021_audit_append_only.up.sql, 0022_p1_integrity_guards.up.sql, 0023_auth_login_lookup.up.sql, 0024_roles_menus.up.sql, 0025_runtime_role.up.sql
+  0001_core.up.sql sha256=b9c7c3bc85f71df8db57e44c21fc2b3d10a2eb27365dd5c385d016d84eed9b09
+  0002_identity.up.sql sha256=601deb5022541fe8abb2fbf33062cf1c4649be2317208fa7d555eb375542c83f
+  0003_migration_control.up.sql sha256=63fb1f09aeff303e90cee3cd030acfaab4d994fa1358e4e6658a1cf8dcaacf7b
+  0004_reference_catalog.up.sql sha256=4b4b7ace92ab219397c1f0936957770103f7d6de635237ca4b5e54efae0e06c9
+  0005_products.up.sql sha256=a5854c9f4e0a5ebeac5bb6a120f00faeb02574133c1608e015240a9e6b6d6385
+  0006_inventory.up.sql sha256=6721aa3ced8822dc808149ca115c7ca909e32d85d196e414bea2e0a019b2d63a
+  0007_sales.up.sql sha256=3bfd4ff8c267abdcfd822919e13e09ef753b4415f469fb50de1863aed318adf3
+  0008_parties.up.sql sha256=c9e333d20de1b5bc25dfe6c3e6c25fc393c8e828ab2b80c637b1bc18524fc06d
+  0009_purchases.up.sql sha256=e98331c34e0aa6117be17f8d5b0b2ac8a8647211fde91836a71cf457f3876299
+  0010_credit_payables.up.sql sha256=f8f20748f556a4066055d7545e363b7f8b5104fa65b73a2623c4e941b8de0f70
+  0011_layaway.up.sql sha256=daa2a0204ed3332198e13b5779fad1e04f81fd616b720629e1a6116dd1bd91eb
+  0012_jobs_audit.up.sql sha256=cfd42f5e1d8dcabfd35f376ae7b66da808043f891c6b44bd6daf918baf477add
+  0013_sale_idempotency.up.sql sha256=5e53c4a95dbbb9f0f17cdfacb93d268dddb85ea96f0383d714008b53cceaf970
+  0014_sales_customer_link.up.sql sha256=f3290aead140520de65f3ba0fcc05022883b82e888c0826ee0319df0e28254b5
+  0015_cash_sessions.up.sql sha256=14b83b20896fcfdd2dd924114a20a4cd26cae2e93fce9c5f11679c37d13aef9e
+  0016_identity_credentials.up.sql sha256=35ca5c7b5ed9738cc37bd4024ba351499ccb57860c0a8276ff09183a8bb1be2f
+  0017_sale_line_batches.up.sql sha256=0e984361da89e2917e1a9ef871b1684deeb8616aaf297d7b200b48315a2ca7cb
+  0018_online_store_catalog.up.sql sha256=245b2a19e6441093dcb6c4ad827db603b31cdfb1904c4437384672cf1874aa56
+  0019_portable_views.up.sql sha256=eac3ac316c780bbf1e784940fd84134bc8e2cdecb878a5229db8a4033cd3a8a5
+  0020_async_job_functions.up.sql sha256=2a688238942ec96e77e0a6f54d0e9e74633728b5a77f31c38493901bb3f89f87
+  0021_audit_append_only.up.sql sha256=179b45ebd48b73288ac74c1eb834cd4eee342efa8aee4d18e4116e2f48cceee9
+  0022_p1_integrity_guards.up.sql sha256=0663add4fb3ce4022edab3a5de103410c993ae6c2a0d31d4066365db0d99950a
+  0023_auth_login_lookup.up.sql sha256=c913d34a9d5ce78eb68d99b8efe0488595dc178ce226ba6e9a86d104612a8d56
+  0024_roles_menus.up.sql sha256=88c1310d1962dbb46df6c3b1af03aff4b54f8bf750aedf70276617d0e08ebfdd
+  0025_runtime_role.up.sql sha256=296b24da0764aaa3302151d6501977869cb7bf671a4b11a97d8122e44268043d
+[PASS] Checksums de archivos coinciden con ledger DEV: versiones=25, discrepancias=[]
+[PASS] Nombres del ledger coinciden con archivos: discrepancias=[]
+[PASS] Ledger DEV: versiones consecutivas: versiones=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+[PASS] Ledger DEV: dirty=false: 
+[PASS] up de 25 migraciones en base vacía: 
+[PASS] Tablas tras up: tablas=49
+[PASS] Ledger: rechaza versión duplicada: SQLSTATE 23505
+[PASS] Siembra sintética (identidad+catálogo+productos+inventario+ventas): 
+[PASS] N1 sin contexto: sales invisible: 
+[PASS] N2 sin contexto: INSERT sales rechazado: SQLSTATE 42501
+[PASS] N3 contexto A: sales de B invisibles: 
+[PASS] N4 contexto A: venta B por id invisible: 
+[PASS] N5 contexto A: UPDATE tenant_id de venta A rechazado: SQLSTATE 42501
+[PASS] N6 contexto A: sale_line con venta B rechazada: SQLSTATE 23503
+[PASS] N7 contexto A: venta con sede B rechazada: SQLSTATE 23503
+[PASS] N8 contexto A: membership_roles con rol de otro tenant rechazado: SQLSTATE 23503
+[PASS] N9 lote-línea válido del tenant A: 
+[PASS] N9 lote de otro tenant rechazado: SQLSTATE 23503
+[PASS] N9b fila con tenant B rechazada: SQLSTATE 42501
+[PASS] N10 catálogo tienda A + variante A válido: 
+[PASS] N10 variante de otro tenant rechazada: SQLSTATE 23503
+[PASS] N10b tienda de otro tenant rechazada: SQLSTATE 42501
+[PASS] N11 contexto A: third_party con tenant_id NULL rechazado: SQLSTATE 42501
+[PASS] N12 SKU duplicado en tenant A rechazado: SQLSTATE 23505
+[PASS] N13 SKU igual permitido entre tenants: tenants con SKU-0=2
+[PASS] N14 contexto B: sólo ventas de B: 
+[PASS] N15 reset de contexto: sales invisible: 
+[PASS] N16 stock_balances es vista: relkind=v
+[PASS] N16 A no ve stock de B: 
+[PASS] N16 stock A = 98: on_hand=98.000000
+[PASS] N17 resumen ventas A = 2: filas=2
+[PASS] N17 A no ve ventas B: 
+[PASS] N17 security_invoker=true: security_invoker=true
+[PASS] N18 claim sólo job A: [['86000000-0000-0000-0000-0000000000a1', 'running']]
+[PASS] N19 complete job A: [['succeeded']]
+[PASS] N19 complete idempotente: [['succeeded']]
+[PASS] N19 complete job B rechazado: SQLSTATE 42501
+[PASS] N20 contexto A: audit_log con tenant B rechazado: SQLSTATE 42501
+[PASS] Ventas A: 2 ventas, suma 50: count=2 sum=50.000000
+[PASS] Inventario A: suma de movimientos = 98: sum=98.000000
+[PASS] Productos A: 5: count=5
+[PASS] Compras A: 1 compra, suma 100: count=1 sum=100.000000
+[PASS] Cartera proveedores A: original 100, pagado 30: original=100.000000 pagado=30.000000
+[PASS] Cartera clientes A: movimientos 20, saldo 20: mov=20.000000 saldo=20.000000
+[PASS] Apartados A: total 100, pagado 20, saldo 80: count=1 total=100.000000 pagado=20.000000 saldo=80.000000
+[PASS] Apartados: líneas = total del encabezado: lineas=100.000000 total=100.000000
+[PASS] Auditoría append-only: UPDATE rechazado (23514)
+[PASS] Jobs/auditoría A: 1 job, 1 evento: jobs=1 audit=1
+[PASS] Reconciliación ventas: total=líneas: descuadres=0
+[PASS] Reconciliación ventas: total=pagos: descuadres=0
+[PASS] Reconciliación compras: total=líneas: descuadres=0
+[PASS] Reconciliación cartera proveedor: pagado=pagos: descuadres=0
+[PASS] Reconciliación cartera cliente: saldo=movimientos: descuadres=0
+[PASS] Reconciliación inventario: lote=movimientos: descuadres=0
+[PASS] Reconciliación apartados: saldo=cuotas: descuadres=0
+[PASS] Keyset productos sin duplicados: filas=5
+[PASS] Keyset productos sin omisiones (5): únicas=5
+[PASS] Keyset ventas sin duplicados/omisiones (2): únicas=2
+[PASS] Idempotencia: misma clave en el mismo tenant rechazada: SQLSTATE 23505
+[PASS] Idempotencia: misma clave permitida en otro tenant: unique por tenant
+[HALLAZGO] Segunda ejecución no rompe: no idempotente ({'S': 'ERROR', 'V': 'ERROR', 'C': '42P06', 'M': 'schema "app_private" already exists', 'F': 'pg_namespace.c', 'L': '62',); el ledger debe impedir re-aplicar
+[PASS] down deja 0 tablas: restantes=0
+[PASS] Ciclo up→down→up completo: 
+Base temporal eliminada: ofirone_business_20261110_162505
+Rol temporal eliminado: ofirone_business_validation_actor
+
+RESULTADO GLOBAL: PASS (PASS=62, FAIL=0, BLOQ=0, HALLAZGO=1)

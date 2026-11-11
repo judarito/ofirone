@@ -1,0 +1,26 @@
+Go: go version go1.22.12 linux/amd64
+Repo: backend-go (sin modificar)
+
+go: downloading github.com/jackc/pgx/v5 v5.7.2
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+go: downloading github.com/jackc/puddle/v2 v2.2.2
+go: downloading github.com/jackc/pgpassfile v1.0.0
+go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
+go: downloading golang.org/x/crypto v0.31.0
+go: downloading golang.org/x/text v0.21.0
+go: downloading golang.org/x/sync v0.10.0
+?   	ofirone/backend-go/cmd/worker	[no test files]
+ok  	ofirone/backend-go/cmd/api	0.005s
+ok  	ofirone/backend-go/internal/app	0.031s
+ok  	ofirone/backend-go/internal/audit	0.006s
+ok  	ofirone/backend-go/internal/auth	0.016s
+ok  	ofirone/backend-go/internal/catalog	0.004s
+ok  	ofirone/backend-go/internal/config	0.008s
+ok  	ofirone/backend-go/internal/httpapi	0.020s
+ok  	ofirone/backend-go/internal/inventory	0.005s
+ok  	ofirone/backend-go/internal/jobs	0.004s
+ok  	ofirone/backend-go/internal/logging	0.004s
+ok  	ofirone/backend-go/internal/migrations	0.007s
+ok  	ofirone/backend-go/internal/pagination	0.004s
+ok  	ofirone/backend-go/internal/sales	0.005s
+exit=0

@@ -1,4 +1,5 @@
 import supabaseService from './supabase.service'
+import { getBackendSession } from './backendAuthClient'
 import queryCache from '@/utils/queryCache'
 import {
   BILLING_FEATURE_CODES,
@@ -22,6 +23,17 @@ const STATUS_LABELS = {
 
 const SUBSCRIPTION_PROVISION_FUNCTION = import.meta.env.VITE_SUBSCRIPTION_PROVISION_EDGE_FUNCTION || 'subscription-provision-signup'
 const SUBSCRIPTION_RENEWAL_CHECKOUT_FUNCTION = import.meta.env.VITE_SUBSCRIPTION_RENEWAL_CHECKOUT_EDGE_FUNCTION || 'subscription-renewal-checkout'
+const USE_BACKEND_TENANT_CONFIG = import.meta.env.VITE_USE_BACKEND_TENANT_CONFIG === 'true'
+const BACKEND_BASE = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '')
+
+async function getBackendBillingSummary() {
+  const token = getBackendSession()?.accessToken
+  if (!BACKEND_BASE || !token) throw new Error('Sesión Go requerida para billing.')
+  const response = await fetch(`${BACKEND_BASE}/api/v1/tenant/billing-summary`, { headers: { accept: 'application/json', authorization: `Bearer ${token}` } })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body?.message || `Backend respondió ${response.status}.`)
+  return body
+}
 
 function normalizeJsonObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -99,6 +111,7 @@ class TenantBillingService {
     }
 
     try {
+      if (USE_BACKEND_TENANT_CONFIG) return { success: true, data: normalizeTenantBillingSummary(await getBackendBillingSummary()) }
       const data = await queryCache.getOrLoad(
         'tenant-billing-summary',
         async () => {

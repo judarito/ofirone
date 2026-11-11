@@ -1,0 +1,13 @@
+Validación propuestas P1 guards + auditoría append-only
+base=ofirone_guards_20261109_220724
+[PASS] DDL propuesto aplicado (guardas + append-only)
+[PASS] compras: draft→ordered→partially_received→received
+[PASS] compras: received→draft rechazada: SQLSTATE 23514
+[PASS] CxP: pago 30 sobre saldo 20 rechazado: SQLSTATE 23514
+[PASS] CxP: paid_amount/status sincronizados: [Decimal('100.000000'), 'paid']
+[PASS] venta enlazada a apartado
+[PASS] apartado: segunda venta del mismo apartado rechazada: SQLSTATE 23505
+[PASS] apartado: venta cross-tenant rechazada: SQLSTATE 23503
+[PASS] auditoría: UPDATE rechazado: SQLSTATE 23514
+[PASS] auditoría: DELETE rechazado: SQLSTATE 23514
+[PASS] auditoría: INSERT permitido, UPDATE/DELETE bloqueados

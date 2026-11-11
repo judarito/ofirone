@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { syncPendingOperations } from '../services/sync.service';
+import { flushPendingAITelemetryEvents } from '../services/aiTelemetry.service';
 import { getPendingOpsCount } from '../storage/sqlite/database';
 
 /**
@@ -35,6 +36,9 @@ export function useSync({
       // This allows the sync loop to run even while the UI is in offline mode,
       // as long as the network is physically reachable.
       if (!active || !networkReachable || !session || !userProfile?.user_id || !tenant?.tenant_id) return;
+      // Reintenta eventos de telemetría IA que quedaron en la cola local
+      // (upsert idempotente; no depende de la cola de ventas).
+      await flushPendingAITelemetryEvents({ limit: 20 }).catch(() => null);
       const syncResult = await syncPendingOperations({
         limit: 20,
         tenantId: tenant.tenant_id,

@@ -1,0 +1,8 @@
+[DEV] ejecución read-only (sin names de db/rol)
+== 01 == OK (filas última consulta: 132)
+== 02 == OK (filas última consulta: 3)
+== 03 == OK (filas última consulta: 1)
+== 04 == OK (filas última consulta: 9)
+== 05 == OK (filas última consulta: 23)
+== 06 == OK (filas última consulta: 13)
+== 07 == OK (filas última consulta: 11)

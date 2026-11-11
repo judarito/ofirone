@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const invokeMock = vi.fn()
-const rpcMock = vi.fn()
+const { invokeMock, rpcMock, fromMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  rpcMock: vi.fn(),
+  fromMock: vi.fn(),
+}))
 
 function buildQuery(result) {
   return {
@@ -26,8 +29,6 @@ function buildInsertChain(result) {
   }
 }
 
-let fromMock = vi.fn()
-
 vi.mock('@/services/supabase.service', () => ({
   default: {
     client: {
@@ -46,7 +47,7 @@ describe('productPhotoImport.service', () => {
   beforeEach(() => {
     invokeMock.mockReset()
     rpcMock.mockReset()
-    fromMock = vi.fn()
+    fromMock.mockReset()
   })
 
   it('valida tenant e imagen en parseProductsFromPhoto', async () => {

@@ -1,0 +1,70 @@
+name: Deploy Backend a Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'backend/**'
+      - 'shared/contracts/**'
+      - 'shared/utils/**'
+      - 'cloudbuild.yaml'
+      - 'scripts/deploy-gcp.sh'
+      - '.github/workflows/deploy-cloudrun.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    name: Deploy a Cloud Run
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Deploy gateway + worker + scheduler
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          RUN_TEST_JOB: '0'
+        run: bash scripts/deploy-gcp.sh
+
+      - name: Mostrar URL del gateway
+        run: |
+          URL="https://ofirone-gateway-${{ secrets.GCP_PROJECT_ID }}-$(echo '${{ secrets.GCP_PROJECT_ID }}' | tr ':' '-').${{ vars.GCP_REGION || 'us-central1' }}.run.app"
+          echo "Gateway: $URL"
+          curl -fsS "$URL/health" || echo "(espera unos segundos; el cold start puede tardar)"

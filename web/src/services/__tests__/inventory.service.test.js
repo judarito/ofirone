@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const rpcMock = vi.fn()
-const fromMock = vi.fn()
-const serviceErrorResultMock = vi.fn((error, extra = {}) => ({
-  success: false,
-  error: error?.message || 'unknown',
-  ...extra,
+const { rpcMock, fromMock, serviceErrorResultMock } = vi.hoisted(() => ({
+  rpcMock: vi.fn(),
+  fromMock: vi.fn(),
+  serviceErrorResultMock: vi.fn((error, extra = {}) => ({
+    success: false,
+    error: error?.message || 'unknown',
+    ...extra,
+  })),
 }))
 
 vi.mock('@/services/supabase.service', () => ({

@@ -3,9 +3,9 @@
     <!-- Botones de acciones - Responsive -->
     <v-row dense class="mb-3 purchases-actions">
       <v-col cols="12" sm="auto">
-        <v-btn 
-          color="primary" 
-          prepend-icon="mdi-cart-plus" 
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-cart-plus"
           @click="openCreateDialog"
           :block="isMobile"
         >
@@ -22,7 +22,12 @@
           :block="isMobile"
         >
           OC Pendientes
-          <v-badge v-if="pendingPurchaseOrdersCount > 0" color="warning" :content="pendingPurchaseOrdersCount" inline></v-badge>
+          <v-badge
+            v-if="pendingPurchaseOrdersCount > 0"
+            color="warning"
+            :content="pendingPurchaseOrdersCount"
+            inline
+          ></v-badge>
         </v-btn>
       </v-col>
       <v-col cols="12" sm="auto">
@@ -35,15 +40,20 @@
           :block="isMobile"
         >
           CxP Proveedores
-          <v-badge v-if="supplierPayablesOpenCount > 0" color="error" :content="supplierPayablesOpenCount" inline></v-badge>
+          <v-badge
+            v-if="supplierPayablesOpenCount > 0"
+            color="error"
+            :content="supplierPayablesOpenCount"
+            inline
+          ></v-badge>
         </v-btn>
       </v-col>
       <v-col cols="12" sm="auto">
-        <v-btn 
-          color="purple" 
-          prepend-icon="mdi-lightbulb-on" 
-          variant="tonal" 
-          @click="openSuggestionsDialog" 
+        <v-btn
+          color="purple"
+          prepend-icon="mdi-lightbulb-on"
+          variant="tonal"
+          @click="openSuggestionsDialog"
           :loading="loadingSuggestions"
           :block="isMobile"
         >
@@ -52,11 +62,11 @@
         </v-btn>
       </v-col>
       <v-col v-if="aiAvailable" cols="12" sm="auto">
-        <v-btn 
-          color="deep-purple" 
-          prepend-icon="mdi-robot" 
-          variant="elevated" 
-          @click="openAIAnalysisDialog" 
+        <v-btn
+          color="deep-purple"
+          prepend-icon="mdi-robot"
+          variant="elevated"
+          @click="openAIAnalysisDialog"
           :loading="loadingAIAnalysis"
           :block="isMobile"
         >
@@ -66,10 +76,7 @@
       </v-col>
     </v-row>
 
-    <ContextHelpCard
-      class="mb-4"
-      context-key="purchases"
-    />
+    <ContextHelpCard class="mb-4" context-key="purchases" />
 
     <ListView
       title="Compras"
@@ -144,17 +151,28 @@
 
       <!-- Subtitulo -->
       <template #subtitle="{ item }">
-        {{ formatDate(item.purchased_at) }} • {{ item.purchased_by_name }} • {{ item.location_name }}
+        {{ formatDate(item.purchased_at) }} • {{ item.purchased_by_name }} •
+        {{ item.location_name }}
       </template>
 
       <!-- Contenido -->
       <template #content="{ item }">
         <div class="mt-2 d-flex flex-wrap ga-2">
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-truck">{{ item.supplier_name || 'Sin proveedor' }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-barcode">SKU: {{ item.sku || '-' }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-package-variant" color="info">Items: {{ item.items_count || 0 }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-numeric" color="info">Cant: {{ item.qty_total || 0 }}</v-chip>
-          <v-chip size="small" variant="tonal" prepend-icon="mdi-currency-usd" color="success">Total: {{ formatMoney(item.total) }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-truck">{{
+            item.supplier_name || 'Sin proveedor'
+          }}</v-chip>
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-barcode"
+            >SKU: {{ item.sku || '-' }}</v-chip
+          >
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-package-variant" color="info"
+            >Items: {{ item.items_count || 0 }}</v-chip
+          >
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-numeric" color="info"
+            >Cant: {{ item.qty_total || 0 }}</v-chip
+          >
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-currency-usd" color="success"
+            >Total: {{ formatMoney(item.total) }}</v-chip
+          >
         </div>
         <div class="mt-2 text-caption text-grey">
           <v-icon size="small">mdi-cursor-default-click</v-icon>
@@ -166,7 +184,9 @@
     <!-- Dialog CxP proveedores -->
     <v-dialog v-model="supplierPayablesDialog" max-width="1200" scrollable>
       <v-card class="purchase-modal supplier-payables-dialog">
-        <v-card-title class="purchase-modal__header purchase-modal__header--orange supplier-payables-header">
+        <v-card-title
+          class="purchase-modal__header purchase-modal__header--orange supplier-payables-header"
+        >
           <v-icon start color="white">mdi-file-document-multiple</v-icon>
           <span class="text-white">Cuentas por Pagar a Proveedores</span>
         </v-card-title>
@@ -196,7 +216,12 @@
                 @update:model-value="applySupplierPayablesFilters"
               />
             </v-col>
-            <v-col cols="12" md="4" class="d-flex align-center justify-end" style="gap: 8px; flex-wrap: wrap;">
+            <v-col
+              cols="12"
+              md="4"
+              class="d-flex align-center justify-end"
+              style="gap: 8px; flex-wrap: wrap"
+            >
               <v-btn
                 color="success"
                 variant="tonal"
@@ -242,37 +267,65 @@
             @load-page="loadSupplierPayablesPage"
           >
             <template #avatar="{ item }">
-              <div class="d-flex align-center justify-center" style="width: 32px;">
+              <div class="d-flex align-center justify-center" style="width: 32px">
                 <v-checkbox-btn
                   :model-value="supplierPayablesSelectedIds.includes(item.payable_id)"
                   :disabled="!isSupplierPayableSelectable(item)"
-                  @update:model-value="val => toggleSupplierPayableSelection(item.payable_id, val)"
+                  @update:model-value="
+                    (val) => toggleSupplierPayableSelection(item.payable_id, val)
+                  "
                 />
               </div>
             </template>
             <template #title="{ item }">
-              <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
-                <span class="font-weight-bold text-body-1">{{ item.supplier_name || 'Proveedor' }}</span>
-                <v-chip size="small" :color="payableStatusColor(item.status)" variant="tonal" class="text-no-wrap">
+              <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px">
+                <span class="font-weight-bold text-body-1">{{
+                  item.supplier_name || 'Proveedor'
+                }}</span>
+                <v-chip
+                  size="small"
+                  :color="payableStatusColor(item.status)"
+                  variant="tonal"
+                  class="text-no-wrap"
+                >
                   {{ payableStatusLabel(item.status) }}
                 </v-chip>
               </div>
             </template>
             <template #subtitle="{ item }">
-              {{ item.location_name || 'Sin sede' }} � Factura: {{ item.invoice_number || 'Sin numero' }}
+              {{ item.location_name || 'Sin sede' }} � Factura:
+              {{ item.invoice_number || 'Sin numero' }}
             </template>
             <template #content="{ item }">
               <div class="mt-2 d-flex flex-wrap ga-2">
-                <v-chip size="small" variant="tonal" color="error">Saldo: {{ formatMoney(item.balance) }}</v-chip>
-                <v-chip size="small" variant="tonal" color="success">Pagado: {{ formatMoney(item.paid_amount) }}</v-chip>
-                <v-chip size="small" variant="tonal">Vence: {{ item.due_date ? formatDate(item.due_date) : 'Sin fecha' }}</v-chip>
-                <v-chip v-if="item.is_overdue" size="small" color="error" variant="flat">Vencida</v-chip>
-                <v-chip v-else-if="item.days_to_due !== null" size="small" color="warning" variant="tonal">
+                <v-chip size="small" variant="tonal" color="error"
+                  >Saldo: {{ formatMoney(item.balance) }}</v-chip
+                >
+                <v-chip size="small" variant="tonal" color="success"
+                  >Pagado: {{ formatMoney(item.paid_amount) }}</v-chip
+                >
+                <v-chip size="small" variant="tonal"
+                  >Vence: {{ item.due_date ? formatDate(item.due_date) : 'Sin fecha' }}</v-chip
+                >
+                <v-chip v-if="item.is_overdue" size="small" color="error" variant="flat"
+                  >Vencida</v-chip
+                >
+                <v-chip
+                  v-else-if="item.days_to_due !== null"
+                  size="small"
+                  color="warning"
+                  variant="tonal"
+                >
                   En {{ item.days_to_due }} dias
                 </v-chip>
               </div>
               <div class="mt-2 d-flex justify-end">
-                <v-btn size="small" color="primary" variant="text" @click="openPurchaseDetailByPurchaseId(item.purchase_id)">
+                <v-btn
+                  size="small"
+                  color="primary"
+                  variant="text"
+                  @click="openPurchaseDetailByPurchaseId(item.purchase_id)"
+                >
                   Ver compra
                 </v-btn>
               </div>
@@ -304,7 +357,9 @@
             </v-col>
             <v-col cols="12" md="6" class="text-right">
               <div class="text-caption text-grey">Total a pagar</div>
-              <div class="text-h6 text-success">{{ formatMoney(selectedSupplierPayablesTotal) }}</div>
+              <div class="text-h6 text-success">
+                {{ formatMoney(selectedSupplierPayablesTotal) }}
+              </div>
             </v-col>
           </v-row>
 
@@ -327,8 +382,14 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn @click="bulkSupplierPaymentDialog = false" :disabled="savingBulkSupplierPayment">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="success" @click="confirmBulkSupplierPayment" :loading="savingBulkSupplierPayment">
+          <v-btn @click="bulkSupplierPaymentDialog = false" :disabled="savingBulkSupplierPayment">{{
+            t('common.cancel')
+          }}</v-btn>
+          <v-btn
+            color="success"
+            @click="confirmBulkSupplierPayment"
+            :loading="savingBulkSupplierPayment"
+          >
             Confirmar pago masivo
           </v-btn>
         </v-card-actions>
@@ -348,35 +409,70 @@
           </v-alert>
 
           <v-tabs v-model="suggestionsTab" color="purple">
-            <v-tab value="critical">Crítico ({{ suggestions.filter(s => s.priority === 1).length }})</v-tab>
-            <v-tab value="high">Alto ({{ suggestions.filter(s => s.priority === 2).length }})</v-tab>
-            <v-tab value="medium">Medio ({{ suggestions.filter(s => s.priority === 3).length }})</v-tab>
+            <v-tab value="critical"
+              >Crítico ({{ suggestions.filter((s) => s.priority === 1).length }})</v-tab
+            >
+            <v-tab value="high"
+              >Alto ({{ suggestions.filter((s) => s.priority === 2).length }})</v-tab
+            >
+            <v-tab value="medium"
+              >Medio ({{ suggestions.filter((s) => s.priority === 3).length }})</v-tab
+            >
           </v-tabs>
 
           <v-window v-model="suggestionsTab" class="mt-4">
             <!-- CRÍTICO -->
             <v-window-item value="critical">
-              <v-alert v-if="suggestions.filter(s => s.priority === 1).length === 0" type="success" variant="tonal" class="mb-4">
+              <v-alert
+                v-if="suggestions.filter((s) => s.priority === 1).length === 0"
+                type="success"
+                variant="tonal"
+                class="mb-4"
+              >
                 ¡Excelente! No hay productos con prioridad crítica
               </v-alert>
-              <v-card v-for="item in suggestions.filter(s => s.priority === 1)" :key="item.variant_id" variant="outlined" class="mb-2 purchase-suggestion-item">
+              <v-card
+                v-for="item in suggestions.filter((s) => s.priority === 1)"
+                :key="item.variant_id"
+                variant="outlined"
+                class="mb-2 purchase-suggestion-item"
+              >
                 <v-card-text>
                   <v-row align="center">
                     <v-col cols="12" md="5">
                       <div class="text-h6">{{ item.product_name }}</div>
-                      <div class="text-caption text-grey">{{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}</div>
-                      <v-chip size="x-small" color="error" class="mt-1">{{ item.priority_label }}</v-chip>
+                      <div class="text-caption text-grey">
+                        {{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}
+                      </div>
+                      <v-chip size="x-small" color="error" class="mt-1">{{
+                        item.priority_label
+                      }}</v-chip>
                     </v-col>
                     <v-col cols="12" md="4">
                       <div class="text-body-2"><strong>Razón:</strong> {{ item.reason }}</div>
-                      <div class="text-caption">Stock actual: <strong>{{ item.current_stock }}</strong></div>
-                      <div class="text-caption">Demanda diaria: <strong>{{ item.avg_daily_demand }}</strong> unidades</div>
-                      <div class="text-caption">Vendido (30d): <strong>{{ item.sold_last_30d }}</strong> unidades</div>
+                      <div class="text-caption">
+                        Stock actual: <strong>{{ item.current_stock }}</strong>
+                      </div>
+                      <div class="text-caption">
+                        Demanda diaria: <strong>{{ item.avg_daily_demand }}</strong> unidades
+                      </div>
+                      <div class="text-caption">
+                        Vendido (30d): <strong>{{ item.sold_last_30d }}</strong> unidades
+                      </div>
                     </v-col>
                     <v-col cols="12" md="3" class="text-right">
-                      <div class="text-h6 text-primary">{{ item.suggested_order_qty }} unidades</div>
-                      <div class="text-caption">Costo estimado: {{ formatMoney(item.estimated_cost) }}</div>
-                      <v-btn size="small" color="primary" class="mt-2" @click="addSuggestionToCart(item)">
+                      <div class="text-h6 text-primary">
+                        {{ item.suggested_order_qty }} unidades
+                      </div>
+                      <div class="text-caption">
+                        Costo estimado: {{ formatMoney(item.estimated_cost) }}
+                      </div>
+                      <v-btn
+                        size="small"
+                        color="primary"
+                        class="mt-2"
+                        @click="addSuggestionToCart(item)"
+                      >
                         Agregar a Compra
                       </v-btn>
                     </v-col>
@@ -387,27 +483,56 @@
 
             <!-- ALTO -->
             <v-window-item value="high">
-              <v-alert v-if="suggestions.filter(s => s.priority === 2).length === 0" type="success" variant="tonal" class="mb-4">
+              <v-alert
+                v-if="suggestions.filter((s) => s.priority === 2).length === 0"
+                type="success"
+                variant="tonal"
+                class="mb-4"
+              >
                 No hay productos con prioridad alta
               </v-alert>
-              <v-card v-for="item in suggestions.filter(s => s.priority === 2)" :key="item.variant_id" variant="outlined" class="mb-2 purchase-suggestion-item">
+              <v-card
+                v-for="item in suggestions.filter((s) => s.priority === 2)"
+                :key="item.variant_id"
+                variant="outlined"
+                class="mb-2 purchase-suggestion-item"
+              >
                 <v-card-text>
                   <v-row align="center">
                     <v-col cols="12" md="5">
                       <div class="text-h6">{{ item.product_name }}</div>
-                      <div class="text-caption text-grey">{{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}</div>
-                      <v-chip size="x-small" color="warning" class="mt-1">{{ item.priority_label }}</v-chip>
+                      <div class="text-caption text-grey">
+                        {{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}
+                      </div>
+                      <v-chip size="x-small" color="warning" class="mt-1">{{
+                        item.priority_label
+                      }}</v-chip>
                     </v-col>
                     <v-col cols="12" md="4">
                       <div class="text-body-2"><strong>Razón:</strong> {{ item.reason }}</div>
-                      <div class="text-caption">Stock actual: <strong>{{ item.current_stock }}</strong></div>
-                      <div class="text-caption">Días de stock: <strong>{{ item.days_of_stock }}</strong></div>
-                      <div class="text-caption">Demanda diaria: <strong>{{ item.avg_daily_demand }}</strong></div>
+                      <div class="text-caption">
+                        Stock actual: <strong>{{ item.current_stock }}</strong>
+                      </div>
+                      <div class="text-caption">
+                        Días de stock: <strong>{{ item.days_of_stock }}</strong>
+                      </div>
+                      <div class="text-caption">
+                        Demanda diaria: <strong>{{ item.avg_daily_demand }}</strong>
+                      </div>
                     </v-col>
                     <v-col cols="12" md="3" class="text-right">
-                      <div class="text-h6 text-primary">{{ item.suggested_order_qty }} unidades</div>
-                      <div class="text-caption">Costo estimado: {{ formatMoney(item.estimated_cost) }}</div>
-                      <v-btn size="small" color="primary" class="mt-2" @click="addSuggestionToCart(item)">
+                      <div class="text-h6 text-primary">
+                        {{ item.suggested_order_qty }} unidades
+                      </div>
+                      <div class="text-caption">
+                        Costo estimado: {{ formatMoney(item.estimated_cost) }}
+                      </div>
+                      <v-btn
+                        size="small"
+                        color="primary"
+                        class="mt-2"
+                        @click="addSuggestionToCart(item)"
+                      >
                         Agregar a Compra
                       </v-btn>
                     </v-col>
@@ -418,26 +543,53 @@
 
             <!-- MEDIO -->
             <v-window-item value="medium">
-              <v-alert v-if="suggestions.filter(s => s.priority === 3).length === 0" type="info" variant="tonal" class="mb-4">
+              <v-alert
+                v-if="suggestions.filter((s) => s.priority === 3).length === 0"
+                type="info"
+                variant="tonal"
+                class="mb-4"
+              >
                 No hay productos con prioridad media
               </v-alert>
-              <v-card v-for="item in suggestions.filter(s => s.priority === 3)" :key="item.variant_id" variant="outlined" class="mb-2 purchase-suggestion-item">
+              <v-card
+                v-for="item in suggestions.filter((s) => s.priority === 3)"
+                :key="item.variant_id"
+                variant="outlined"
+                class="mb-2 purchase-suggestion-item"
+              >
                 <v-card-text>
                   <v-row align="center">
                     <v-col cols="12" md="5">
                       <div class="text-h6">{{ item.product_name }}</div>
-                      <div class="text-caption text-grey">{{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}</div>
-                      <v-chip size="x-small" color="info" class="mt-1">{{ item.priority_label }}</v-chip>
+                      <div class="text-caption text-grey">
+                        {{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}
+                      </div>
+                      <v-chip size="x-small" color="info" class="mt-1">{{
+                        item.priority_label
+                      }}</v-chip>
                     </v-col>
                     <v-col cols="12" md="4">
                       <div class="text-body-2"><strong>Razón:</strong> {{ item.reason }}</div>
-                      <div class="text-caption">Stock actual: <strong>{{ item.current_stock }}</strong></div>
-                      <div class="text-caption">Días de stock: <strong>{{ item.days_of_stock }}</strong></div>
+                      <div class="text-caption">
+                        Stock actual: <strong>{{ item.current_stock }}</strong>
+                      </div>
+                      <div class="text-caption">
+                        Días de stock: <strong>{{ item.days_of_stock }}</strong>
+                      </div>
                     </v-col>
                     <v-col cols="12" md="3" class="text-right">
-                      <div class="text-h6 text-primary">{{ item.suggested_order_qty }} unidades</div>
-                      <div class="text-caption">Costo estimado: {{ formatMoney(item.estimated_cost) }}</div>
-                      <v-btn size="small" color="primary" class="mt-2" @click="addSuggestionToCart(item)">
+                      <div class="text-h6 text-primary">
+                        {{ item.suggested_order_qty }} unidades
+                      </div>
+                      <div class="text-caption">
+                        Costo estimado: {{ formatMoney(item.estimated_cost) }}
+                      </div>
+                      <v-btn
+                        size="small"
+                        color="primary"
+                        class="mt-2"
+                        @click="addSuggestionToCart(item)"
+                      >
                         Agregar a Compra
                       </v-btn>
                     </v-col>
@@ -448,7 +600,12 @@
           </v-window>
 
           <!-- Resumen total -->
-          <v-card v-if="suggestions.length > 0" color="purple" variant="tonal" class="mt-4 purchase-suggestions-summary">
+          <v-card
+            v-if="suggestions.length > 0"
+            color="purple"
+            variant="tonal"
+            class="mt-4 purchase-suggestions-summary"
+          >
             <v-card-text>
               <v-row>
                 <v-col cols="12" md="3">
@@ -457,14 +614,22 @@
                 </v-col>
                 <v-col cols="12" md="3">
                   <div class="text-caption">Total unidades</div>
-                  <div class="text-h5">{{ suggestions.reduce((sum, s) => sum + s.suggested_order_qty, 0) }}</div>
+                  <div class="text-h5">
+                    {{ suggestions.reduce((sum, s) => sum + s.suggested_order_qty, 0) }}
+                  </div>
                 </v-col>
                 <v-col cols="12" md="3">
                   <div class="text-caption">Inversión estimada</div>
-                  <div class="text-h5">{{ formatMoney(suggestions.reduce((sum, s) => sum + s.estimated_cost, 0)) }}</div>
+                  <div class="text-h5">
+                    {{ formatMoney(suggestions.reduce((sum, s) => sum + s.estimated_cost, 0)) }}
+                  </div>
                 </v-col>
                 <v-col cols="12" md="3" class="text-right">
-                  <v-btn color="primary" prepend-icon="mdi-cart-plus" @click="createPurchaseFromSuggestions">
+                  <v-btn
+                    color="primary"
+                    prepend-icon="mdi-cart-plus"
+                    @click="createPurchaseFromSuggestions"
+                  >
                     Crear Orden de Compra
                   </v-btn>
                 </v-col>
@@ -482,20 +647,28 @@
     <!-- Dialog Análisis IA Avanzado -->
     <v-dialog v-model="aiAnalysisDialog" max-width="1400" scrollable>
       <v-card class="purchase-modal purchase-ai-modal">
-        <v-card-title class="purchase-modal__header purchase-modal__header--deep-purple d-flex align-center">
+        <v-card-title
+          class="purchase-modal__header purchase-modal__header--deep-purple d-flex align-center"
+        >
           <v-icon start color="white">mdi-robot</v-icon>
           <span class="text-white">Análisis IA Avanzado - DeepSeek</span>
           <v-spacer></v-spacer>
-          <v-chip v-if="aiAnalysis && aiAnalysis.from_cache" color="blue" size="small" variant="flat" class="mr-2">
+          <v-chip
+            v-if="aiAnalysis && aiAnalysis.from_cache"
+            color="blue"
+            size="small"
+            variant="flat"
+            class="mr-2"
+          >
             <v-icon start size="small">mdi-cached</v-icon>
             Caché
           </v-chip>
           <v-tooltip text="Forzar actualización (consultar API nuevamente)">
             <template v-slot:activator="{ props }">
-              <v-btn 
-                v-bind="props" 
-                icon="mdi-refresh" 
-                size="small" 
+              <v-btn
+                v-bind="props"
+                icon="mdi-refresh"
+                size="small"
                 variant="text"
                 color="white"
                 @click="refreshAIAnalysis"
@@ -513,7 +686,14 @@
           </v-alert>
 
           <!-- Error State -->
-          <v-alert v-if="aiAnalysisError" type="error" variant="tonal" closable @click:close="aiAnalysisError = null" class="mb-4">
+          <v-alert
+            v-if="aiAnalysisError"
+            type="error"
+            variant="tonal"
+            closable
+            @click:close="aiAnalysisError = null"
+            class="mb-4"
+          >
             {{ aiAnalysisError }}
           </v-alert>
 
@@ -527,7 +707,9 @@
                   <v-col cols="12" md="3">
                     <v-card variant="elevated" class="purchase-ai-kpi">
                       <v-card-text class="text-center">
-                        <div class="text-h3 text-error">{{ aiAnalysis.executive_summary.critical_products_count }}</div>
+                        <div class="text-h3 text-error">
+                          {{ aiAnalysis.executive_summary.critical_products_count }}
+                        </div>
                         <div class="text-caption">Productos Críticos</div>
                       </v-card-text>
                     </v-card>
@@ -535,7 +717,9 @@
                   <v-col cols="12" md="3">
                     <v-card variant="elevated" class="purchase-ai-kpi">
                       <v-card-text class="text-center">
-                        <div class="text-h3 text-success">{{ aiAnalysis.executive_summary.high_confidence_count }}</div>
+                        <div class="text-h3 text-success">
+                          {{ aiAnalysis.executive_summary.high_confidence_count }}
+                        </div>
                         <div class="text-caption">Alta Confianza IA</div>
                       </v-card-text>
                     </v-card>
@@ -543,13 +727,19 @@
                   <v-col cols="12" md="3">
                     <v-card variant="elevated" class="purchase-ai-kpi">
                       <v-card-text class="text-center">
-                        <div class="text-h3 text-primary">{{ formatMoney(aiAnalysis.executive_summary.total_investment) }}</div>
+                        <div class="text-h3 text-primary">
+                          {{ formatMoney(aiAnalysis.executive_summary.total_investment) }}
+                        </div>
                         <div class="text-caption">Inversión Estimada</div>
                       </v-card-text>
                     </v-card>
                   </v-col>
                   <v-col cols="12" md="3">
-                    <v-card variant="elevated" color="purple" class="purchase-ai-kpi purchase-ai-kpi--highlight">
+                    <v-card
+                      variant="elevated"
+                      color="purple"
+                      class="purchase-ai-kpi purchase-ai-kpi--highlight"
+                    >
                       <v-card-text class="text-center text-white">
                         <v-icon size="large">mdi-lightbulb-on</v-icon>
                         <div class="text-caption mt-2">Recomendación Principal</div>
@@ -564,22 +754,43 @@
             </v-card>
 
             <!-- Insights Estratégicos -->
-            <v-card v-if="aiAnalysis.insights && aiAnalysis.insights.length > 0" class="mb-4 purchase-ai-section">
+            <v-card
+              v-if="aiAnalysis.insights && aiAnalysis.insights.length > 0"
+              class="mb-4 purchase-ai-section"
+            >
               <v-card-title>💡 Insights Estratégicos</v-card-title>
               <v-card-text>
                 <v-expansion-panels>
                   <v-expansion-panel v-for="(insight, idx) in aiAnalysis.insights" :key="idx">
                     <v-expansion-panel-title>
                       <div class="d-flex align-center ga-2">
-                        <v-icon 
-                          :color="insight.type === 'opportunity' ? 'success' : insight.type === 'risk' ? 'warning' : 'info'"
+                        <v-icon
+                          :color="
+                            insight.type === 'opportunity'
+                              ? 'success'
+                              : insight.type === 'risk'
+                                ? 'warning'
+                                : 'info'
+                          "
                         >
-                          {{ insight.type === 'opportunity' ? 'mdi-trending-up' : insight.type === 'risk' ? 'mdi-alert' : 'mdi-chart-line' }}
+                          {{
+                            insight.type === 'opportunity'
+                              ? 'mdi-trending-up'
+                              : insight.type === 'risk'
+                                ? 'mdi-alert'
+                                : 'mdi-chart-line'
+                          }}
                         </v-icon>
                         <span>{{ insight.title }}</span>
-                        <v-chip 
-                          size="x-small" 
-                          :color="insight.impact === 'high' ? 'error' : insight.impact === 'medium' ? 'warning' : 'info'"
+                        <v-chip
+                          size="x-small"
+                          :color="
+                            insight.impact === 'high'
+                              ? 'error'
+                              : insight.impact === 'medium'
+                                ? 'warning'
+                                : 'info'
+                          "
                         >
                           {{ insight.impact }}
                         </v-chip>
@@ -594,7 +805,10 @@
             </v-card>
 
             <!-- Advertencias -->
-            <v-card v-if="aiAnalysis.warnings && aiAnalysis.warnings.length > 0" class="mb-4 purchase-ai-section">
+            <v-card
+              v-if="aiAnalysis.warnings && aiAnalysis.warnings.length > 0"
+              class="mb-4 purchase-ai-section"
+            >
               <v-card-title>⚠️ Advertencias Importantes</v-card-title>
               <v-card-text>
                 <v-alert
@@ -610,7 +824,10 @@
             </v-card>
 
             <!-- Consejos de Optimización -->
-            <v-card v-if="aiAnalysis.optimization_tips && aiAnalysis.optimization_tips.length > 0" class="mb-4 purchase-ai-section">
+            <v-card
+              v-if="aiAnalysis.optimization_tips && aiAnalysis.optimization_tips.length > 0"
+              class="mb-4 purchase-ai-section"
+            >
               <v-card-title>🎯 Consejos de Optimización</v-card-title>
               <v-card-text>
                 <v-list>
@@ -634,19 +851,37 @@
               <v-card-title>🤖 Sugerencias Mejoradas con IA</v-card-title>
               <v-card-text>
                 <v-tabs v-model="aiSuggestionsTab" color="deep-purple">
-                  <v-tab value="all">Todas ({{ aiAnalysis.suggestions.filter(s => s.has_ai_analysis).length }})</v-tab>
-                  <v-tab value="critical">Críticas ({{ aiAnalysis.suggestions.filter(s => s.ai_priority === 1 || s.priority === 1).length }})</v-tab>
-                  <v-tab value="high-confidence">Alta Confianza ({{ aiAnalysis.suggestions.filter(s => (s.ai_confidence || 0) > 0.8).length }})</v-tab>
+                  <v-tab value="all"
+                    >Todas ({{
+                      aiAnalysis.suggestions.filter((s) => s.has_ai_analysis).length
+                    }})</v-tab
+                  >
+                  <v-tab value="critical"
+                    >Críticas ({{
+                      aiAnalysis.suggestions.filter((s) => s.ai_priority === 1 || s.priority === 1)
+                        .length
+                    }})</v-tab
+                  >
+                  <v-tab value="high-confidence"
+                    >Alta Confianza ({{
+                      aiAnalysis.suggestions.filter((s) => (s.ai_confidence || 0) > 0.8).length
+                    }})</v-tab
+                  >
                 </v-tabs>
 
                 <v-window v-model="aiSuggestionsTab" class="mt-4">
                   <!-- Todas -->
                   <v-window-item value="all">
-                    <div v-if="aiAnalysis.suggestions.filter(s => s.has_ai_analysis).length === 0" class="text-center pa-4 text-grey">
+                    <div
+                      v-if="aiAnalysis.suggestions.filter((s) => s.has_ai_analysis).length === 0"
+                      class="text-center pa-4 text-grey"
+                    >
                       No hay sugerencias con análisis IA
                     </div>
                     <v-card
-                      v-for="item in aiAnalysis.suggestions.filter(s => s.has_ai_analysis).slice(0, 20)"
+                      v-for="item in aiAnalysis.suggestions
+                        .filter((s) => s.has_ai_analysis)
+                        .slice(0, 20)"
                       :key="item.variant_id"
                       variant="outlined"
                       class="mb-2 purchase-ai-suggestion-item"
@@ -655,12 +890,21 @@
                         <v-row align="center">
                           <v-col cols="12" md="4">
                             <div class="text-h6">{{ item.product_name }}</div>
-                            <div class="text-caption text-grey">{{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}</div>
+                            <div class="text-caption text-grey">
+                              {{ item.variant_name || 'Sin variante' }} • SKU: {{ item.sku }}
+                            </div>
                             <div class="d-flex ga-1 mt-2">
-                              <v-chip size="x-small" :color="getPriorityColor(item.ai_priority || item.priority)">
+                              <v-chip
+                                size="x-small"
+                                :color="getPriorityColor(item.ai_priority || item.priority)"
+                              >
                                 Prioridad: {{ item.ai_priority || item.priority }}
                               </v-chip>
-                              <v-chip v-if="item.ai_confidence" size="x-small" :color="getConfidenceColor(item.ai_confidence)">
+                              <v-chip
+                                v-if="item.ai_confidence"
+                                size="x-small"
+                                :color="getConfidenceColor(item.ai_confidence)"
+                              >
                                 Confianza: {{ Math.round(item.ai_confidence * 100) }}%
                               </v-chip>
                             </div>
@@ -674,10 +918,26 @@
                             </div>
                           </v-col>
                           <v-col cols="12" md="3" class="text-right">
-                            <div class="text-caption text-grey">Sistema: {{ item.suggested_order_qty }}</div>
-                            <div class="text-h6 text-deep-purple">IA: {{ item.ai_suggested_qty || item.suggested_order_qty }} unidades</div>
-                            <div class="text-caption">{{ formatMoney((item.ai_suggested_qty || item.suggested_order_qty) * item.unit_cost) }}</div>
-                            <v-btn size="small" color="deep-purple" class="mt-2" @click="addAISuggestionToCart(item)">
+                            <div class="text-caption text-grey">
+                              Sistema: {{ item.suggested_order_qty }}
+                            </div>
+                            <div class="text-h6 text-deep-purple">
+                              IA: {{ item.ai_suggested_qty || item.suggested_order_qty }} unidades
+                            </div>
+                            <div class="text-caption">
+                              {{
+                                formatMoney(
+                                  (item.ai_suggested_qty || item.suggested_order_qty) *
+                                    item.unit_cost
+                                )
+                              }}
+                            </div>
+                            <v-btn
+                              size="small"
+                              color="deep-purple"
+                              class="mt-2"
+                              @click="addAISuggestionToCart(item)"
+                            >
                               Agregar a Compra
                             </v-btn>
                           </v-col>
@@ -689,7 +949,9 @@
                   <!-- Críticas -->
                   <v-window-item value="critical">
                     <v-card
-                      v-for="item in aiAnalysis.suggestions.filter(s => s.ai_priority === 1 || s.priority === 1)"
+                      v-for="item in aiAnalysis.suggestions.filter(
+                        (s) => s.ai_priority === 1 || s.priority === 1
+                      )"
                       :key="item.variant_id"
                       variant="outlined"
                       class="mb-2 border-error purchase-ai-suggestion-item"
@@ -701,8 +963,17 @@
                             <div class="text-caption">{{ item.ai_reasoning || item.reason }}</div>
                           </v-col>
                           <v-col cols="12" md="3">
-                            <div class="text-h6 text-error">{{ item.ai_suggested_qty || item.suggested_order_qty }} unidades</div>
-                            <div class="text-caption">{{ formatMoney((item.ai_suggested_qty || item.suggested_order_qty) * item.unit_cost) }}</div>
+                            <div class="text-h6 text-error">
+                              {{ item.ai_suggested_qty || item.suggested_order_qty }} unidades
+                            </div>
+                            <div class="text-caption">
+                              {{
+                                formatMoney(
+                                  (item.ai_suggested_qty || item.suggested_order_qty) *
+                                    item.unit_cost
+                                )
+                              }}
+                            </div>
                           </v-col>
                           <v-col cols="12" md="3" class="text-right">
                             <v-btn size="small" color="error" @click="addAISuggestionToCart(item)">
@@ -717,7 +988,9 @@
                   <!-- Alta Confianza -->
                   <v-window-item value="high-confidence">
                     <v-card
-                      v-for="item in aiAnalysis.suggestions.filter(s => (s.ai_confidence || 0) > 0.8)"
+                      v-for="item in aiAnalysis.suggestions.filter(
+                        (s) => (s.ai_confidence || 0) > 0.8
+                      )"
                       :key="item.variant_id"
                       variant="outlined"
                       class="mb-2 purchase-ai-suggestion-item"
@@ -732,10 +1005,16 @@
                             </v-chip>
                           </v-col>
                           <v-col cols="12" md="3">
-                            <div class="text-h6 text-success">{{ item.ai_suggested_qty || item.suggested_order_qty }} unidades</div>
+                            <div class="text-h6 text-success">
+                              {{ item.ai_suggested_qty || item.suggested_order_qty }} unidades
+                            </div>
                           </v-col>
                           <v-col cols="12" md="3" class="text-right">
-                            <v-btn size="small" color="success" @click="addAISuggestionToCart(item)">
+                            <v-btn
+                              size="small"
+                              color="success"
+                              @click="addAISuggestionToCart(item)"
+                            >
                               Agregar
                             </v-btn>
                           </v-col>
@@ -749,7 +1028,12 @@
           </div>
         </v-card-text>
         <v-card-actions>
-          <v-btn v-if="aiAnalysis" color="deep-purple" prepend-icon="mdi-refresh" @click="refreshAIAnalysis">
+          <v-btn
+            v-if="aiAnalysis"
+            color="deep-purple"
+            prepend-icon="mdi-refresh"
+            @click="refreshAIAnalysis"
+          >
             Actualizar Análisis
           </v-btn>
           <v-spacer></v-spacer>
@@ -810,11 +1094,14 @@
               </v-col>
               <v-col cols="12">
                 <v-sheet class="purchase-ocr-panel pa-3" rounded="lg">
-                  <div class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-3">
+                  <div
+                    class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-3"
+                  >
                     <div>
                       <div class="text-subtitle-1 font-weight-bold">Factura con OCR</div>
                       <div class="text-body-2 text-medium-emphasis">
-                        Toma o sube una foto de la factura para intentar llenar proveedor y lineas automaticamente.
+                        Toma o sube una foto de la factura para intentar llenar proveedor y lineas
+                        automaticamente.
                       </div>
                     </div>
                     <v-btn
@@ -837,18 +1124,16 @@
                     @change="handleInvoiceFileSelected"
                   />
 
-                  <v-alert
-                    v-if="invoiceImportSummary"
-                    type="info"
-                    variant="tonal"
-                    class="mt-3"
-                  >
+                  <v-alert v-if="invoiceImportSummary" type="info" variant="tonal" class="mt-3">
                     <div class="font-weight-bold mb-1">
                       {{ invoiceImportSummary.vendorName || 'Proveedor no identificado' }}
-                      <span v-if="invoiceImportSummary.invoiceNumber">· {{ invoiceImportSummary.invoiceNumber }}</span>
+                      <span v-if="invoiceImportSummary.invoiceNumber"
+                        >· {{ invoiceImportSummary.invoiceNumber }}</span
+                      >
                     </div>
                     <div class="text-body-2 mb-2">
-                      {{ invoiceImportSummary.matchedCount }} linea(s) agregadas o actualizadas y {{ invoiceImportSummary.unmatchedCount }} sin match en catalogo.
+                      {{ invoiceImportSummary.matchedCount }} linea(s) agregadas o actualizadas y
+                      {{ invoiceImportSummary.unmatchedCount }} sin match en catalogo.
                     </div>
                     <div v-if="invoiceImportSummary.autoSupplierName" class="text-body-2 mb-2">
                       Proveedor sugerido: {{ invoiceImportSummary.autoSupplierName }}
@@ -863,9 +1148,7 @@
 
                   <div v-if="invoiceImportUnmatched.length" class="mt-3">
                     <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-2">
-                      <div class="text-body-2 font-weight-medium">
-                        Artículos sin catálogo
-                      </div>
+                      <div class="text-body-2 font-weight-medium">Artículos sin catálogo</div>
                       <v-btn
                         color="success"
                         variant="tonal"
@@ -893,7 +1176,9 @@
                             <div class="text-caption text-medium-emphasis mt-1">
                               Cantidad: {{ Number(item.quantity || 0).toLocaleString('es-CO') }}
                               <span v-if="item.sku">· SKU: {{ item.sku }}</span>
-                              <span v-if="item.unit_price != null">· Costo: {{ formatMoney(item.unit_price || 0) }}</span>
+                              <span v-if="item.unit_price != null"
+                                >· Costo: {{ formatMoney(item.unit_price || 0) }}</span
+                              >
                             </div>
                             <div v-if="item.create_error" class="text-caption text-error mt-2">
                               {{ item.create_error }}
@@ -924,10 +1209,22 @@
             <div class="d-flex align-center mb-2">
               <span class="text-subtitle-1 font-weight-bold">Productos</span>
               <v-spacer></v-spacer>
-              <v-btn size="small" color="primary" prepend-icon="mdi-plus" variant="tonal" @click="addLine">Agregar</v-btn>
+              <v-btn
+                size="small"
+                color="primary"
+                prepend-icon="mdi-plus"
+                variant="tonal"
+                @click="addLine"
+                >Agregar</v-btn
+              >
             </div>
 
-            <v-card v-for="(line, i) in purchaseData.lines" :key="i" variant="outlined" class="mb-2">
+            <v-card
+              v-for="(line, i) in purchaseData.lines"
+              :key="i"
+              variant="outlined"
+              class="mb-2"
+            >
               <v-card-text>
                 <v-row dense>
                   <v-col cols="12" sm="6">
@@ -936,19 +1233,22 @@
                       :items="variants"
                       :loading="searchingVariants"
                       item-title="_displayName"
-                      item-value="variant_id"
+                      item-value="id"
+                      :no-filter="true"
                       label="Producto"
                       prepend-inner-icon="mdi-package-variant"
                       variant="outlined"
                       density="compact"
                       :rules="[rules.required]"
-                      @update:model-value="value => onVariantSelected(i, value)"
+                      @update:model-value="(value) => onVariantSelected(i, value)"
                       @update:search="searchVariants"
                     >
                       <template #item="{ props, item }">
                         <v-list-item v-bind="props" :subtitle="'SKU: ' + item.raw.sku">
                           <template #append>
-                            <v-icon v-if="item.raw.requires_expiration" color="warning" size="small">mdi-calendar-alert</v-icon>
+                            <v-icon v-if="item.raw.requires_expiration" color="warning" size="small"
+                              >mdi-calendar-alert</v-icon
+                            >
                           </template>
                         </v-list-item>
                       </template>
@@ -980,7 +1280,13 @@
                     ></v-text-field>
                   </v-col>
                   <v-col cols="12" sm="1" class="d-flex align-center">
-                    <v-btn icon="mdi-delete" size="small" color="error" variant="text" @click="removeLine(i)"></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      size="small"
+                      color="error"
+                      variant="text"
+                      @click="removeLine(i)"
+                    ></v-btn>
                   </v-col>
 
                   <!-- Campos de lote si el producto requiere vencimiento -->
@@ -1001,9 +1307,9 @@
                       persistent-hint
                     >
                       <template #append>
-                        <v-btn 
-                          icon="mdi-refresh" 
-                          size="x-small" 
+                        <v-btn
+                          icon="mdi-refresh"
+                          size="x-small"
                           variant="text"
                           @click="generateBatchNumber(i)"
                         ></v-btn>
@@ -1038,7 +1344,12 @@
               </v-card-text>
             </v-card>
 
-            <v-alert v-if="purchaseData.lines.length === 0" type="info" variant="tonal" class="mt-2">
+            <v-alert
+              v-if="purchaseData.lines.length === 0"
+              type="info"
+              variant="tonal"
+              class="mt-2"
+            >
               Agrega al menos un producto para registrar la compra
             </v-alert>
           </v-form>
@@ -1046,8 +1357,21 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn @click="dialog = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="indigo" variant="tonal" :loading="savingDraft" @click="savePurchaseOrder" :disabled="purchaseData.lines.length === 0">Guardar como OC</v-btn>
-          <v-btn color="primary" :loading="saving" @click="savePurchase" :disabled="purchaseData.lines.length === 0">Guardar Compra</v-btn>
+          <v-btn
+            color="indigo"
+            variant="tonal"
+            :loading="savingDraft"
+            @click="savePurchaseOrder"
+            :disabled="purchaseData.lines.length === 0"
+            >Guardar como OC</v-btn
+          >
+          <v-btn
+            color="primary"
+            :loading="saving"
+            @click="savePurchase"
+            :disabled="purchaseData.lines.length === 0"
+            >Guardar Compra</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1085,9 +1409,7 @@
                     {{ formatDate(order.created_at) }} • {{ order.location?.name || 'Sin sede' }} •
                     {{ order.supplier?.legal_name || 'Sin proveedor' }}
                   </div>
-                  <div v-if="order.note" class="text-caption mt-1">
-                    Nota: {{ order.note }}
-                  </div>
+                  <div v-if="order.note" class="text-caption mt-1">Nota: {{ order.note }}</div>
                 </v-col>
                 <v-col cols="12" md="4" class="text-md-right">
                   <v-chip size="small" color="info" variant="tonal" class="mr-1">
@@ -1123,7 +1445,8 @@
               >
                 <v-col cols="12" md="6">
                   <div class="text-body-2">
-                    {{ line.variant?.product?.name || 'Producto' }}{{ line.variant?.variant_name ? ' - ' + line.variant.variant_name : '' }}
+                    {{ line.variant?.product?.name || 'Producto'
+                    }}{{ line.variant?.variant_name ? ' - ' + line.variant.variant_name : '' }}
                   </div>
                   <div class="text-caption text-grey">SKU: {{ line.variant?.sku || '-' }}</div>
                 </v-col>
@@ -1137,14 +1460,22 @@
                 </v-col>
                 <v-col cols="4" md="2" class="text-right">
                   <div class="text-caption text-grey">Subtotal</div>
-                  <div class="text-body-2">{{ formatMoney(Number(line.qty_ordered) * Number(line.unit_cost)) }}</div>
+                  <div class="text-body-2">
+                    {{ formatMoney(Number(line.qty_ordered) * Number(line.unit_cost)) }}
+                  </div>
                 </v-col>
               </v-row>
             </v-card-text>
           </v-card>
         </v-card-text>
         <v-card-actions>
-          <v-btn variant="tonal" color="indigo" prepend-icon="mdi-refresh" :loading="loadingPurchaseOrders" @click="loadPendingPurchaseOrders">
+          <v-btn
+            variant="tonal"
+            color="indigo"
+            prepend-icon="mdi-refresh"
+            :loading="loadingPurchaseOrders"
+            @click="loadPendingPurchaseOrders"
+          >
             Actualizar
           </v-btn>
           <v-spacer></v-spacer>
@@ -1162,13 +1493,19 @@
         <v-card-text>
           <div class="text-body-2">Define cantidades a recibir por linea.</div>
           <div class="text-body-2 mt-1">
-            <strong>OC:</strong> {{ selectedPurchaseOrderToReceive?.purchase_order_id?.slice(0, 8) || '-' }}
+            <strong>OC:</strong>
+            {{ selectedPurchaseOrderToReceive?.purchase_order_id?.slice(0, 8) || '-' }}
           </div>
           <v-alert type="info" variant="tonal" density="compact" class="mt-3">
             Puedes recibir parcial. Solo se registran lineas con cantidad mayor a 0.
           </v-alert>
 
-          <v-card v-for="line in receiveDraftLines" :key="line.purchase_order_line_id" variant="outlined" class="mt-2">
+          <v-card
+            v-for="line in receiveDraftLines"
+            :key="line.purchase_order_line_id"
+            variant="outlined"
+            class="mt-2"
+          >
             <v-card-text class="py-2">
               <v-row dense align="center">
                 <v-col cols="12" md="6">
@@ -1208,7 +1545,9 @@
           <v-btn
             color="primary"
             prepend-icon="mdi-check-circle"
-            :loading="receivingPurchaseOrderId === selectedPurchaseOrderToReceive?.purchase_order_id"
+            :loading="
+              receivingPurchaseOrderId === selectedPurchaseOrderToReceive?.purchase_order_id
+            "
             @click="confirmReceivePurchaseOrder"
           >
             Confirmar
@@ -1236,7 +1575,12 @@
 
           <div v-if="purchaseDetail && !loadingDetail">
             <div class="d-flex justify-end mb-3">
-              <v-btn color="warning" prepend-icon="mdi-undo" variant="tonal" @click="openReturnDialog">
+              <v-btn
+                color="warning"
+                prepend-icon="mdi-undo"
+                variant="tonal"
+                @click="openReturnDialog"
+              >
                 Devolver a proveedor
               </v-btn>
             </div>
@@ -1257,7 +1601,10 @@
                       <v-icon size="small" class="mr-1">mdi-truck</v-icon>
                       <span v-if="purchaseDetail.supplier">
                         {{ purchaseDetail.supplier.legal_name }}
-                        <span v-if="purchaseDetail.supplier.document_number" class="text-caption text-grey ml-1">
+                        <span
+                          v-if="purchaseDetail.supplier.document_number"
+                          class="text-caption text-grey ml-1"
+                        >
                           ({{ purchaseDetail.supplier.document_number }})
                         </span>
                       </span>
@@ -1282,7 +1629,8 @@
                     <div class="text-caption text-grey">Productos</div>
                     <div class="text-body-1">
                       <v-icon size="small" class="mr-1">mdi-package-variant</v-icon>
-                      {{ purchaseDetail.items_count }} {{ purchaseDetail.items_count === 1 ? 'producto' : 'productos' }}
+                      {{ purchaseDetail.items_count }}
+                      {{ purchaseDetail.items_count === 1 ? 'producto' : 'productos' }}
                     </div>
                   </v-col>
                   <v-col v-if="purchaseDetail.note" cols="12">
@@ -1302,7 +1650,12 @@
                 Cuenta por pagar
               </v-card-title>
               <v-card-text>
-                <v-alert v-if="loadingSupplierPayable" type="info" variant="tonal" density="compact">
+                <v-alert
+                  v-if="loadingSupplierPayable"
+                  type="info"
+                  variant="tonal"
+                  density="compact"
+                >
                   Cargando cuenta por pagar...
                 </v-alert>
 
@@ -1310,36 +1663,57 @@
                   <v-row dense>
                     <v-col cols="12" md="3">
                       <div class="text-caption text-grey">Estado</div>
-                      <v-chip size="small" :color="payableStatusColor(purchasePayable.status)" variant="tonal">
+                      <v-chip
+                        size="small"
+                        :color="payableStatusColor(purchasePayable.status)"
+                        variant="tonal"
+                      >
                         {{ payableStatusLabel(purchasePayable.status) }}
                       </v-chip>
                     </v-col>
                     <v-col cols="12" md="3">
                       <div class="text-caption text-grey">Total factura</div>
-                      <div class="text-body-1 font-weight-bold">{{ formatMoney(purchasePayable.total_amount) }}</div>
+                      <div class="text-body-1 font-weight-bold">
+                        {{ formatMoney(purchasePayable.total_amount) }}
+                      </div>
                     </v-col>
                     <v-col cols="12" md="3">
                       <div class="text-caption text-grey">Abonado</div>
-                      <div class="text-body-1 text-success">{{ formatMoney(purchasePayable.paid_amount) }}</div>
+                      <div class="text-body-1 text-success">
+                        {{ formatMoney(purchasePayable.paid_amount) }}
+                      </div>
                     </v-col>
                     <v-col cols="12" md="3">
                       <div class="text-caption text-grey">Saldo</div>
-                      <div class="text-body-1 text-error font-weight-bold">{{ formatMoney(purchasePayable.balance) }}</div>
+                      <div class="text-body-1 text-error font-weight-bold">
+                        {{ formatMoney(purchasePayable.balance) }}
+                      </div>
                     </v-col>
                     <v-col cols="12" md="4">
                       <div class="text-caption text-grey">Factura proveedor</div>
-                      <div class="text-body-2">{{ purchasePayable.invoice_number || 'Sin numero' }}</div>
+                      <div class="text-body-2">
+                        {{ purchasePayable.invoice_number || 'Sin numero' }}
+                      </div>
                     </v-col>
                     <v-col cols="12" md="4">
                       <div class="text-caption text-grey">Vencimiento</div>
-                      <div class="text-body-2">{{ purchasePayable.due_date ? formatDate(purchasePayable.due_date) : 'Sin fecha' }}</div>
+                      <div class="text-body-2">
+                        {{
+                          purchasePayable.due_date
+                            ? formatDate(purchasePayable.due_date)
+                            : 'Sin fecha'
+                        }}
+                      </div>
                     </v-col>
                     <v-col cols="12" md="4" class="text-md-right">
                       <v-btn
                         color="deep-orange"
                         variant="tonal"
                         prepend-icon="mdi-cash-plus"
-                        :disabled="purchasePayable.status === 'PAID' || purchasePayable.status === 'CANCELLED'"
+                        :disabled="
+                          purchasePayable.status === 'PAID' ||
+                          purchasePayable.status === 'CANCELLED'
+                        "
                         @click="openSupplierPaymentDialog"
                       >
                         Registrar abono
@@ -1350,15 +1724,28 @@
                   <v-divider class="my-3"></v-divider>
 
                   <div class="text-caption text-grey mb-1">Ultimos abonos</div>
-                  <v-row v-if="purchasePayable.payments && purchasePayable.payments.length > 0" dense>
-                    <v-col v-for="pay in purchasePayable.payments.slice(0, 5)" :key="pay.payable_payment_id" cols="12" md="6">
+                  <v-row
+                    v-if="purchasePayable.payments && purchasePayable.payments.length > 0"
+                    dense
+                  >
+                    <v-col
+                      v-for="pay in purchasePayable.payments.slice(0, 5)"
+                      :key="pay.payable_payment_id"
+                      cols="12"
+                      md="6"
+                    >
                       <v-card variant="tonal" color="deep-orange">
                         <v-card-text class="py-2">
                           <div class="d-flex justify-space-between">
                             <span class="text-body-2">{{ formatDate(pay.created_at) }}</span>
-                            <span class="text-body-2 font-weight-bold">{{ formatMoney(pay.amount) }}</span>
+                            <span class="text-body-2 font-weight-bold">{{
+                              formatMoney(pay.amount)
+                            }}</span>
                           </div>
-                          <div class="text-caption">{{ pay.payment_method || 'Sin metodo' }} {{ pay.note ? '� ' + pay.note : '' }}</div>
+                          <div class="text-caption">
+                            {{ pay.payment_method || 'Sin metodo' }}
+                            {{ pay.note ? '� ' + pay.note : '' }}
+                          </div>
                         </v-card-text>
                       </v-card>
                     </v-col>
@@ -1386,7 +1773,12 @@
             </v-card>
             <!-- Líneas de la compra -->
             <div class="text-subtitle-1 font-weight-bold mb-2">Productos Comprados</div>
-            <v-card v-for="(line, idx) in purchaseDetail.lines" :key="line.line_id" variant="outlined" class="mb-2">
+            <v-card
+              v-for="(line, idx) in purchaseDetail.lines"
+              :key="line.line_id"
+              variant="outlined"
+              class="mb-2"
+            >
               <v-card-text>
                 <v-row align="center">
                   <v-col cols="12" md="5">
@@ -1420,16 +1812,27 @@
                     <div class="text-h6 text-white">TOTAL</div>
                   </v-col>
                   <v-col cols="6" class="text-right">
-                    <div class="text-h5 text-white font-weight-bold">{{ formatMoney(purchaseDetail.total) }}</div>
+                    <div class="text-h5 text-white font-weight-bold">
+                      {{ formatMoney(purchaseDetail.total) }}
+                    </div>
                   </v-col>
                 </v-row>
               </v-card-text>
             </v-card>
 
-            <v-card v-if="purchaseDetail.returns && purchaseDetail.returns.length > 0" variant="outlined" class="mt-4">
+            <v-card
+              v-if="purchaseDetail.returns && purchaseDetail.returns.length > 0"
+              variant="outlined"
+              class="mt-4"
+            >
               <v-card-title class="text-subtitle-1">Devoluciones Registradas</v-card-title>
               <v-card-text>
-                <v-row v-for="ret in purchaseDetail.returns" :key="ret.purchase_return_id" dense class="py-1">
+                <v-row
+                  v-for="ret in purchaseDetail.returns"
+                  :key="ret.purchase_return_id"
+                  dense
+                  class="py-1"
+                >
                   <v-col cols="12" md="5">
                     <div class="text-body-2">DEV {{ ret.purchase_return_id.slice(0, 8) }}</div>
                     <div class="text-caption text-grey">{{ formatDate(ret.created_at) }}</div>
@@ -1465,11 +1868,18 @@
             Solo puedes devolver cantidades pendientes por linea.
           </v-alert>
 
-          <v-card v-for="line in returnDraftLines" :key="line.source_line_id" variant="outlined" class="mb-2">
+          <v-card
+            v-for="line in returnDraftLines"
+            :key="line.source_line_id"
+            variant="outlined"
+            class="mb-2"
+          >
             <v-card-text class="py-2">
               <v-row dense align="center">
                 <v-col cols="12" md="6">
-                  <div class="text-body-2">{{ line.product_name }}{{ line.variant_name ? ' - ' + line.variant_name : '' }}</div>
+                  <div class="text-body-2">
+                    {{ line.product_name }}{{ line.variant_name ? ' - ' + line.variant_name : '' }}
+                  </div>
                   <div class="text-caption text-grey">SKU: {{ line.sku || '-' }}</div>
                 </v-col>
                 <v-col cols="4" md="2" class="text-md-center">
@@ -1509,7 +1919,12 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="closeReturnDialog">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="warning" :loading="returningPurchase" prepend-icon="mdi-check" @click="confirmPurchaseReturn">
+          <v-btn
+            color="warning"
+            :loading="returningPurchase"
+            prepend-icon="mdi-check"
+            @click="confirmPurchaseReturn"
+          >
             Registrar devolucion
           </v-btn>
         </v-card-actions>
@@ -1551,8 +1966,15 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="createPayableDialog = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="deep-orange" :loading="savingPayable" prepend-icon="mdi-check" @click="confirmCreatePayable">
+          <v-btn variant="text" @click="createPayableDialog = false">{{
+            t('common.cancel')
+          }}</v-btn>
+          <v-btn
+            color="deep-orange"
+            :loading="savingPayable"
+            prepend-icon="mdi-check"
+            @click="confirmCreatePayable"
+          >
             Crear
           </v-btn>
         </v-card-actions>
@@ -1599,489 +2021,566 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="supplierPaymentDialog = false">{{ t('common.cancel') }}</v-btn>
-          <v-btn color="deep-orange" :loading="savingSupplierPayment" prepend-icon="mdi-check" @click="confirmSupplierPayment">
+          <v-btn variant="text" @click="supplierPaymentDialog = false">{{
+            t('common.cancel')
+          }}</v-btn>
+          <v-btn
+            color="deep-orange"
+            :loading="savingSupplierPayment"
+            prepend-icon="mdi-check"
+            @click="confirmSupplierPayment"
+          >
             Registrar
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">{{ snackbarMessage }}</v-snackbar>
+    <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">{{
+      snackbarMessage
+    }}</v-snackbar>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useDisplay } from 'vuetify'
-import { useTenant } from '@/composables/useTenant'
-import { useTenantSettings } from '@/composables/useTenantSettings'
-import { useAuth } from '@/composables/useAuth'
-import supabaseService from '@/services/supabase.service'
-import purchasesService from '@/services/purchases.service'
-import batchesService from '@/services/batches.service'
-import thirdPartiesService from '@/services/thirdParties.service'
-import { suggestCatalogProductFromInvoiceLine } from '@/services/purchaseInvoiceAssistant.service'
-import { analyzeInvoiceFile } from '@/services/purchaseInvoiceOcr.service'
-import ListView from '@/components/ListView.vue'
-import ContextHelpCard from '@/components/ContextHelpCard.vue'
-import { humanizeAppError } from '@/utils/appErrors'
-import { formatMoney, formatDateTime as formatDate } from '@/utils/formatters'
+import { ref, onMounted, computed } from 'vue';
+import { useDisplay } from 'vuetify';
+import { useTenant } from '@/composables/useTenant';
+import { useTenantSettings } from '@/composables/useTenantSettings';
+import { useAuth } from '@/composables/useAuth';
+import supabaseService from '@/services/supabase.service';
+import purchasesService from '@/services/purchases.service';
+import productsService from '@/services/products.service';
+import { getBackendSession } from '@/services/backendAuthClient';
+import { backendLocations } from '@/services/backendReferenceLocationsClient';
+import batchesService from '@/services/batches.service';
+import thirdPartiesService from '@/services/thirdParties.service';
+import { suggestCatalogProductFromInvoiceLine } from '@/services/purchaseInvoiceAssistant.service';
+import { analyzeInvoiceFile } from '@/services/purchaseInvoiceOcr.service';
+import {
+  enqueuePurchaseInvoicePhotoJob,
+  isBackendMediaJobsEnabled,
+} from '@/services/mediaProcessingClient.service';
+import ListView from '@/components/ListView.vue';
+import ContextHelpCard from '@/components/ContextHelpCard.vue';
+import { humanizeAppError } from '@/utils/appErrors';
+import { formatMoney, formatDateTime as formatDate } from '@/utils/formatters';
 import {
   buildPurchaseInvoiceSummary,
   buildPurchaseLinesFromInvoiceMatches,
   findBestSupplierCandidate,
   matchInvoiceLinesToCatalog,
-} from '@/utils/purchaseInvoiceOcr'
-import { createEmptyPurchaseLine } from '@/utils/purchasesShared'
+} from '@/utils/purchaseInvoiceOcr';
+import { createEmptyPurchaseLine } from '@/utils/purchasesShared';
 import {
   buildInvoiceImportViewState,
   mergeInvoiceLinesIntoDraft,
-} from '@/utils/purchasesInvoiceFlow'
-import { useI18n } from '@/i18n'
+} from '@/utils/purchasesInvoiceFlow';
+import { consumePendingPurchaseDraft } from '@/utils/purchaseDraftBridge';
+import { useI18n } from '@/i18n';
 
-const { t } = useI18n()
+const { t } = useI18n();
 
-const { isMobile } = useDisplay()
-const { tenantId } = useTenant()
-const { defaultPageSize, loadSettings } = useTenantSettings()
-const { userProfile } = useAuth()
+const { isMobile } = useDisplay();
+const { tenantId } = useTenant();
+const { defaultPageSize, loadSettings } = useTenantSettings();
+const { userProfile } = useAuth();
 
-const loading = ref(false)
-const dialog = ref(false)
-const saving = ref(false)
-const savingDraft = ref(false)
-const form = ref(null)
-const invoiceFileInput = ref(null)
-const scanningInvoice = ref(false)
-const invoiceImportSummary = ref(null)
-const invoiceImportUnmatched = ref([])
-const invoiceImportUnmatchedAll = ref([])
-const creatingInvoiceCatalog = ref(false)
-const creatingInvoiceCatalogIds = ref([])
+const loading = ref(false);
+const dialog = ref(false);
+const saving = ref(false);
+const savingDraft = ref(false);
+const form = ref(null);
+const invoiceFileInput = ref(null);
+const scanningInvoice = ref(false);
+const invoiceImportSummary = ref(null);
+const invoiceImportUnmatched = ref([]);
+const invoiceImportUnmatchedAll = ref([]);
+const creatingInvoiceCatalog = ref(false);
+const creatingInvoiceCatalogIds = ref([]);
 
 // Variables para detalle de compra
-const detailDialog = ref(false)
-const purchaseDetail = ref(null)
-const loadingDetail = ref(false)
-const detailError = ref(null)
-const loadingSupplierPayable = ref(false)
-const purchasePayable = ref(null)
-const createPayableDialog = ref(false)
-const savingPayable = ref(false)
-const supplierPaymentDialog = ref(false)
-const savingSupplierPayment = ref(false)
+const detailDialog = ref(false);
+const purchaseDetail = ref(null);
+const loadingDetail = ref(false);
+const detailError = ref(null);
+const loadingSupplierPayable = ref(false);
+const purchasePayable = ref(null);
+const createPayableDialog = ref(false);
+const savingPayable = ref(false);
+const supplierPaymentDialog = ref(false);
+const savingSupplierPayment = ref(false);
 const payableForm = ref({
   invoice_number: '',
   due_date: null,
-  note: ''
-})
+  note: '',
+});
 const supplierPaymentForm = ref({
   amount: 0,
   payment_method: '',
-  note: ''
-})
-const returnDialog = ref(false)
-const returningPurchase = ref(false)
-const returnDraftLines = ref([])
-const returnNote = ref('')
+  note: '',
+});
+const returnDialog = ref(false);
+const returningPurchase = ref(false);
+const returnDraftLines = ref([]);
+const returnNote = ref('');
 
-const snackbar = ref(false)
-const snackbarMessage = ref('')
-const snackbarColor = ref('success')
+const snackbar = ref(false);
+const snackbarMessage = ref('');
+const snackbarColor = ref('success');
 
-const purchases = ref([])
-const totalPurchases = ref(0)
-const purchaseOrdersDialog = ref(false)
-const pendingPurchaseOrders = ref([])
-const loadingPurchaseOrders = ref(false)
-const receivingPurchaseOrderId = ref(null)
-const receiveConfirmDialog = ref(false)
-const selectedPurchaseOrderToReceive = ref(null)
-const receiveDraftLines = ref([])
-const locations = ref([])
-const variants = ref([])
-const searchingVariants = ref(false)
+const purchases = ref([]);
+const totalPurchases = ref(0);
+const purchaseOrdersDialog = ref(false);
+const pendingPurchaseOrders = ref([]);
+const loadingPurchaseOrders = ref(false);
+const receivingPurchaseOrderId = ref(null);
+const receiveConfirmDialog = ref(false);
+const selectedPurchaseOrderToReceive = ref(null);
+const receiveDraftLines = ref([]);
+const locations = ref([]);
+const variants = ref([]);
+const searchingVariants = ref(false);
+let variantsSearchSequence = 0;
 
-const selectedLocation = ref(null)
-const dateFrom = ref(null)
-const dateTo = ref(null)
-const search = ref('')
+const selectedLocation = ref(null);
+const dateFrom = ref(null);
+const dateTo = ref(null);
+const search = ref('');
 
 const purchaseData = ref({
   location_id: null,
   supplier_id: null,
   note: '',
-  lines: []
-})
+  lines: [],
+});
 
-const suppliers = ref([])
-const suppliersLoading = ref(false)
+const suppliers = ref([]);
+const suppliersLoading = ref(false);
 
 const loadSuppliers = async (search = '') => {
-  suppliersLoading.value = true
+  suppliersLoading.value = true;
   try {
-    suppliers.value = await thirdPartiesService.list({ search, type: 'supplier', limit: 50 })
-  } catch (e) { console.error('Error cargando proveedores', e) }
-  finally { suppliersLoading.value = false }
-}
+    if (import.meta.env.VITE_USE_BACKEND_PURCHASES === 'true') {
+      const base = (import.meta.env.VITE_BACKEND_API_URL || '').replace(/\/+$/, '');
+      const q = new URLSearchParams({ limit: '50' }); if (search) q.set('search', search);
+      const response = await fetch(`${base}/api/v1/suppliers?${q}`, { headers: { accept: 'application/json', authorization: `Bearer ${getBackendSession()?.accessToken}` } });
+      const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.message || `Backend respondió ${response.status}`);
+      suppliers.value = (payload.items || payload.Items || []).map(item => ({
+        ...item,
+        third_party_id: item.third_party_id || item.id || item.ID,
+        legal_name: item.legal_name || item.name || item.Name || item.trade_name || '',
+        trade_name: item.trade_name || item.name || item.Name || item.legal_name || '',
+        document_number: item.document_number || item.DocumentNumber || ''
+      }));
+      return;
+    }
+    suppliers.value = await thirdPartiesService.list({ search, type: 'supplier', limit: 50 });
+  } catch (e) {
+    console.error('Error cargando proveedores', e);
+  } finally {
+    suppliersLoading.value = false;
+  }
+};
 
 // Sugerencias IA
-const suggestionsDialog = ref(false)
-const suggestions = ref([])
-const loadingSuggestions = ref(false)
-const suggestionsTab = ref('critical')
-const criticalCount = computed(() => suggestions.value.filter(s => s.priority === 1).length)
+const suggestionsDialog = ref(false);
+const suggestions = ref([]);
+const loadingSuggestions = ref(false);
+const suggestionsTab = ref('critical');
+const criticalCount = computed(() => suggestions.value.filter((s) => s.priority === 1).length);
 
 // Análisis IA Avanzado
-const aiAnalysisDialog = ref(false)
-const aiAnalysis = ref(null)
-const loadingAIAnalysis = ref(false)
-const aiAnalysisError = ref(null)
-const aiSuggestionsTab = ref('all')
-const aiAvailable = ref(false)
-const pendingPurchaseOrdersCount = computed(() => pendingPurchaseOrders.value.length)
+const aiAnalysisDialog = ref(false);
+const aiAnalysis = ref(null);
+const loadingAIAnalysis = ref(false);
+const aiAnalysisError = ref(null);
+const aiSuggestionsTab = ref('all');
+const aiAvailable = ref(false);
+const pendingPurchaseOrdersCount = computed(() => pendingPurchaseOrders.value.length);
 
-const supplierPayablesDialog = ref(false)
-const supplierPayablesBoard = ref([])
-const loadingSupplierPayablesBoard = ref(false)
-const supplierPayablesStatusFilter = ref('OPEN_PARTIAL')
-const supplierPayablesDueFilter = ref(30)
-const supplierPayablesTotal = ref(0)
-const supplierPayablesPage = ref(1)
-const supplierPayablesPageSize = computed(() => defaultPageSize.value || 20)
+const supplierPayablesDialog = ref(false);
+const supplierPayablesBoard = ref([]);
+const loadingSupplierPayablesBoard = ref(false);
+const supplierPayablesStatusFilter = ref('OPEN_PARTIAL');
+const supplierPayablesDueFilter = ref(30);
+const supplierPayablesTotal = ref(0);
+const supplierPayablesPage = ref(1);
+const supplierPayablesPageSize = computed(() => defaultPageSize.value || 20);
 const supplierPayablesStatusOptions = [
   { label: 'Abiertas y parciales', value: 'OPEN_PARTIAL' },
   { label: 'Todas', value: 'ALL' },
   { label: 'Abiertas', value: 'OPEN' },
   { label: 'Parciales', value: 'PARTIAL' },
   { label: 'Pagadas', value: 'PAID' },
-  { label: 'Canceladas', value: 'CANCELLED' }
-]
+  { label: 'Canceladas', value: 'CANCELLED' },
+];
 const supplierPayablesDueOptions = [
   { label: 'Sin filtro', value: null },
   { label: 'Vence hoy o en 7 dias', value: 7 },
   { label: 'Vence hoy o en 15 dias', value: 15 },
   { label: 'Vence hoy o en 30 dias', value: 30 },
-  { label: 'Vence hoy o en 60 dias', value: 60 }
-]
-const supplierPayablesOpenCount = computed(() =>
-  supplierPayablesBoard.value.filter(x => ['OPEN', 'PARTIAL'].includes(x.status)).length
-)
-const supplierPayablesOverdueCount = computed(() =>
-  supplierPayablesBoard.value.filter(x => x.is_overdue && ['OPEN', 'PARTIAL'].includes(x.status)).length
-)
-const supplierPayablesSelectedIds = ref([])
-const bulkSupplierPaymentDialog = ref(false)
-const savingBulkSupplierPayment = ref(false)
+  { label: 'Vence hoy o en 60 dias', value: 60 },
+];
+const supplierPayablesOpenCount = computed(
+  () => supplierPayablesBoard.value.filter((x) => ['OPEN', 'PARTIAL'].includes(x.status)).length
+);
+const supplierPayablesOverdueCount = computed(
+  () =>
+    supplierPayablesBoard.value.filter(
+      (x) => x.is_overdue && ['OPEN', 'PARTIAL'].includes(x.status)
+    ).length
+);
+const supplierPayablesSelectedIds = ref([]);
+const bulkSupplierPaymentDialog = ref(false);
+const savingBulkSupplierPayment = ref(false);
 const bulkSupplierPaymentForm = ref({
   payment_method: '',
-  note: ''
-})
+  note: '',
+});
 const selectedSupplierPayablesRows = computed(() =>
-  supplierPayablesBoard.value.filter(row =>
-    supplierPayablesSelectedIds.value.includes(row.payable_id) && isSupplierPayableSelectable(row)
+  supplierPayablesBoard.value.filter(
+    (row) =>
+      supplierPayablesSelectedIds.value.includes(row.payable_id) && isSupplierPayableSelectable(row)
   )
-)
+);
 const selectedSupplierPayablesTotal = computed(() =>
   selectedSupplierPayablesRows.value.reduce((sum, row) => sum + Number(row.balance || 0), 0)
-)
+);
 const selectableSupplierPayablesIds = computed(() =>
-  supplierPayablesBoard.value.filter(isSupplierPayableSelectable).map(row => row.payable_id)
-)
-const allSupplierPayablesSelected = computed(() =>
-  selectableSupplierPayablesIds.value.length > 0 &&
-  selectableSupplierPayablesIds.value.every(id => supplierPayablesSelectedIds.value.includes(id))
-)
+  supplierPayablesBoard.value.filter(isSupplierPayableSelectable).map((row) => row.payable_id)
+);
+const allSupplierPayablesSelected = computed(
+  () =>
+    selectableSupplierPayablesIds.value.length > 0 &&
+    selectableSupplierPayablesIds.value.every((id) =>
+      supplierPayablesSelectedIds.value.includes(id)
+    )
+);
 
 // Verificar disponibilidad de IA
 onMounted(() => {
-  aiAvailable.value = purchasesService.isAIAvailable()
+  aiAvailable.value = purchasesService.isAIAvailable();
   if (!aiAvailable.value) {
-    console.warn('Servicio de IA no disponible. Verifique la Edge Function deepseek-proxy.')
+    console.warn('Servicio de IA no disponible. Verifique la Edge Function deepseek-proxy.');
   }
-})
+});
 
 const rules = {
-  required: v => !!v || v === 0 || 'Campo requerido',
-  positive: v => v > 0 || 'Debe ser mayor a 0'
-}
+  required: (v) => !!v || v === 0 || 'Campo requerido',
+  positive: (v) => v > 0 || 'Debe ser mayor a 0',
+};
 
-const createPurchaseLine = (payload = {}) => createEmptyPurchaseLine(payload)
+const createPurchaseLine = (payload = {}) => createEmptyPurchaseLine(payload);
 
-const resolveRequiresExpiration = (variantRow) => (
+const resolveRequiresExpiration = (variantRow) =>
   variantRow?.requires_expiration !== null && variantRow?.requires_expiration !== undefined
     ? !!variantRow?.requires_expiration
-    : !!variantRow?.product_id?.requires_expiration
-)
+    : !!variantRow?.product_id?.requires_expiration;
 
 const normalizeDateInput = (value) => {
-  if (!value) return null
+  if (!value) return null;
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10)
+    return value.toISOString().slice(0, 10);
   }
 
-  const raw = String(value).trim()
-  if (!raw) return null
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
-  const parsed = new Date(raw)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.toISOString().slice(0, 10)
-}
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+};
 
 const formatVariantLabel = (variantRow, fallbackId) => {
-  if (!variantRow) return `variante ${fallbackId}`
-  const productName = variantRow.product_id?.name || 'Producto'
-  const variantName = variantRow.variant_name ? ` - ${variantRow.variant_name}` : ''
-  const sku = variantRow.sku ? ` (${variantRow.sku})` : ''
-  return `${productName}${variantName}${sku}`
-}
+  if (!variantRow) return `variante ${fallbackId}`;
+  const productName = variantRow.product_id?.name || 'Producto';
+  const variantName = variantRow.variant_name ? ` - ${variantRow.variant_name}` : '';
+  const sku = variantRow.sku ? ` (${variantRow.sku})` : '';
+  return `${productName}${variantName}${sku}`;
+};
 
 const buildPurchaseLineLabel = (line, fallbackId) => {
-  if (!line) return fallbackId ? `producto ${fallbackId}` : null
-  if (line.label) return line.label
-  const productName = line.product_name || line.productName || line.product?.name || line.product_id?.name || 'Producto'
-  const variantName = line.variant_name || line.variantName || line.variant?.variant_name || ''
-  const sku = line.sku || line.variant?.sku || ''
-  const suffixVariant = variantName ? ` - ${variantName}` : ''
-  const suffixSku = sku ? ` (${sku})` : ''
-  return `${productName}${suffixVariant}${suffixSku}`.trim()
-}
+  if (!line) return fallbackId ? `producto ${fallbackId}` : null;
+  if (line.label) return line.label;
+  const productName =
+    line.product_name ||
+    line.productName ||
+    line.product?.name ||
+    line.product_id?.name ||
+    'Producto';
+  const variantName = line.variant_name || line.variantName || line.variant?.variant_name || '';
+  const sku = line.sku || line.variant?.sku || '';
+  const suffixVariant = variantName ? ` - ${variantName}` : '';
+  const suffixSku = sku ? ` (${sku})` : '';
+  return `${productName}${suffixVariant}${suffixSku}`.trim();
+};
 
 const buildPurchaseErrorContext = (lines = purchaseData.value.lines) => {
-  const idLabels = new Map()
+  const idLabels = new Map();
 
-  ;(lines || []).forEach((line) => {
-    if (!line?.variant_id) return
-    const label = buildPurchaseLineLabel(line, line.variant_id)
-    if (label) idLabels.set(String(line.variant_id).toLowerCase(), label)
-  })
-
-  ;(variants.value || []).forEach((variantRow) => {
-    if (!variantRow?.variant_id) return
-    const label = formatVariantLabel(variantRow, variantRow.variant_id)
-    if (label) idLabels.set(String(variantRow.variant_id).toLowerCase(), label)
-  })
+  (lines || []).forEach((line) => {
+    if (!line?.variant_id) return;
+    const label = buildPurchaseLineLabel(line, line.variant_id);
+    if (label) idLabels.set(String(line.variant_id).toLowerCase(), label);
+  });
+  (variants.value || []).forEach((variantRow) => {
+    if (!variantRow?.variant_id) return;
+    const label = formatVariantLabel(variantRow, variantRow.variant_id);
+    if (label) idLabels.set(String(variantRow.variant_id).toLowerCase(), label);
+  });
 
   return {
     idLabels,
     defaultMessage: 'Ocurrió un error al procesar la compra.',
-  }
-}
+  };
+};
 
 const loadVariantMetadata = async (variantIds = []) => {
-  const uniqueVariantIds = [...new Set((variantIds || []).filter(Boolean))]
+  const uniqueVariantIds = [...new Set((variantIds || []).filter(Boolean))];
   if (!tenantId.value || uniqueVariantIds.length === 0) {
-    return { success: true, byVariant: new Map() }
+    return { success: true, byVariant: new Map() };
+  }
+
+  if (import.meta.env.VITE_USE_BACKEND_CATALOG === 'true') {
+    const byVariant = new Map();
+    uniqueVariantIds.forEach((id) => {
+      const row = variants.value.find((variant) => String(variant.variant_id) === String(id));
+      if (row) byVariant.set(String(id), row);
+    });
+    return { success: true, byVariant };
   }
 
   try {
     const { data, error } = await supabaseService.client
       .from('product_variants')
-      .select(`
+      .select(
+        `
         variant_id,
         sku,
         variant_name,
         requires_expiration,
         product_id!inner(name, requires_expiration)
-      `)
+      `
+      )
       .eq('tenant_id', tenantId.value)
-      .in('variant_id', uniqueVariantIds)
+      .in('variant_id', uniqueVariantIds);
 
-    if (error) throw error
+    if (error) throw error;
 
-    const byVariant = new Map((data || []).map((row) => ([
-      row.variant_id,
-      {
-        ...row,
-        resolved_requires_expiration: resolveRequiresExpiration(row),
-        label: formatVariantLabel(row, row.variant_id)
-      }
-    ])))
+    const byVariant = new Map(
+      (data || []).map((row) => [
+        row.variant_id,
+        {
+          ...row,
+          resolved_requires_expiration: resolveRequiresExpiration(row),
+          label: formatVariantLabel(row, row.variant_id),
+        },
+      ])
+    );
 
-    return { success: true, byVariant }
+    return { success: true, byVariant };
   } catch (error) {
     return {
       success: false,
       error: humanizeAppError(error, buildPurchaseErrorContext()),
-      byVariant: new Map()
-    }
+      byVariant: new Map(),
+    };
   }
-}
+};
 
-const validateExpirationRequirements = async (lines, { qtyField = 'qty', contextLabel = 'guardar' } = {}) => {
-  const result = await loadVariantMetadata(lines.map(line => line.variant_id))
+const validateExpirationRequirements = async (
+  lines,
+  { qtyField = 'qty', contextLabel = 'guardar' } = {}
+) => {
+  const result = await loadVariantMetadata(lines.map((line) => line.variant_id));
   if (!result.success) {
-    showMsg(`No se pudo validar vencimientos: ${result.error}`, 'error')
-    return false
+    showMsg(`No se pudo validar vencimientos: ${result.error}`, 'error');
+    return false;
   }
 
   for (let index = 0; index < lines.length; index++) {
-    const line = lines[index]
-    const qty = Number(line?.[qtyField] || 0)
-    const metadata = result.byVariant.get(line?.variant_id)
-    const requiresExpiration = metadata?.resolved_requires_expiration ?? !!line?.requires_expiration
+    const line = lines[index];
+    const qty = Number(line?.[qtyField] || 0);
+    const metadata = result.byVariant.get(line?.variant_id);
+    const requiresExpiration =
+      metadata?.resolved_requires_expiration ?? !!line?.requires_expiration;
 
-    line.requires_expiration = requiresExpiration
+    line.requires_expiration = requiresExpiration;
 
-    if (!requiresExpiration) continue
+    if (!requiresExpiration) continue;
 
-    const normalizedDate = normalizeDateInput(line?.expiration_date)
-    if (line) line.expiration_date = normalizedDate
+    const normalizedDate = normalizeDateInput(line?.expiration_date);
+    if (line) line.expiration_date = normalizedDate;
 
     if (!normalizedDate) {
-      const lineLabel = metadata?.label || `variante ${line?.variant_id || 'sin id'}`
-      showMsg(`Linea ${index + 1}: ${lineLabel} requiere fecha de vencimiento para ${contextLabel}`, 'error')
-      return false
+      const lineLabel = metadata?.label || `variante ${line?.variant_id || 'sin id'}`;
+      showMsg(
+        `Linea ${index + 1}: ${lineLabel} requiere fecha de vencimiento para ${contextLabel}`,
+        'error'
+      );
+      return false;
     }
 
     if (qty <= 0) {
-      showMsg(`Linea ${index + 1}: cantidad inválida para ${contextLabel}`, 'error')
-      return false
+      showMsg(`Linea ${index + 1}: cantidad inválida para ${contextLabel}`, 'error');
+      return false;
     }
   }
 
-  return true
-}
+  return true;
+};
 
-const payableStatusLabel = (status) => ({
-  OPEN: 'Abierta',
-  PARTIAL: 'Parcial',
-  PAID: 'Pagada',
-  CANCELLED: 'Cancelada'
-}[status] || status)
+const payableStatusLabel = (status) =>
+  ({
+    OPEN: 'Abierta',
+    PARTIAL: 'Parcial',
+    PAID: 'Pagada',
+    CANCELLED: 'Cancelada',
+  })[status] || status;
 
-const payableStatusColor = (status) => ({
-  OPEN: 'warning',
-  PARTIAL: 'info',
-  PAID: 'success',
-  CANCELLED: 'grey'
-}[status] || 'grey')
+const payableStatusColor = (status) =>
+  ({
+    OPEN: 'warning',
+    PARTIAL: 'info',
+    PAID: 'success',
+    CANCELLED: 'grey',
+  })[status] || 'grey';
 
 // Funciones de sugerencias
 const openSuggestionsDialog = async () => {
-  suggestionsDialog.value = true
-  await loadSuggestions()
-}
+  suggestionsDialog.value = true;
+  await loadSuggestions();
+};
 
 const loadSuggestions = async () => {
-  if (!tenantId.value) return
-  loadingSuggestions.value = true
+  if (!tenantId.value) return;
+  loadingSuggestions.value = true;
   try {
-    const result = await purchasesService.getPurchaseSuggestions(tenantId.value, 3, 50)
+    const result = await purchasesService.getPurchaseSuggestions(tenantId.value, 3, 50);
     if (result.success) {
-      suggestions.value = result.data
+      suggestions.value = result.data;
       // Auto-abrir tab con datos
       if (criticalCount.value > 0) {
-        suggestionsTab.value = 'critical'
-      } else if (result.data.filter(s => s.priority === 2).length > 0) {
-        suggestionsTab.value = 'high'
+        suggestionsTab.value = 'critical';
+      } else if (result.data.filter((s) => s.priority === 2).length > 0) {
+        suggestionsTab.value = 'high';
       } else {
-        suggestionsTab.value = 'medium'
+        suggestionsTab.value = 'medium';
       }
     } else {
-      showMsg('Error al cargar sugerencias', 'error')
+      showMsg('Error al cargar sugerencias', 'error');
     }
   } finally {
-    loadingSuggestions.value = false
+    loadingSuggestions.value = false;
   }
-}
+};
 
 const addSuggestionToCart = (item) => {
   // Buscar si ya existe en el carrito
-  const existing = purchaseData.value.lines.find(l => l.variant_id === item.variant_id)
+  const existing = purchaseData.value.lines.find((l) => l.variant_id === item.variant_id);
   if (existing) {
-    existing.qty = item.suggested_order_qty
-    existing.unit_cost = item.unit_cost
-    showMsg(`Actualizado: ${item.product_name}`, 'info')
+    existing.qty = item.suggested_order_qty;
+    existing.unit_cost = item.unit_cost;
+    showMsg(`Actualizado: ${item.product_name}`, 'info');
   } else {
-    purchaseData.value.lines.push(createPurchaseLine({
-      variant_id: item.variant_id,
-      qty: item.suggested_order_qty,
-      unit_cost: item.unit_cost
-    }))
-    showMsg(`Agregado: ${item.product_name}`, 'success')
+    purchaseData.value.lines.push(
+      createPurchaseLine({
+        variant_id: item.variant_id,
+        qty: item.suggested_order_qty,
+        unit_cost: item.unit_cost,
+      })
+    );
+    showMsg(`Agregado: ${item.product_name}`, 'success');
   }
-}
+};
 
 const createPurchaseFromSuggestions = () => {
   // Transferir todas las sugerencias al formulario de compra
-  suggestionsDialog.value = false
-  dialog.value = true
-  purchaseData.value.lines = suggestions.value.map(s => createPurchaseLine({
-    variant_id: s.variant_id,
-    qty: s.suggested_order_qty,
-    unit_cost: s.unit_cost
-  }))
-  showMsg(`${suggestions.value.length} productos agregados a la orden de compra`, 'success')
-}
+  suggestionsDialog.value = false;
+  dialog.value = true;
+  purchaseData.value.lines = suggestions.value.map((s) =>
+    createPurchaseLine({
+      variant_id: s.variant_id,
+      qty: s.suggested_order_qty,
+      unit_cost: s.unit_cost,
+    })
+  );
+  showMsg(`${suggestions.value.length} productos agregados a la orden de compra`, 'success');
+};
 
 // Funciones de Análisis IA Avanzado
 const openAIAnalysisDialog = async () => {
-  aiAnalysisDialog.value = true
+  aiAnalysisDialog.value = true;
   if (!aiAnalysis.value) {
-    await loadAIAnalysis()
+    await loadAIAnalysis();
   }
-}
+};
 
 const loadAIAnalysis = async (forceRefresh = false) => {
-  if (!tenantId.value) return
+  if (!tenantId.value) return;
   if (!aiAvailable.value) {
-    aiAnalysisError.value = 'Servicio de IA no disponible. Verifique la Edge Function deepseek-proxy y su secreto DEEPSEEK_API_KEY.'
-    return
+    aiAnalysisError.value =
+      'Servicio de IA no disponible. Verifique la Edge Function deepseek-proxy y su secreto DEEPSEEK_API_KEY.';
+    return;
   }
 
-  loadingAIAnalysis.value = true
-  aiAnalysisError.value = null
+  loadingAIAnalysis.value = true;
+  aiAnalysisError.value = null;
 
   try {
     const result = await purchasesService.getAIPurchaseAnalysis(tenantId.value, {
       businessContext: 'Tienda minorista con análisis histórico de ventas',
       priorityLevel: 3,
-      forceRefresh
-    })
+      forceRefresh,
+    });
 
     if (result.success) {
-      aiAnalysis.value = result.data
-      showMsg('Análisis IA completado exitosamente', 'success')
+      aiAnalysis.value = result.data;
+      showMsg('Análisis IA completado exitosamente', 'success');
     } else {
-      aiAnalysisError.value = result.error || 'Error al cargar análisis de IA'
+      aiAnalysisError.value = result.error || 'Error al cargar análisis de IA';
     }
   } catch (error) {
-    console.error('Error loading AI analysis:', error)
-    aiAnalysisError.value = humanizeAppError(`Error: ${error.message}`, buildPurchaseErrorContext())
+    console.error('Error loading AI analysis:', error);
+    aiAnalysisError.value = humanizeAppError(
+      `Error: ${error.message}`,
+      buildPurchaseErrorContext()
+    );
   } finally {
-    loadingAIAnalysis.value = false
+    loadingAIAnalysis.value = false;
   }
-}
+};
 
 const refreshAIAnalysis = async () => {
-  aiAnalysis.value = null
-  await loadAIAnalysis(true)
-}
+  aiAnalysis.value = null;
+  await loadAIAnalysis(true);
+};
 
 const addAISuggestionToCart = (item) => {
-  const qty = item.ai_suggested_qty || item.suggested_order_qty
-  const existing = purchaseData.value.lines.find(l => l.variant_id === item.variant_id)
-  
+  const qty = item.ai_suggested_qty || item.suggested_order_qty;
+  const existing = purchaseData.value.lines.find((l) => l.variant_id === item.variant_id);
+
   if (existing) {
-    existing.qty = qty
-    existing.unit_cost = item.unit_cost
-    showMsg(`Actualizado con sugerencia IA: ${item.product_name}`, 'info')
+    existing.qty = qty;
+    existing.unit_cost = item.unit_cost;
+    showMsg(`Actualizado con sugerencia IA: ${item.product_name}`, 'info');
   } else {
-    purchaseData.value.lines.push(createPurchaseLine({
-      variant_id: item.variant_id,
-      qty: qty,
-      unit_cost: item.unit_cost
-    }))
-    showMsg(`Agregado con sugerencia IA: ${item.product_name}`, 'success')
+    purchaseData.value.lines.push(
+      createPurchaseLine({
+        variant_id: item.variant_id,
+        qty: qty,
+        unit_cost: item.unit_cost,
+      })
+    );
+    showMsg(`Agregado con sugerencia IA: ${item.product_name}`, 'success');
   }
-  
+
   // Cerrar diálogo y abrir formulario de compra
-  aiAnalysisDialog.value = false
-  dialog.value = true
-}
+  aiAnalysisDialog.value = false;
+  dialog.value = true;
+};
 
 const getPriorityColor = (priority) => {
   const colors = {
@@ -2089,300 +2588,324 @@ const getPriorityColor = (priority) => {
     2: 'warning',
     3: 'info',
     4: 'grey',
-    5: 'grey'
-  }
-  return colors[priority] || 'grey'
-}
+    5: 'grey',
+  };
+  return colors[priority] || 'grey';
+};
 
 const getConfidenceColor = (confidence) => {
-  if (confidence >= 0.8) return 'success'
-  if (confidence >= 0.6) return 'info'
-  if (confidence >= 0.4) return 'warning'
-  return 'error'
-}
+  if (confidence >= 0.8) return 'success';
+  if (confidence >= 0.6) return 'info';
+  if (confidence >= 0.4) return 'warning';
+  return 'error';
+};
 
 onMounted(async () => {
-  await loadSettings()
-  await loadLocations()
-  await loadPurchases()
-  await loadPendingPurchaseOrders()
-  await loadSupplierPayablesBoard()
+  await loadSettings();
+  await loadLocations();
+  await loadPurchases();
+  await loadPendingPurchaseOrders();
+  await loadSupplierPayablesBoard();
   // Cargar sugerencias en background para mostrar badge
-  loadSuggestions()
-})
+  loadSuggestions();
+});
 
 const loadPendingPurchaseOrders = async () => {
-  if (!tenantId.value) return
-  loadingPurchaseOrders.value = true
+  if (!tenantId.value) return;
+  loadingPurchaseOrders.value = true;
   try {
-    const result = await purchasesService.getOpenPurchaseOrders(tenantId.value)
+    const result = await purchasesService.getOpenPurchaseOrders(tenantId.value);
     if (result.success) {
-      pendingPurchaseOrders.value = result.data || []
+      pendingPurchaseOrders.value = result.data || [];
     } else {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
   } catch (error) {
-    showMsg('Error al cargar OC pendientes: ' + error.message, 'error')
+    showMsg('Error al cargar OC pendientes: ' + error.message, 'error');
   } finally {
-    loadingPurchaseOrders.value = false
+    loadingPurchaseOrders.value = false;
   }
-}
+};
 
 const openPurchaseOrdersDialog = async () => {
-  purchaseOrdersDialog.value = true
-  await loadPendingPurchaseOrders()
-}
+  purchaseOrdersDialog.value = true;
+  await loadPendingPurchaseOrders();
+};
 
-const loadSupplierPayablesBoard = async (pageParam = supplierPayablesPage.value, pageSizeParam = supplierPayablesPageSize.value) => {
-  if (!tenantId.value) return
-  loadingSupplierPayablesBoard.value = true
+const loadSupplierPayablesBoard = async (
+  pageParam = supplierPayablesPage.value,
+  pageSizeParam = supplierPayablesPageSize.value
+) => {
+  if (!tenantId.value) return;
+  loadingSupplierPayablesBoard.value = true;
   try {
-    const actualPage = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1
-    const actualPageSize = Number.isInteger(pageSizeParam) && pageSizeParam > 0
-      ? pageSizeParam
-      : supplierPayablesPageSize.value
+    const actualPage = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+    const actualPageSize =
+      Number.isInteger(pageSizeParam) && pageSizeParam > 0
+        ? pageSizeParam
+        : supplierPayablesPageSize.value;
 
     const result = await purchasesService.getSupplierPayablesDashboard({
       tenantId: tenantId.value,
       status: supplierPayablesStatusFilter.value,
       dueInDays: supplierPayablesDueFilter.value,
       page: actualPage,
-      pageSize: actualPageSize
-    })
+      pageSize: actualPageSize,
+    });
 
     if (result.success) {
-      supplierPayablesBoard.value = result.data || []
-      supplierPayablesTotal.value = Number(result.total || 0)
-      supplierPayablesPage.value = actualPage
-      const validIds = new Set((supplierPayablesBoard.value || []).map(x => x.payable_id))
-      supplierPayablesSelectedIds.value = supplierPayablesSelectedIds.value.filter(id => validIds.has(id))
+      supplierPayablesBoard.value = result.data || [];
+      supplierPayablesTotal.value = Number(result.total || 0);
+      supplierPayablesPage.value = actualPage;
+      const validIds = new Set((supplierPayablesBoard.value || []).map((x) => x.payable_id));
+      supplierPayablesSelectedIds.value = supplierPayablesSelectedIds.value.filter((id) =>
+        validIds.has(id)
+      );
     } else {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
   } catch (error) {
-    showMsg('Error al cargar cuentas por pagar: ' + error.message, 'error')
+    showMsg('Error al cargar cuentas por pagar: ' + error.message, 'error');
   } finally {
-    loadingSupplierPayablesBoard.value = false
+    loadingSupplierPayablesBoard.value = false;
   }
-}
+};
 
 const loadSupplierPayablesPage = ({ page, pageSize }) => {
-  loadSupplierPayablesBoard(page, pageSize)
-}
+  loadSupplierPayablesBoard(page, pageSize);
+};
 
 const applySupplierPayablesFilters = async () => {
-  supplierPayablesPage.value = 1
-  supplierPayablesSelectedIds.value = []
-  await loadSupplierPayablesBoard(1, supplierPayablesPageSize.value)
-}
+  supplierPayablesPage.value = 1;
+  supplierPayablesSelectedIds.value = [];
+  await loadSupplierPayablesBoard(1, supplierPayablesPageSize.value);
+};
 
 const openSupplierPayablesDialog = async () => {
-  supplierPayablesDialog.value = true
-  supplierPayablesPage.value = 1
-  await loadSupplierPayablesBoard(1, supplierPayablesPageSize.value)
-}
+  supplierPayablesDialog.value = true;
+  supplierPayablesPage.value = 1;
+  await loadSupplierPayablesBoard(1, supplierPayablesPageSize.value);
+};
 
 const isSupplierPayableSelectable = (row) => {
-  return ['OPEN', 'PARTIAL'].includes(row?.status) && Number(row?.balance || 0) > 0
-}
+  return ['OPEN', 'PARTIAL'].includes(row?.status) && Number(row?.balance || 0) > 0;
+};
 
 const toggleSupplierPayableSelection = (payableId, checked) => {
-  if (!payableId) return
+  if (!payableId) return;
   if (checked) {
     if (!supplierPayablesSelectedIds.value.includes(payableId)) {
-      supplierPayablesSelectedIds.value.push(payableId)
+      supplierPayablesSelectedIds.value.push(payableId);
     }
   } else {
-    supplierPayablesSelectedIds.value = supplierPayablesSelectedIds.value.filter(id => id !== payableId)
+    supplierPayablesSelectedIds.value = supplierPayablesSelectedIds.value.filter(
+      (id) => id !== payableId
+    );
   }
-}
+};
 
 const toggleSelectAllSupplierPayables = (checked) => {
   if (checked) {
-    supplierPayablesSelectedIds.value = [...selectableSupplierPayablesIds.value]
+    supplierPayablesSelectedIds.value = [...selectableSupplierPayablesIds.value];
   } else {
-    supplierPayablesSelectedIds.value = []
+    supplierPayablesSelectedIds.value = [];
   }
-}
+};
 
 const openBulkSupplierPaymentDialog = () => {
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
   if (selectedSupplierPayablesRows.value.length === 0) {
-    showMsg('No hay cuentas seleccionadas para pagar', 'warning')
-    return
+    showMsg('No hay cuentas seleccionadas para pagar', 'warning');
+    return;
   }
   bulkSupplierPaymentForm.value = {
     payment_method: '',
-    note: ''
-  }
-  bulkSupplierPaymentDialog.value = true
-}
+    note: '',
+  };
+  bulkSupplierPaymentDialog.value = true;
+};
 
 const confirmBulkSupplierPayment = async () => {
-  if (!tenantId.value || !userProfile.value?.user_id) return
-  const rows = selectedSupplierPayablesRows.value
+  if (!tenantId.value || !userProfile.value?.user_id) return;
+  const rows = selectedSupplierPayablesRows.value;
   if (rows.length === 0) {
-    showMsg('No hay cuentas v�lidas para pagar', 'warning')
-    return
+    showMsg('No hay cuentas v�lidas para pagar', 'warning');
+    return;
   }
-  savingBulkSupplierPayment.value = true
-  let ok = 0
-  let failed = 0
+  savingBulkSupplierPayment.value = true;
+  let ok = 0;
+  let failed = 0;
   try {
     for (const row of rows) {
-      const amount = Number(row.balance || 0)
-      if (amount <= 0) continue
+      const amount = Number(row.balance || 0);
+      if (amount <= 0) continue;
       const result = await purchasesService.registerSupplierPayment({
         tenantId: tenantId.value,
         payableId: row.payable_id,
         amount,
         createdBy: userProfile.value.user_id,
         paymentMethod: bulkSupplierPaymentForm.value.payment_method || null,
-        note: bulkSupplierPaymentForm.value.note || 'Pago masivo de cuentas por pagar'
-      })
-      if (result.success) ok++
-      else failed++
+        note: bulkSupplierPaymentForm.value.note || 'Pago masivo de cuentas por pagar',
+      });
+      if (result.success) ok++;
+      else failed++;
     }
     if (ok > 0 && failed === 0) {
-      showMsg(`Pago masivo completado. Cuentas pagadas: ${ok}`)
+      showMsg(`Pago masivo completado. Cuentas pagadas: ${ok}`);
     } else if (ok > 0 && failed > 0) {
-      showMsg(`Pago masivo parcial. Exitosas: ${ok}, fallidas: ${failed}`, 'warning')
+      showMsg(`Pago masivo parcial. Exitosas: ${ok}, fallidas: ${failed}`, 'warning');
     } else {
-      showMsg('No se pudo registrar el pago masivo', 'error')
+      showMsg('No se pudo registrar el pago masivo', 'error');
     }
-    bulkSupplierPaymentDialog.value = false
-    supplierPayablesSelectedIds.value = []
-    await loadSupplierPayablesBoard(supplierPayablesPage.value, supplierPayablesPageSize.value)
+    bulkSupplierPaymentDialog.value = false;
+    supplierPayablesSelectedIds.value = [];
+    await loadSupplierPayablesBoard(supplierPayablesPage.value, supplierPayablesPageSize.value);
   } catch (error) {
-    showMsg('Error en pago masivo: ' + error.message, 'error')
+    showMsg('Error en pago masivo: ' + error.message, 'error');
   } finally {
-    savingBulkSupplierPayment.value = false
+    savingBulkSupplierPayment.value = false;
   }
-}
+};
 
 const loadLocations = async () => {
-  if (!tenantId.value) return
+  if (!tenantId.value) return;
+  if (import.meta.env.VITE_USE_BACKEND_MASTERS === 'true') {
+    const result = await backendLocations.list({ limit: 100 });
+    const rows = result?.items || result?.Items || [];
+    locations.value = rows
+      .filter(item => (item.is_active ?? item.Active ?? true) !== false)
+      .map(item => ({ location_id: item.id || item.ID || item.location_id || item.LocationID, name: item.name || item.Name }));
+    return;
+  }
   const { data, error } = await supabaseService.client
     .from('locations')
     .select('location_id, name')
     .eq('tenant_id', tenantId.value)
     .eq('is_active', true)
-    .order('name')
-  if (!error) locations.value = data || []
-}
+    .order('name');
+  if (!error) locations.value = data || [];
+};
 
 const loadPurchases = async (pageParam = 1, pageSizeParam = null) => {
-  if (!tenantId.value) return
-  loading.value = true
+  if (!tenantId.value) return;
+  loading.value = true;
   try {
-    const actualPageSize = pageSizeParam || defaultPageSize.value
-    const filters = {}
-    if (selectedLocation.value) filters.location_id = selectedLocation.value
-    if (dateFrom.value) filters.from_date = dateFrom.value
-    if (dateTo.value) filters.to_date = dateTo.value + 'T23:59:59'
+    const actualPageSize = pageSizeParam || defaultPageSize.value;
+    const filters = {};
+    if (selectedLocation.value) filters.location_id = selectedLocation.value;
+    if (dateFrom.value) filters.from_date = dateFrom.value;
+    if (dateTo.value) filters.to_date = dateTo.value + 'T23:59:59';
 
-    const result = await purchasesService.getPurchases(tenantId.value, pageParam, actualPageSize, filters)
-    
+    const result = await purchasesService.getPurchases(
+      tenantId.value,
+      pageParam,
+      actualPageSize,
+      filters
+    );
+
     if (result.success) {
-      purchases.value = result.data || []
-      totalPurchases.value = result.total || 0
+      purchases.value = result.data || [];
+      totalPurchases.value = result.total || 0;
     } else {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
   } catch (error) {
-    showMsg('Error al cargar compras: ' + error.message, 'error')
+    showMsg('Error al cargar compras: ' + error.message, 'error');
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const loadPurchasesPage = ({ page, pageSize }) => {
-  loadPurchases(page, pageSize)
-}
+  loadPurchases(page, pageSize);
+};
 
 const handleSearch = ({ search: searchTerm, page, pageSize }) => {
-  search.value = searchTerm
-  loadPurchases(page, pageSize)
-}
+  search.value = searchTerm;
+  loadPurchases(page, pageSize);
+};
 
 // Ver detalle de compra
 const openPurchaseDetailByPurchaseId = async (purchaseId) => {
-  if (!tenantId.value || !purchaseId) return
+  if (!tenantId.value || !purchaseId) return;
 
-  detailDialog.value = true
-  supplierPayablesDialog.value = false
-  loadingDetail.value = true
-  detailError.value = null
-  purchaseDetail.value = null
-  purchasePayable.value = null
+  detailDialog.value = true;
+  supplierPayablesDialog.value = false;
+  loadingDetail.value = true;
+  detailError.value = null;
+  purchaseDetail.value = null;
+  purchasePayable.value = null;
 
   try {
-    const result = await purchasesService.getPurchaseDetail(tenantId.value, purchaseId)
+    const result = await purchasesService.getPurchaseDetail(tenantId.value, purchaseId);
 
     if (result.success) {
-      purchaseDetail.value = result.data
-      await loadSupplierPayable(purchaseId)
+      purchaseDetail.value = result.data;
+      await loadSupplierPayable(purchaseId);
     } else {
-      detailError.value = result.error
+      detailError.value = result.error;
     }
   } catch (error) {
-    console.error('Error loading purchase detail:', error)
-    detailError.value = humanizeAppError('Error al cargar detalle: ' + error.message, buildPurchaseErrorContext())
+    console.error('Error loading purchase detail:', error);
+    detailError.value = humanizeAppError(
+      'Error al cargar detalle: ' + error.message,
+      buildPurchaseErrorContext()
+    );
   } finally {
-    loadingDetail.value = false
+    loadingDetail.value = false;
   }
-}
+};
 
 // Ver detalle de compra
 const viewPurchaseDetail = async (item) => {
-  if (!tenantId.value || !item.purchase_id) return
+  if (!tenantId.value || !item.purchase_id) return;
 
   try {
-    await openPurchaseDetailByPurchaseId(item.purchase_id)
+    await openPurchaseDetailByPurchaseId(item.purchase_id);
   } catch (error) {
-    showMsg('Error al abrir detalle de compra: ' + error.message, 'error')
+    showMsg('Error al abrir detalle de compra: ' + error.message, 'error');
   }
-}
+};
 
 const loadSupplierPayable = async (purchaseId) => {
-  if (!tenantId.value || !purchaseId) return
-  loadingSupplierPayable.value = true
+  if (!tenantId.value || !purchaseId) return;
+  loadingSupplierPayable.value = true;
   try {
-    const result = await purchasesService.getSupplierPayableByPurchase(tenantId.value, purchaseId)
+    const result = await purchasesService.getSupplierPayableByPurchase(tenantId.value, purchaseId);
     if (result.success) {
-      purchasePayable.value = result.data
+      purchasePayable.value = result.data;
     } else {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
   } catch (error) {
-    purchasePayable.value = null
-    showMsg('Error al cargar cuenta por pagar: ' + error.message, 'error')
+    purchasePayable.value = null;
+    showMsg('Error al cargar cuenta por pagar: ' + error.message, 'error');
   } finally {
-    loadingSupplierPayable.value = false
+    loadingSupplierPayable.value = false;
   }
-}
+};
 
 const openCreatePayableDialog = () => {
   payableForm.value = {
     invoice_number: '',
     due_date: null,
-    note: ''
-  }
-  createPayableDialog.value = true
-}
+    note: '',
+  };
+  createPayableDialog.value = true;
+};
 
 const confirmCreatePayable = async () => {
-  if (!tenantId.value || !purchaseDetail.value?.purchase_id) return
+  if (!tenantId.value || !purchaseDetail.value?.purchase_id) return;
 
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
 
-  savingPayable.value = true
+  savingPayable.value = true;
   try {
     const result = await purchasesService.createSupplierPayable({
       tenantId: tenantId.value,
@@ -2390,51 +2913,51 @@ const confirmCreatePayable = async () => {
       createdBy: userProfile.value.user_id,
       dueDate: payableForm.value.due_date || null,
       invoiceNumber: payableForm.value.invoice_number || null,
-      note: payableForm.value.note || null
-    })
+      note: payableForm.value.note || null,
+    });
 
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
 
-    showMsg('Cuenta por pagar creada')
-    createPayableDialog.value = false
-    await loadSupplierPayable(purchaseDetail.value.purchase_id)
+    showMsg('Cuenta por pagar creada');
+    createPayableDialog.value = false;
+    await loadSupplierPayable(purchaseDetail.value.purchase_id);
   } catch (error) {
-    showMsg('Error al crear cuenta por pagar: ' + error.message, 'error')
+    showMsg('Error al crear cuenta por pagar: ' + error.message, 'error');
   } finally {
-    savingPayable.value = false
+    savingPayable.value = false;
   }
-}
+};
 
 const openSupplierPaymentDialog = () => {
   supplierPaymentForm.value = {
     amount: purchasePayable.value?.balance || 0,
     payment_method: '',
-    note: ''
-  }
-  supplierPaymentDialog.value = true
-}
+    note: '',
+  };
+  supplierPaymentDialog.value = true;
+};
 
 const confirmSupplierPayment = async () => {
-  if (!tenantId.value || !purchasePayable.value?.payable_id) return
+  if (!tenantId.value || !purchasePayable.value?.payable_id) return;
 
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
 
-  const amount = Number(supplierPaymentForm.value.amount || 0)
+  const amount = Number(supplierPaymentForm.value.amount || 0);
   if (amount <= 0) {
-    showMsg('El monto debe ser mayor a 0', 'warning')
-    return
+    showMsg('El monto debe ser mayor a 0', 'warning');
+    return;
   }
   if (amount > Number(purchasePayable.value.balance || 0)) {
-    showMsg('El abono no puede superar el saldo', 'warning')
-    return
+    showMsg('El abono no puede superar el saldo', 'warning');
+    return;
   }
 
-  savingSupplierPayment.value = true
+  savingSupplierPayment.value = true;
   try {
     const result = await purchasesService.registerSupplierPayment({
       tenantId: tenantId.value,
@@ -2442,30 +2965,30 @@ const confirmSupplierPayment = async () => {
       amount,
       createdBy: userProfile.value.user_id,
       paymentMethod: supplierPaymentForm.value.payment_method || null,
-      note: supplierPaymentForm.value.note || null
-    })
+      note: supplierPaymentForm.value.note || null,
+    });
 
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
 
-    showMsg('Abono registrado correctamente')
-    supplierPaymentDialog.value = false
-    await loadSupplierPayable(purchaseDetail.value.purchase_id)
+    showMsg('Abono registrado correctamente');
+    supplierPaymentDialog.value = false;
+    await loadSupplierPayable(purchaseDetail.value.purchase_id);
   } catch (error) {
-    showMsg('Error al registrar abono: ' + error.message, 'error')
+    showMsg('Error al registrar abono: ' + error.message, 'error');
   } finally {
-    savingSupplierPayment.value = false
+    savingSupplierPayment.value = false;
   }
-}
+};
 const openReturnDialog = () => {
   if (!purchaseDetail.value?.lines?.length) {
-    showMsg('No hay lineas para devolver', 'warning')
-    return
+    showMsg('No hay lineas para devolver', 'warning');
+    return;
   }
 
   returnDraftLines.value = purchaseDetail.value.lines
-    .map(line => ({
+    .map((line) => ({
       source_line_id: line.line_id,
       variant_id: line.variant_id,
       quantity: Number(line.quantity || 0),
@@ -2475,291 +2998,333 @@ const openReturnDialog = () => {
       unit_cost: Number(line.unit_cost || 0),
       product_name: line.product_name || '',
       variant_name: line.variant_name || '',
-      sku: line.sku || ''
+      sku: line.sku || '',
     }))
-    .filter(line => line.returnable_qty > 0)
+    .filter((line) => line.returnable_qty > 0);
 
   if (returnDraftLines.value.length === 0) {
-    showMsg('Toda la compra ya fue devuelta', 'info')
-    return
+    showMsg('Toda la compra ya fue devuelta', 'info');
+    return;
   }
 
-  returnNote.value = ''
-  returnDialog.value = true
-}
+  returnNote.value = '';
+  returnDialog.value = true;
+};
 
 const closeReturnDialog = () => {
-  returnDialog.value = false
-  returnDraftLines.value = []
-  returnNote.value = ''
-}
+  returnDialog.value = false;
+  returnDraftLines.value = [];
+  returnNote.value = '';
+};
 
 const confirmPurchaseReturn = async () => {
-  if (!tenantId.value || !purchaseDetail.value?.purchase_id) return
+  if (!tenantId.value || !purchaseDetail.value?.purchase_id) return;
 
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
 
   const selectedLines = returnDraftLines.value
-    .filter(line => Number(line.qty_to_return || 0) > 0)
-    .map(line => ({
+    .filter((line) => Number(line.qty_to_return || 0) > 0)
+    .map((line) => ({
       source_line_id: line.source_line_id,
       variant_id: line.variant_id,
       qty: Number(line.qty_to_return),
-      unit_cost: Number(line.unit_cost)
-    }))
+      unit_cost: Number(line.unit_cost),
+    }));
 
   if (selectedLines.length === 0) {
-    showMsg('Ingresa al menos una linea con cantidad a devolver', 'warning')
-    return
+    showMsg('Ingresa al menos una linea con cantidad a devolver', 'warning');
+    return;
   }
 
   for (const line of returnDraftLines.value) {
-    const qty = Number(line.qty_to_return || 0)
+    const qty = Number(line.qty_to_return || 0);
     if (qty < 0) {
-      showMsg('No se permiten cantidades negativas', 'error')
-      return
+      showMsg('No se permiten cantidades negativas', 'error');
+      return;
     }
     if (qty > Number(line.returnable_qty || 0)) {
-      showMsg('Una cantidad excede lo pendiente por devolver', 'error')
-      return
+      showMsg('Una cantidad excede lo pendiente por devolver', 'error');
+      return;
     }
   }
 
-  returningPurchase.value = true
+  returningPurchase.value = true;
   try {
     const result = await purchasesService.createPurchaseReturn({
       tenantId: tenantId.value,
       purchaseId: purchaseDetail.value.purchase_id,
       createdBy: userProfile.value.user_id,
       lines: selectedLines,
-      note: returnNote.value || null
-    })
+      note: returnNote.value || null,
+    });
 
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
 
-    showMsg('Devolucion registrada correctamente')
-    closeReturnDialog()
+    showMsg('Devolucion registrada correctamente');
+    closeReturnDialog();
 
-    const refreshed = await purchasesService.getPurchaseDetail(tenantId.value, purchaseDetail.value.purchase_id)
+    const refreshed = await purchasesService.getPurchaseDetail(
+      tenantId.value,
+      purchaseDetail.value.purchase_id
+    );
     if (refreshed.success) {
-      purchaseDetail.value = refreshed.data
+      purchaseDetail.value = refreshed.data;
     }
 
-    await loadPurchases()
+    await loadPurchases();
   } catch (error) {
-    showMsg('Error al registrar devolucion: ' + error.message, 'error')
+    showMsg('Error al registrar devolucion: ' + error.message, 'error');
   } finally {
-    returningPurchase.value = false
+    returningPurchase.value = false;
   }
-}
+};
 
 const loadInitialVariants = async () => {
-  if (!tenantId.value) return
-  searchingVariants.value = true
+  if (!tenantId.value) return;
+  searchingVariants.value = true;
   try {
+    if (import.meta.env.VITE_USE_BACKEND_PURCHASES === 'true') {
+      const result = await productsService.searchVariants(tenantId.value, '', 50, null, { includeStock: false });
+      variants.value = (result.data || result.items || result.Items || []).map(v => { const id = v.variant_id || v.id || v.ID; const name = v.variant_name || v.name || v.Name; const sku = v.sku || v.SKU || ''; const productName = v.product?.name || v.product_name || v.ProductName || ''; return { ...v, id, variant_id: id, sku, variant_name: name, product_name: productName, _displayName: `${productName || 'Producto'}${name ? ` - ${name}` : ''}${sku ? ` (${sku})` : ''}` }; });
+      return;
+    }
     const { data, error } = await supabaseService.client
       .from('product_variants')
-      .select(`
+      .select(
+        `
         variant_id,
         sku,
         variant_name,
         requires_expiration,
         cost,
         product_id!inner(product_id, name, requires_expiration)
-      `)
+      `
+      )
       .eq('tenant_id', tenantId.value)
       .eq('is_active', true)
       .order('sku')
-      .limit(50)
+      .limit(50);
 
-    if (error) throw error
-    
+    if (error) throw error;
+
     if (data) {
-      variants.value = data.map(v => ({
+      variants.value = data.map((v) => ({
         ...v,
         // Resolver requires_expiration con jerarquía: variant sobreescribe producto si no es null
         requires_expiration: resolveRequiresExpiration(v),
         cost: Number(v.cost || 0),
-        _displayName: `${v.product_id.name}${v.variant_name ? ' - ' + v.variant_name : ''} (${v.sku})`
-      }))
+        _displayName: `${v.product_id.name}${v.variant_name ? ' - ' + v.variant_name : ''} (${v.sku})`,
+      }));
     }
   } catch (error) {
-    showMsg('Error al cargar productos: ' + error.message, 'error')
+    showMsg('Error al cargar productos: ' + error.message, 'error');
   } finally {
-    searchingVariants.value = false
+    searchingVariants.value = false;
   }
-}
+};
 
 const searchVariants = async (searchTerm) => {
-  if (!tenantId.value) return
-  
+  if (!tenantId.value) return;
+
   // Si no hay término de búsqueda o es muy corto, cargar productos iniciales
   if (!searchTerm || searchTerm.length < 2) {
-    await loadInitialVariants()
-    return
+    await loadInitialVariants();
+    return;
   }
-  
-  searchingVariants.value = true
+
+  const sequence = ++variantsSearchSequence;
+  searchingVariants.value = true;
   try {
+    if (import.meta.env.VITE_USE_BACKEND_PURCHASES === 'true') {
+      const result = await productsService.searchVariants(tenantId.value, searchTerm, 30, null, { includeStock: false });
+      if (sequence !== variantsSearchSequence) return;
+      variants.value = (result.data || result.items || result.Items || []).map(v => { const id = v.variant_id || v.id || v.ID; const name = v.variant_name || v.name || v.Name; const sku = v.sku || v.SKU || ''; const productName = v.product?.name || v.product_name || v.ProductName || ''; return { ...v, id, variant_id: id, sku, variant_name: name, product_name: productName, _displayName: `${productName || 'Producto'}${name ? ` - ${name}` : ''}${sku ? ` (${sku})` : ''}` }; });
+      return;
+    }
     // Buscar primero por SKU o variant_name
     let query = supabaseService.client
       .from('product_variants')
-      .select(`
+      .select(
+        `
         variant_id,
         sku,
         variant_name,
         requires_expiration,
         cost,
         product_id!inner(product_id, name, requires_expiration)
-      `)
+      `
+      )
       .eq('tenant_id', tenantId.value)
       .eq('is_active', true)
       .order('sku')
-      .limit(30)
+      .limit(30);
 
     // Buscar en SKU, variant_name o nombre del producto
-    const searchLower = searchTerm.toLowerCase()
-    
-    const { data, error } = await query
-    
-    if (error) throw error
-    
+    const searchLower = searchTerm.toLowerCase();
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
     if (data) {
       // Filtrar resultados manualmente para incluir búsqueda por nombre de producto
-      const filtered = data.filter(v => 
-        v.sku?.toLowerCase().includes(searchLower) ||
-        v.variant_name?.toLowerCase().includes(searchLower) ||
-        v.product_id?.name?.toLowerCase().includes(searchLower)
-      )
-      
-      variants.value = filtered.map(v => ({
+      const filtered = data.filter(
+        (v) =>
+          v.sku?.toLowerCase().includes(searchLower) ||
+          v.variant_name?.toLowerCase().includes(searchLower) ||
+          v.product_id?.name?.toLowerCase().includes(searchLower)
+      );
+
+      variants.value = filtered.map((v) => ({
         ...v,
         // Resolver requires_expiration con jerarquía: variant sobreescribe producto si no es null
         requires_expiration: resolveRequiresExpiration(v),
         cost: Number(v.cost || 0),
-        _displayName: `${v.product_id.name}${v.variant_name ? ' - ' + v.variant_name : ''} (${v.sku})`
-      }))
+        _displayName: `${v.product_id.name}${v.variant_name ? ' - ' + v.variant_name : ''} (${v.sku})`,
+      }));
     }
   } catch (error) {
-    showMsg('Error al buscar productos: ' + error.message, 'error')
+    showMsg('Error al buscar productos: ' + error.message, 'error');
   } finally {
-    searchingVariants.value = false
+    searchingVariants.value = false;
   }
-}
+};
 
 const openCreateDialog = async () => {
   purchaseData.value = {
     location_id: locations.value.length === 1 ? locations.value[0].location_id : null,
     supplier_id: null,
     note: '',
-    lines: []
+    lines: [],
+  };
+  invoiceImportSummary.value = null;
+  invoiceImportUnmatched.value = [];
+  invoiceImportUnmatchedAll.value = [];
+  dialog.value = true;
+  await Promise.all([loadLocations(), loadInitialVariants(), loadSuppliers()]);
+  if (!purchaseData.value.location_id && locations.value.length > 0) {
+    purchaseData.value.location_id = locations.value[0].location_id;
   }
-  invoiceImportSummary.value = null
-  invoiceImportUnmatched.value = []
-  invoiceImportUnmatchedAll.value = []
-  dialog.value = true
-  await Promise.all([loadInitialVariants(), loadSuppliers()])
-}
+  if (!purchaseData.value.supplier_id && suppliers.value.length > 0) {
+    purchaseData.value.supplier_id = suppliers.value[0].third_party_id || suppliers.value[0].id;
+  }
+};
 
 const addLine = () => {
-  purchaseData.value.lines.push(createPurchaseLine())
-}
+  purchaseData.value.lines.push(createPurchaseLine());
+};
 
 const removeLine = (index) => {
-  purchaseData.value.lines.splice(index, 1)
-}
+  purchaseData.value.lines.splice(index, 1);
+};
 
 // Detectar si el producto seleccionado requiere vencimiento
 const onVariantSelected = (lineIndex, variantId) => {
-  const line = purchaseData.value.lines[lineIndex]
-  if (!line) return
+  const line = purchaseData.value.lines[lineIndex];
+  if (!line) return;
 
   if (!variantId) {
-    line.requires_expiration = false
-    line.batch_number = ''
-    line.expiration_date = null
-    line.physical_location = ''
-    return
+    line.requires_expiration = false;
+    line.batch_number = '';
+    line.expiration_date = null;
+    line.physical_location = '';
+    return;
   }
-  
-  const variant = variants.value.find(v => v.variant_id === variantId)
+
+  const variant = variants.value.find((v) => v.variant_id === variantId);
   if (variant) {
-    line.requires_expiration = !!variant.requires_expiration
-    line.label = `${variant.product_id?.name || 'Producto'}${variant.variant_name ? ` - ${variant.variant_name}` : ''}`
-    line.product_name = variant.product_id?.name || null
-    line.variant_name = variant.variant_name || null
-    line.sku = variant.sku || null
-    
+    line.requires_expiration = !!variant.requires_expiration;
+    line.label = `${variant.product_name || variant.product?.name || variant.product_id?.name || 'Producto'}${variant.variant_name ? ` - ${variant.variant_name}` : ''}`;
+    line.product_name = variant.product_name || variant.product?.name || variant.product_id?.name || null;
+    line.variant_name = variant.variant_name || null;
+    line.sku = variant.sku || null;
+
     // Limpiar campos de lote si no requiere vencimiento
     if (!variant.requires_expiration) {
-      line.batch_number = ''
-      line.expiration_date = null
-      line.physical_location = ''
+      line.batch_number = '';
+      line.expiration_date = null;
+      line.physical_location = '';
     }
   }
-}
+};
 
 // Generar numero de lote automatico
 const generateBatchNumber = async (lineIndex) => {
-  const line = purchaseData.value.lines[lineIndex]
+  const line = purchaseData.value.lines[lineIndex];
   if (!line.variant_id || !tenantId.value) {
-    showMsg('Selecciona primero un producto', 'warning')
-    return
+    showMsg('Selecciona primero un producto', 'warning');
+    return;
   }
 
   try {
-    const result = await batchesService.generateBatchNumber(tenantId.value, line.variant_id)
+    const result = await batchesService.generateBatchNumber(tenantId.value, line.variant_id);
     if (result.success) {
-      purchaseData.value.lines[lineIndex].batch_number = result.batchNumber
-      showMsg('Numero de lote generado', 'success')
+      purchaseData.value.lines[lineIndex].batch_number = result.batchNumber;
+      showMsg('Numero de lote generado', 'success');
     } else {
-      showMsg('Error al generar lote: ' + result.error, 'error')
+      showMsg('Error al generar lote: ' + result.error, 'error');
     }
   } catch (error) {
-    showMsg('Error al generar lote', 'error')
+    showMsg('Error al generar lote', 'error');
   }
-}
+};
 
 const buildFormattedLines = () => {
-  return purchaseData.value.lines.map(line => ({
+  return purchaseData.value.lines.map((line) => ({
     variant_id: line.variant_id,
     qty: Number(line.qty),
     unit_cost: Number(line.unit_cost),
     batch_number: line.batch_number || null,
     expiration_date: normalizeDateInput(line.expiration_date),
-    physical_location: line.physical_location || null
-  }))
-}
+    physical_location: line.physical_location || null,
+  }));
+};
 
 const savePurchase = async () => {
-  const { valid } = await form.value.validate()
-  if (!valid || !tenantId.value) return
+  const { valid } = await form.value.validate();
+  if (!valid || !tenantId.value) return;
 
   if (purchaseData.value.lines.length === 0) {
-    showMsg('Agrega al menos un producto', 'warning')
-    return
+    showMsg('Agrega al menos un producto', 'warning');
+    return;
   }
 
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
 
-  const validExpirationData = await validateExpirationRequirements(
-    purchaseData.value.lines,
-    { qtyField: 'qty', contextLabel: 'guardar la compra' }
-  )
-  if (!validExpirationData) return
+  const validExpirationData = await validateExpirationRequirements(purchaseData.value.lines, {
+    qtyField: 'qty',
+    contextLabel: 'guardar la compra',
+  });
+  if (!validExpirationData) return;
 
-  saving.value = true
-  let formattedLines = []
+  saving.value = true;
+  let formattedLines = [];
   try {
-    formattedLines = buildFormattedLines()
+    formattedLines = buildFormattedLines();
+
+    if (import.meta.env.VITE_USE_BACKEND_PURCHASES === 'true') {
+      const result = await purchasesService.createPurchaseOrder({
+        tenantId: tenantId.value,
+        locationId: purchaseData.value.location_id,
+        supplierId: purchaseData.value.supplier_id || null,
+        createdBy: userProfile.value.user_id,
+        lines: formattedLines.map(line => ({ variant_id: line.variant_id, quantity: line.qty, unit_cost: line.unit_cost })),
+        note: purchaseData.value.note || null,
+      });
+      if (!result.success) throw new Error(result.error || 'No se pudo guardar la compra');
+      showMsg('Compra registrada exitosamente');
+      dialog.value = false;
+      await loadPurchases();
+      return;
+    }
 
     const { error } = await supabaseService.client.rpc('sp_create_purchase', {
       p_tenant: tenantId.value,
@@ -2767,44 +3332,44 @@ const savePurchase = async () => {
       p_supplier_id: purchaseData.value.supplier_id || null,
       p_created_by: userProfile.value.user_id,
       p_lines: formattedLines,
-      p_note: purchaseData.value.note || null
-    })
+      p_note: purchaseData.value.note || null,
+    });
 
-    if (error) throw error
+    if (error) throw error;
 
-    showMsg('Compra registrada exitosamente')
-    dialog.value = false
-    await loadPurchases()
+    showMsg('Compra registrada exitosamente');
+    dialog.value = false;
+    await loadPurchases();
   } catch (error) {
-    showMsg('Error al guardar compra: ' + error.message, 'error')
+    showMsg('Error al guardar compra: ' + error.message, 'error');
   } finally {
-    saving.value = false
+    saving.value = false;
   }
-}
+};
 
 const savePurchaseOrder = async () => {
-  const { valid } = await form.value.validate()
-  if (!valid || !tenantId.value) return
+  const { valid } = await form.value.validate();
+  if (!valid || !tenantId.value) return;
 
   if (purchaseData.value.lines.length === 0) {
-    showMsg('Agrega al menos un producto', 'warning')
-    return
+    showMsg('Agrega al menos un producto', 'warning');
+    return;
   }
 
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
 
-  const validExpirationData = await validateExpirationRequirements(
-    purchaseData.value.lines,
-    { qtyField: 'qty', contextLabel: 'guardar la orden de compra' }
-  )
-  if (!validExpirationData) return
+  const validExpirationData = await validateExpirationRequirements(purchaseData.value.lines, {
+    qtyField: 'qty',
+    contextLabel: 'guardar la orden de compra',
+  });
+  if (!validExpirationData) return;
 
-  savingDraft.value = true
+  savingDraft.value = true;
   try {
-    const formattedLines = buildFormattedLines()
+    const formattedLines = buildFormattedLines();
 
     const result = await purchasesService.createPurchaseOrder({
       tenantId: tenantId.value,
@@ -2812,28 +3377,28 @@ const savePurchaseOrder = async () => {
       supplierId: purchaseData.value.supplier_id || null,
       createdBy: userProfile.value.user_id,
       lines: formattedLines,
-      note: purchaseData.value.note || null
-    })
+      note: purchaseData.value.note || null,
+    });
 
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
 
-    showMsg('Orden de compra guardada en borrador')
-    dialog.value = false
-    await loadPendingPurchaseOrders()
+    showMsg('Orden de compra guardada en borrador');
+    dialog.value = false;
+    await loadPendingPurchaseOrders();
   } catch (error) {
-    showMsg('Error al guardar OC: ' + error.message, 'error')
+    showMsg('Error al guardar OC: ' + error.message, 'error');
   } finally {
-    savingDraft.value = false
+    savingDraft.value = false;
   }
-}
+};
 
 const openReceiveConfirm = (order) => {
-  if (!order?.purchase_order_id) return
-  selectedPurchaseOrderToReceive.value = order
+  if (!order?.purchase_order_id) return;
+  selectedPurchaseOrderToReceive.value = order;
   receiveDraftLines.value = (order.lines || [])
-    .map(line => ({
+    .map((line) => ({
       purchase_order_line_id: line.purchase_order_line_id,
       variant_id: line.variant_id,
       unit_cost: line.unit_cost,
@@ -2846,124 +3411,148 @@ const openReceiveConfirm = (order) => {
       qty_to_receive: Math.max(Number(line.qty_remaining || 0), 0),
       product_name: line.variant?.product?.name || 'Producto',
       variant_name: line.variant?.variant_name || '',
-      sku: line.variant?.sku || ''
+      sku: line.variant?.sku || '',
     }))
-    .filter(line => line.qty_remaining > 0)
+    .filter((line) => line.qty_remaining > 0);
 
   if (receiveDraftLines.value.length === 0) {
-    showMsg('Esta OC no tiene lineas pendientes por recibir', 'warning')
-    return
+    showMsg('Esta OC no tiene lineas pendientes por recibir', 'warning');
+    return;
   }
-  receiveConfirmDialog.value = true
-}
+  receiveConfirmDialog.value = true;
+};
 
 const closeReceiveConfirm = () => {
-  receiveConfirmDialog.value = false
-  selectedPurchaseOrderToReceive.value = null
-  receiveDraftLines.value = []
-}
+  receiveConfirmDialog.value = false;
+  selectedPurchaseOrderToReceive.value = null;
+  receiveDraftLines.value = [];
+};
 
 const confirmReceivePurchaseOrder = async () => {
-  const order = selectedPurchaseOrderToReceive.value
-  if (!tenantId.value || !order?.purchase_order_id) return
+  const order = selectedPurchaseOrderToReceive.value;
+  if (!tenantId.value || !order?.purchase_order_id) return;
 
   if (!userProfile.value?.user_id) {
-    showMsg('Error: Usuario no identificado', 'error')
-    return
+    showMsg('Error: Usuario no identificado', 'error');
+    return;
   }
 
   const selectedLines = receiveDraftLines.value
-    .filter(line => Number(line.qty_to_receive || 0) > 0)
-    .map(line => ({
+    .filter((line) => Number(line.qty_to_receive || 0) > 0)
+    .map((line) => ({
       purchase_order_line_id: line.purchase_order_line_id,
       variant_id: line.variant_id,
       qty_to_receive: Number(line.qty_to_receive),
       unit_cost: Number(line.unit_cost),
       batch_number: line.batch_number || null,
       expiration_date: line.expiration_date || null,
-      physical_location: line.physical_location || null
-    }))
+      physical_location: line.physical_location || null,
+    }));
 
   if (selectedLines.length === 0) {
-    showMsg('Ingresa al menos una linea con cantidad a recibir', 'warning')
-    return
+    showMsg('Ingresa al menos una linea con cantidad a recibir', 'warning');
+    return;
   }
 
   for (const line of receiveDraftLines.value) {
-    const qty = Number(line.qty_to_receive || 0)
+    const qty = Number(line.qty_to_receive || 0);
     if (qty < 0) {
-      showMsg('No se permiten cantidades negativas', 'error')
-      return
+      showMsg('No se permiten cantidades negativas', 'error');
+      return;
     }
     if (qty > Number(line.qty_remaining || 0)) {
-      showMsg('Una cantidad excede lo pendiente por recibir', 'error')
-      return
+      showMsg('Una cantidad excede lo pendiente por recibir', 'error');
+      return;
     }
   }
 
-  const validExpirationData = await validateExpirationRequirements(
-    selectedLines,
-    { qtyField: 'qty_to_receive', contextLabel: 'recibir la OC' }
-  )
-  if (!validExpirationData) return
+  const validExpirationData = await validateExpirationRequirements(selectedLines, {
+    qtyField: 'qty_to_receive',
+    contextLabel: 'recibir la OC',
+  });
+  if (!validExpirationData) return;
 
-  receivingPurchaseOrderId.value = order.purchase_order_id
+  receivingPurchaseOrderId.value = order.purchase_order_id;
   try {
     const result = await purchasesService.receivePurchaseOrderPartial({
       tenantId: tenantId.value,
       purchaseOrderId: order.purchase_order_id,
       createdBy: userProfile.value.user_id,
       lines: selectedLines,
-      note: order.note || null
-    })
+      note: order.note || null,
+    });
 
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error);
     }
 
-    showMsg('OC recibida y registrada en inventario')
-    closeReceiveConfirm()
-    await Promise.all([loadPurchases(), loadPendingPurchaseOrders()])
+    showMsg('OC recibida y registrada en inventario');
+    closeReceiveConfirm();
+    await Promise.all([loadPurchases(), loadPendingPurchaseOrders()]);
   } catch (error) {
-    showMsg('Error al recibir OC: ' + error.message, 'error')
+    showMsg('Error al recibir OC: ' + error.message, 'error');
   } finally {
-    receivingPurchaseOrderId.value = null
+    receivingPurchaseOrderId.value = null;
   }
-}
+};
 
 const showMsg = (msg, color = 'success') => {
-  snackbarMessage.value = color === 'error'
-    ? humanizeAppError(msg, buildPurchaseErrorContext())
-    : msg
-  snackbarColor.value = color
-  snackbar.value = true
-}
+  snackbarMessage.value =
+    color === 'error' ? humanizeAppError(msg, buildPurchaseErrorContext()) : msg;
+  snackbarColor.value = color;
+  snackbar.value = true;
+};
+
+const tryEnqueueInvoicePhotoJob = async (file) => {
+  if (!isBackendMediaJobsEnabled()) return false;
+
+  try {
+    const result = await enqueuePurchaseInvoicePhotoJob({
+      tenantId: tenantId.value,
+      file,
+      context: {
+        source_view: 'purchases',
+        draft_purchase_number: purchaseData.value?.purchase_number || null,
+      },
+    });
+    if (result.queued) {
+      showMsg('Factura subida y encolada para procesamiento asíncrono.', 'info');
+      return true;
+    }
+  } catch (error) {
+    showMsg(`No se pudo encolar la factura; continúo con OCR directo. ${error.message}`, 'warning');
+  }
+
+  return false;
+};
 
 const openInvoicePicker = () => {
   if (!tenantId.value) {
-    showMsg('No hay tenant activo para analizar la factura', 'error')
-    return
+    showMsg('No hay tenant activo para analizar la factura', 'error');
+    return;
   }
-  invoiceFileInput.value?.click()
-}
+  invoiceFileInput.value?.click();
+};
 
 const loadInvoiceCatalog = async () => {
   const { data, error } = await supabaseService.client
     .from('product_variants')
-    .select(`
+    .select(
+      `
       variant_id,
       sku,
       variant_name,
       requires_expiration,
       cost,
       product_id!inner(product_id, name, requires_expiration)
-    `)
+    `
+    )
     .eq('tenant_id', tenantId.value)
     .eq('is_active', true)
     .order('sku')
-    .limit(500)
+    .limit(500);
 
-  if (error) throw error
+  if (error) throw error;
 
   return (data || []).map((row) => ({
     variant_id: row.variant_id,
@@ -2974,17 +3563,17 @@ const loadInvoiceCatalog = async () => {
     product: {
       name: row.product_id?.name || 'Producto',
     },
-  }))
-}
+  }));
+};
 
 const buildPurchaseLineFromCreatedVariant = (line, variant) => {
-  const quantity = Math.max(1, Number(line?.quantity || 1))
+  const quantity = Math.max(1, Number(line?.quantity || 1));
   const unitCost =
     line?.unit_price != null && Number.isFinite(Number(line.unit_price))
       ? Number(line.unit_price)
       : line?.line_total != null && Number.isFinite(Number(line.line_total))
         ? Number((Number(line.line_total) / quantity).toFixed(2))
-        : Number(variant?.cost || 0)
+        : Number(variant?.cost || 0);
 
   return createPurchaseLine({
     variant_id: variant?.variant_id || null,
@@ -2994,7 +3583,9 @@ const buildPurchaseLineFromCreatedVariant = (line, variant) => {
     batch_number: '',
     expiration_date: null,
     physical_location: '',
-    label: variant?._displayName || `${variant?.product?.name || 'Producto'}${variant?.variant_name ? ` - ${variant.variant_name}` : ''}`,
+    label:
+      variant?._displayName ||
+      `${variant?.product?.name || 'Producto'}${variant?.variant_name ? ` - ${variant.variant_name}` : ''}`,
     product_name: variant?.product?.name || 'Producto',
     variant_name: variant?.variant_name || '',
     sku: variant?.sku || null,
@@ -3002,148 +3593,207 @@ const buildPurchaseLineFromCreatedVariant = (line, variant) => {
     invoice_confidence: Number(line?.confidence || 0),
     invoice_match_reason: 'catalog_create',
     invoice_raw_name: line?.raw_name || '',
-  })
-}
+  });
+};
 
 const syncInvoiceImportSummary = (unmatched = [], createdDelta = 0) => {
-  invoiceImportUnmatchedAll.value = unmatched
-  if (!invoiceImportSummary.value) return
+  invoiceImportUnmatchedAll.value = unmatched;
+  if (!invoiceImportSummary.value) return;
   invoiceImportSummary.value = {
     ...invoiceImportSummary.value,
     unmatchedCount: unmatched.length,
     createdCount: Number(invoiceImportSummary.value.createdCount || 0) + createdDelta,
     unmatchedPreview: unmatched.slice(0, 6),
-  }
-  invoiceImportUnmatched.value = unmatched.slice(0, 6)
-}
+  };
+  invoiceImportUnmatched.value = unmatched.slice(0, 6);
+};
 
 const createMissingInvoiceCatalogItems = async (targetImportIds = []) => {
   if (!tenantId.value) {
-    showMsg('No hay tenant activo para crear artículos.', 'error')
-    return
+    showMsg('No hay tenant activo para crear artículos.', 'error');
+    return;
   }
 
-  const pendingIds = new Set(Array.isArray(targetImportIds) ? targetImportIds : [])
+  const pendingIds = new Set(Array.isArray(targetImportIds) ? targetImportIds : []);
   const candidates = (invoiceImportUnmatchedAll.value || []).filter((item) => {
-    if (!pendingIds.size) return true
-    return pendingIds.has(item.import_id)
-  })
+    if (!pendingIds.size) return true;
+    return pendingIds.has(item.import_id);
+  });
 
-  if (!candidates.length) return
+  if (!candidates.length) return;
 
-  creatingInvoiceCatalog.value = true
-  creatingInvoiceCatalogIds.value = candidates.map((item) => item.import_id)
+  creatingInvoiceCatalog.value = true;
+  creatingInvoiceCatalogIds.value = candidates.map((item) => item.import_id);
 
   try {
-    const createdImportIds = []
-    const failedById = new Map()
-    const createdLines = []
+    const createdImportIds = [];
+    const failedById = new Map();
+    const createdLines = [];
 
     for (const item of candidates) {
       const suggestionResult = await suggestCatalogProductFromInvoiceLine({
         tenantId: tenantId.value,
         line: item,
-      })
+      });
 
-      const suggestion = suggestionResult?.data || {}
+      const suggestion = suggestionResult?.data || {};
       const createResult = await purchasesService.createCatalogVariantForPurchase({
         tenantId: tenantId.value,
         rawName: item.raw_name,
         productName: suggestion.product_name || item.raw_name,
         variantName: suggestion.variant_name || 'Predeterminada',
         suggestedSku: suggestion.suggested_sku || null,
-        unitCost: item?.unit_price != null ? Number(item.unit_price || 0) : Number(item?.line_total || 0) / Math.max(1, Number(item?.quantity || 1)),
+        unitCost:
+          item?.unit_price != null
+            ? Number(item.unit_price || 0)
+            : Number(item?.line_total || 0) / Math.max(1, Number(item?.quantity || 1)),
         requiresExpiration: suggestion.requires_expiration === true,
         inventoryBehavior: suggestion.inventory_behavior || 'RESELL',
         notes: suggestion.notes || `Creado desde factura: ${item.raw_name}`,
         isComponent: suggestion.is_component === true,
-      })
+      });
 
       if (!createResult.success || !createResult.data?.variant_id) {
-        failedById.set(item.import_id, createResult.error || suggestionResult?.error || 'No se pudo crear el artículo.')
-        continue
+        failedById.set(
+          item.import_id,
+          createResult.error || suggestionResult?.error || 'No se pudo crear el artículo.'
+        );
+        continue;
       }
 
-      createdImportIds.push(item.import_id)
-      createdLines.push(buildPurchaseLineFromCreatedVariant(item, createResult.data))
+      createdImportIds.push(item.import_id);
+      createdLines.push(buildPurchaseLineFromCreatedVariant(item, createResult.data));
     }
 
     if (createdLines.length) {
-      purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, createdLines)
-      await loadVariants('')
+      purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, createdLines);
+      await loadVariants('');
     }
 
     const nextUnmatched = (invoiceImportUnmatchedAll.value || [])
       .filter((item) => !createdImportIds.includes(item.import_id))
       .map((item) => {
-        if (!failedById.has(item.import_id)) return item
-        return { ...item, create_error: failedById.get(item.import_id) }
-      })
+        if (!failedById.has(item.import_id)) return item;
+        return { ...item, create_error: failedById.get(item.import_id) };
+      });
 
-    syncInvoiceImportSummary(nextUnmatched, createdImportIds.length)
+    syncInvoiceImportSummary(nextUnmatched, createdImportIds.length);
 
     if (failedById.size > 0) {
-      showMsg(Array.from(failedById.values())[0] || 'Algunos artículos no se pudieron crear.', 'warning')
+      showMsg(
+        Array.from(failedById.values())[0] || 'Algunos artículos no se pudieron crear.',
+        'warning'
+      );
     } else if (createdImportIds.length > 0) {
-      showMsg(`Se crearon y agregaron ${createdImportIds.length} artículo(s) faltante(s).`, 'success')
+      showMsg(
+        `Se crearon y agregaron ${createdImportIds.length} artículo(s) faltante(s).`,
+        'success'
+      );
     }
   } catch (error) {
-    showMsg(`Error creando faltantes: ${error.message}`, 'error')
+    showMsg(`Error creando faltantes: ${error.message}`, 'error');
   } finally {
-    creatingInvoiceCatalog.value = false
-    creatingInvoiceCatalogIds.value = []
+    creatingInvoiceCatalog.value = false;
+    creatingInvoiceCatalogIds.value = [];
   }
-}
+};
 
 const maybeAutofillSupplierFromInvoice = async (invoice = {}) => {
-  const vendorName = String(invoice?.vendor_name || '').trim()
-  if (!vendorName) return null
+  const vendorName = String(invoice?.vendor_name || '').trim();
+  if (!vendorName) return null;
 
-  let candidateSuppliers = suppliers.value
+  let candidateSuppliers = suppliers.value;
   try {
-    candidateSuppliers = await thirdPartiesService.list({ search: vendorName, type: 'supplier', limit: 50 })
+    candidateSuppliers = await thirdPartiesService.list({
+      search: vendorName,
+      type: 'supplier',
+      limit: 50,
+    });
     if (candidateSuppliers.length) {
-      suppliers.value = candidateSuppliers
+      suppliers.value = candidateSuppliers;
     }
   } catch (_error) {
-    candidateSuppliers = suppliers.value
+    candidateSuppliers = suppliers.value;
   }
 
-  const match = findBestSupplierCandidate(invoice, candidateSuppliers)
+  const match = findBestSupplierCandidate(invoice, candidateSuppliers);
   if (match?.supplier?.third_party_id) {
-    purchaseData.value.supplier_id = match.supplier.third_party_id
+    purchaseData.value.supplier_id = match.supplier.third_party_id;
   }
-  return match
-}
+  return match;
+};
+
+// A5: aplica un draft de factura de compra proveniente de un job de
+// media_processing (persistido en async_jobs.result y llevado aquí por
+// purchaseDraftBridge). Reutiliza el mismo merge del flujo legacy de OCR.
+const applyPendingPurchaseDraft = async () => {
+  const draft = consumePendingPurchaseDraft();
+  if (!draft) return;
+
+  const invoice = draft?.result?.draft?.invoice || draft?.invoice || {};
+  const lines = Array.isArray(draft?.result?.draft?.line_items)
+    ? draft.result.draft.line_items
+    : Array.isArray(draft?.result?.draft?.rows)
+      ? draft.result.draft.rows
+      : [];
+
+  if (!lines.length) {
+    showMsg('El borrador de la factura no tiene artículos para aplicar.', 'warning');
+    return;
+  }
+
+  try {
+    const catalog = await loadInvoiceCatalog();
+    const invoiceLines = lines.map((line, index) => ({
+      ...line,
+      import_id: `pending-draft-${Date.now()}-${index}`,
+      create_error: '',
+    }));
+    const matches = matchInvoiceLinesToCatalog(invoiceLines, catalog);
+    const importedLines = buildPurchaseLinesFromInvoiceMatches(matches.matched);
+    purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, importedLines);
+    await maybeAutofillSupplierFromInvoice(invoice);
+    showMsg(`Se aplicó el borrador de la factura: ${importedLines.length} artículo(s).`, 'success');
+  } catch (error) {
+    showMsg(`No se pudo aplicar el borrador de la factura: ${error.message}`, 'error');
+  }
+};
+
+onMounted(() => {
+  void applyPendingPurchaseDraft();
+});
 
 const handleInvoiceFileSelected = async (event) => {
-  const file = event?.target?.files?.[0]
-  event.target.value = ''
-  if (!file || !tenantId.value) return
+  const file = event?.target?.files?.[0];
+  event.target.value = '';
+  if (!file || !tenantId.value) return;
 
-  scanningInvoice.value = true
+  scanningInvoice.value = true;
   try {
+    const queued = await tryEnqueueInvoicePhotoJob(file);
+    if (queued) return;
+
     const analysisResult = await analyzeInvoiceFile({
       tenantId: tenantId.value,
       file,
-    })
+    });
 
     if (!analysisResult.success || !analysisResult?.data) {
-      showMsg(analysisResult.error || 'No se pudo analizar la factura.', 'error')
-      return
+      showMsg(analysisResult.error || 'No se pudo analizar la factura.', 'error');
+      return;
     }
 
-    const catalog = await loadInvoiceCatalog()
+    const catalog = await loadInvoiceCatalog();
     const invoiceLines = (analysisResult.data.line_items || []).map((line, index) => ({
       ...line,
       import_id: `web-purchase-invoice-${Date.now()}-${index}`,
       create_error: '',
-    }))
-    const matches = matchInvoiceLinesToCatalog(invoiceLines, catalog)
-    const importedLines = buildPurchaseLinesFromInvoiceMatches(matches.matched)
-    purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, importedLines)
+    }));
+    const matches = matchInvoiceLinesToCatalog(invoiceLines, catalog);
+    const importedLines = buildPurchaseLinesFromInvoiceMatches(matches.matched);
+    purchaseData.value.lines = mergeInvoiceLinesIntoDraft(purchaseData.value.lines, importedLines);
 
-    const supplierMatch = await maybeAutofillSupplierFromInvoice(analysisResult.data.invoice)
+    const supplierMatch = await maybeAutofillSupplierFromInvoice(analysisResult.data.invoice);
     invoiceImportSummary.value = buildInvoiceImportViewState({
       analysisSummary: buildPurchaseInvoiceSummary({
         analysis: analysisResult.data,
@@ -3152,21 +3802,27 @@ const handleInvoiceFileSelected = async (event) => {
       }),
       supplierMatch,
       unmatched: matches.unmatched,
-    })
-    invoiceImportUnmatchedAll.value = matches.unmatched
-    invoiceImportUnmatched.value = invoiceImportSummary.value.unmatchedPreview
+    });
+    invoiceImportUnmatchedAll.value = matches.unmatched;
+    invoiceImportUnmatched.value = invoiceImportSummary.value.unmatchedPreview;
 
     if (importedLines.length === 0) {
-      showMsg('La factura se leyo, pero no hubo coincidencias automaticas con el catalogo.', 'warning')
+      showMsg(
+        'La factura se leyo, pero no hubo coincidencias automaticas con el catalogo.',
+        'warning'
+      );
     } else {
-      showMsg(`Factura analizada: ${importedLines.length} linea(s) cargadas al borrador.`, 'success')
+      showMsg(
+        `Factura analizada: ${importedLines.length} linea(s) cargadas al borrador.`,
+        'success'
+      );
     }
   } catch (error) {
-    showMsg('Error al procesar factura: ' + error.message, 'error')
+    showMsg('Error al procesar factura: ' + error.message, 'error');
   } finally {
-    scanningInvoice.value = false
+    scanningInvoice.value = false;
   }
-}
+};
 </script>
 
 <style scoped>

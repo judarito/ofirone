@@ -1,14 +1,21 @@
 <template>
   <div class="pos-container ofir-page ofir-pos" data-testid="pos-page">
     <!-- Barra Superior POS -->
-    <v-card ref="headerCard" flat class="mb-2 pos-header-card" data-testid="pos-header">
-      <v-card-title class="d-flex flex-column flex-sm-row align-start align-sm-center pa-2">
-        <div class="d-flex align-center mb-2 mb-sm-0">
-          <v-icon class="mr-2">mdi-point-of-sale</v-icon>
-          <span class="text-h6 d-none d-sm-inline">Punto de Venta</span>
-          <span class="text-subtitle-1 d-sm-none">POS</span>
+    <v-card ref="headerCard" flat class="mb-4 pos-header-card" data-testid="pos-header">
+      <v-card-title class="pos-header-content">
+        <div class="pos-header-identity">
+          <div class="pos-header-icon">
+            <v-icon size="22">mdi-point-of-sale</v-icon>
+          </div>
+          <div class="pos-header-copy">
+            <div class="text-h6 font-weight-bold">Punto de Venta</div>
+            <div class="text-caption text-medium-emphasis">
+              {{ currentSession?.cash_register?.name || 'Sin caja' }} · venta actual con
+              {{ cart.length }} {{ cart.length === 1 ? 'item' : 'items' }} ·
+              {{ heldSales.length }} {{ heldSales.length === 1 ? 'venta guardada' : 'ventas guardadas' }}
+            </div>
+          </div>
         </div>
-        <v-spacer class="d-none d-sm-flex"></v-spacer>
         <div class="pos-header-actions">
           <v-btn
             class="pos-header-actions__wizard"
@@ -49,8 +56,7 @@
             size="small"
             :prepend-icon="sessionExpired ? 'mdi-clock-alert' : 'mdi-cash-register'"
           >
-            <span class="d-none d-sm-inline">{{ currentSession.cash_register?.name || 'Caja' }}{{ sessionExpired ? ' (⚠️ '+sessionAgeHours+'h)' : '' }}</span>
-            <span class="d-sm-none">{{ currentSession.cash_register?.name?.substring(0, 10) || 'Caja' }}{{ sessionExpired ? ' !' : '' }}</span>
+            <span>{{ currentSession.cash_register?.name || 'Caja' }} · {{ sessionAgeHours }} h</span>
           </v-chip>
           <v-chip v-else class="pos-header-status" color="warning" size="small" prepend-icon="mdi-alert">
             <span class="d-none d-sm-inline">Sin caja abierta</span>
@@ -67,91 +73,103 @@
 
     <v-row no-gutters align="start" class="pos-main-row">
       <!-- Panel Izquierdo: Búsqueda de productos -->
-      <v-col cols="12" md="7" class="pr-md-2">
-        <v-card class="pos-panel" data-testid="pos-search-panel">
+      <v-col cols="12" md="7" class="pr-md-2 pos-workspace-col">
+        <v-card class="pos-panel pos-search-card" data-testid="pos-search-panel">
           <v-card-text class="pa-2">
             <!-- Búsqueda con autocompletado -->
-            <v-autocomplete
-              ref="searchInput"
-              v-model="selectedVariant"
-              v-model:search="searchTerm"
-              :items="searchResults"
-              :loading="searchingProduct"
-              item-title="_displayName"
-              item-value="variant_id"
-              return-object
-              label="Buscar producto (código de barras, SKU o nombre)"
-              prepend-inner-icon="mdi-barcode-scan"
-              variant="outlined"
-              density="compact"
-              hide-details
-              no-filter
-              clearable
-              autofocus
-              :no-data-text="searchTerm && searchTerm.length >= 2 ? 'No se encontraron productos' : 'Escribe para buscar...'"
-              data-testid="pos-product-search"
-              @update:search="debouncedSearch"
-              @update:model-value="onVariantSelected"
-              @keydown.enter.prevent="searchByBarcode"
-            >
-              <template #item="{ props, item }">
-                <v-list-item v-bind="props" :subtitle="'SKU: ' + item.raw.sku + ' | Stock: ' + (item.raw._stock ?? '—') + ' | ' + formatMoney(item.raw.price)">
-                  <template #prepend>
-                    <v-icon color="primary" size="small">mdi-package-variant</v-icon>
-                  </template>
-                </v-list-item>
-              </template>
-            </v-autocomplete>
-
-            <v-textarea
-              v-model="chatOrderText"
-              label="Pedido por chat (IA)"
-              placeholder="Ej: Hola, para Ana: 2 cocas 350 ml y 1 arroz diana 500 g, entrega hoy"
-              prepend-inner-icon="mdi-chat-processing-outline"
-              variant="outlined"
-              density="compact"
-              rows="2"
-              auto-grow
-              class="mt-2"
-              hide-details="auto"
-              data-testid="pos-chat-order-input"
-            ></v-textarea>
-
-            <input
-              ref="orderImageInput"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              class="d-none"
-              data-testid="pos-order-image-input"
-              @change="onOrderImageSelected"
-            />
-
-            <div class="d-flex flex-column flex-sm-row ga-2 mt-2">
-              <v-btn
-                class="flex-grow-1"
-                color="secondary"
-                prepend-icon="mdi-creation"
-                :loading="processingChatOrder"
-                :disabled="processingChatOrder || processingOrderImage || !chatOrderText.trim()"
-                data-testid="pos-parse-chat-order"
-                @click="parseChatOrderWithAgent"
+            <div class="pos-product-search-row">
+              <v-autocomplete
+                ref="searchInput"
+                v-model="selectedVariant"
+                v-model:search="searchTerm"
+                :items="searchResults"
+                :loading="searchingProduct"
+                item-title="_displayName"
+                item-value="variant_id"
+                return-object
+                label="Buscar producto por código de barras, SKU o nombre"
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+                density="compact"
+                hide-details
+                no-filter
+                clearable
+                autofocus
+                :no-data-text="searchTerm && searchTerm.length >= 2 ? 'No se encontraron productos' : 'Escribe para buscar...'"
+                data-testid="pos-product-search"
+                @update:search="debouncedSearch"
+                @update:model-value="onVariantSelected"
+                @keydown.enter.prevent="searchByBarcode"
               >
-                Convertir texto a venta
-              </v-btn>
-
+                <template #item="{ props, item }">
+                  <v-list-item v-bind="props" :subtitle="'SKU: ' + item.raw.sku + ' | Stock: ' + (item.raw._stock ?? '—') + ' | ' + formatMoney(item.raw.price)">
+                    <template #prepend>
+                      <v-icon color="primary" size="small">mdi-package-variant</v-icon>
+                    </template>
+                  </v-list-item>
+                </template>
+              </v-autocomplete>
               <v-btn
-                class="flex-grow-1"
-                variant="tonal"
-                color="secondary"
-                prepend-icon="mdi-camera-outline"
-                :loading="processingOrderImage"
-                :disabled="processingOrderImage || processingChatOrder"
-                data-testid="pos-upload-order-image"
-                @click="triggerOrderImageInput"
+                class="pos-add-product"
+                color="success"
+                prepend-icon="mdi-plus"
+                :loading="searchingProduct"
+                :disabled="!searchTerm"
+                @click="searchByBarcode"
               >
-                Tomar o subir imagen
+                Agregar
               </v-btn>
+            </div>
+
+            <div class="pos-ai-order-row">
+              <v-textarea
+                v-model="chatOrderText"
+                label="Pedido por chat (IA)"
+                placeholder="Pega aquí el mensaje del cliente"
+                variant="outlined"
+                density="compact"
+                rows="2"
+                auto-grow
+                hide-details="auto"
+                data-testid="pos-chat-order-input"
+              ></v-textarea>
+
+              <input
+                ref="orderImageInput"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                class="d-none"
+                data-testid="pos-order-image-input"
+                @change="onOrderImageSelected"
+              />
+
+              <div class="pos-ai-order-actions">
+                <v-btn
+                  class="pos-ai-action"
+                  color="secondary"
+                  prepend-icon="mdi-creation"
+                  :loading="processingChatOrder"
+                  :disabled="processingChatOrder || processingOrderImage || !chatOrderText.trim()"
+                  data-testid="pos-parse-chat-order"
+                  @click="parseChatOrderWithAgent"
+                >
+                  Convertir texto
+                </v-btn>
+
+                <v-btn
+                  class="pos-ai-action"
+                  variant="tonal"
+                  color="secondary"
+                  prepend-icon="mdi-camera-outline"
+                  :loading="processingOrderImage"
+                  :disabled="processingOrderImage || processingChatOrder"
+                  data-testid="pos-upload-order-image"
+                  @click="triggerOrderImageInput"
+                >
+                  Subir imagen
+                </v-btn>
+              </div>
             </div>
 
             <div class="text-caption text-medium-emphasis mt-2">
@@ -214,9 +232,9 @@
             </v-alert>
           </v-card-text>
 
-          <!-- Líneas del carrito -->
-          <v-divider></v-divider>
-          
+        </v-card>
+
+        <v-card class="pos-panel pos-cart-card" data-testid="pos-cart-panel">
           <div v-if="cart.length > 0" class="pa-2">
             <ListView
               class="pos-cart-list"
@@ -314,14 +332,14 @@
       <v-col cols="12" md="5" class="pl-md-2 mt-2 mt-md-0 pos-summary-col">
         <v-card class="pos-panel pos-summary-card">
           <!-- Cliente -->
-          <v-card-text class="pa-2">
+          <v-card-text class="pa-3 pos-customer-section">
             <v-autocomplete
               v-model="selectedCustomer"
               :items="customerResults"
               item-title="full_name"
               item-value="customer_id"
               return-object
-              label="Cliente (opcional)"
+              label="Cliente de mostrador"
               prepend-inner-icon="mdi-account"
               variant="outlined"
               density="compact"
@@ -380,19 +398,45 @@
           <v-divider></v-divider>
 
           <!-- Ventas en espera -->
-          <v-card-text class="pa-2">
-            <div class="d-flex flex-column flex-sm-row ga-2 align-stretch align-sm-center justify-space-between mb-2">
-              <div class="text-subtitle-2">Ventas en espera</div>
+          <v-card-text class="pa-3 pos-held-section">
+            <div class="pos-section-heading mb-3">
+              <div>
+                <div class="text-subtitle-2 font-weight-bold">Ventas en espera</div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ heldSales.length }} {{ heldSales.length === 1 ? 'guardada' : 'guardadas' }} · total {{ formatMoney(heldSalesTotal) }}
+                </div>
+              </div>
               <v-btn
                 color="success"
-                variant="tonal"
+                variant="flat"
                 size="small"
-                prepend-icon="mdi-pause-circle-outline"
                 :disabled="cart.length === 0"
                 @click="saveSaleOnHold"
               >
-                Guardar en espera
+                Guardar actual
               </v-btn>
+            </div>
+
+            <div v-if="heldSales.length > 0" class="pos-held-toolbar mb-3">
+              <v-text-field
+                v-model="heldSalesSearch"
+                label="Buscar por cliente o nota"
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+                density="compact"
+                hide-details
+                clearable
+              />
+              <v-select
+                v-model="heldSalesSort"
+                :items="heldSalesSortOptions"
+                item-title="title"
+                item-value="value"
+                variant="outlined"
+                density="compact"
+                hide-details
+                aria-label="Ordenar ventas en espera"
+              />
             </div>
 
             <div v-if="heldSales.length === 0" class="text-caption text-medium-emphasis">
@@ -401,38 +445,49 @@
 
             <div v-else class="d-flex flex-column ga-2">
               <v-card
-                v-for="held in heldSales"
+                v-for="held in displayedHeldSales"
                 :key="held.id"
                 variant="outlined"
                 class="held-sale-card"
               >
                 <v-card-text class="pa-2">
-                  <div class="text-body-2 font-weight-bold">
-                    {{ getHeldSaleCustomerLabel(held) }} · {{ getHeldSaleItemsCount(held) }} item(s)
+                  <div class="pos-held-sale-topline">
+                    <div>
+                      <div class="text-body-2 font-weight-bold">{{ getHeldSaleCustomerLabel(held) }}</div>
+                      <div class="text-caption text-medium-emphasis">
+                        {{ getHeldSaleItemsCount(held) }} item(s) · guardada {{ formatHeldSaleDate(held.createdAt) }}
+                      </div>
+                    </div>
+                    <div class="text-body-1 font-weight-bold">{{ formatMoney(getHeldSaleTotal(held)) }}</div>
                   </div>
-                  <div class="text-caption text-medium-emphasis mb-2">
-                    {{ formatHeldSaleDate(held.createdAt) }}
-                  </div>
-                  <div class="d-flex flex-wrap ga-2">
-                    <v-btn
-                      color="primary"
-                      size="small"
-                      variant="tonal"
-                      @click="resumeHeldSale(held.id)"
-                    >
-                      Retomar
-                    </v-btn>
-                    <v-btn
-                      color="error"
-                      size="small"
-                      variant="tonal"
-                      @click="removeHeldSale(held.id)"
-                    >
-                      Quitar
-                    </v-btn>
+                  <div class="pos-held-sale-footer mt-2">
+                    <div class="text-caption text-medium-emphasis pos-held-sale-description">
+                      {{ getHeldSaleDescription(held) }}
+                    </div>
+                    <div class="d-flex flex-wrap ga-2">
+                      <v-btn
+                        color="primary"
+                        size="small"
+                        variant="tonal"
+                        @click="resumeHeldSale(held.id)"
+                      >
+                        Retomar
+                      </v-btn>
+                      <v-btn
+                        color="error"
+                        size="small"
+                        variant="tonal"
+                        @click="removeHeldSale(held.id)"
+                      >
+                        Quitar
+                      </v-btn>
+                    </div>
                   </div>
                 </v-card-text>
               </v-card>
+              <div v-if="displayedHeldSales.length === 0" class="text-caption text-medium-emphasis py-2">
+                No hay ventas que coincidan con la búsqueda.
+              </div>
             </div>
           </v-card-text>
 
@@ -592,6 +647,27 @@
               Cierra y reabre la caja para continuar vendiendo.
             </v-alert>
           </v-card-text>
+
+          <v-divider></v-divider>
+          <v-card-actions class="pa-3 pos-checkout-actions">
+            <div class="d-flex justify-space-between align-center w-100 mb-2">
+              <span class="text-body-2">{{ change > 0 ? 'Cambio' : remaining > 0 ? 'Falta' : 'Cambio' }}</span>
+              <span :class="change > 0 ? 'text-success' : remaining > 0 ? 'text-error' : 'text-success'" class="font-weight-bold">
+                {{ formatMoney(change > 0 ? change : remaining) }}
+              </span>
+            </div>
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-check"
+              size="large"
+              :loading="processing"
+              :disabled="cart.length === 0 || remaining > 0 || sessionExpired || !currentSession"
+              data-testid="pos-checkout-button"
+              @click="processSale"
+            >
+              Cobrar venta
+            </v-btn>
+          </v-card-actions>
 
         </v-card>
       </v-col>
@@ -1165,6 +1241,13 @@ const chatOrderSummary = ref(null)
 const processingOrderImage = ref(false)
 const orderImageSummary = ref(null)
 const heldSales = ref([])
+const heldSalesSearch = ref('')
+const heldSalesSort = ref('recent')
+const heldSalesSortOptions = [
+  { title: 'Recientes', value: 'recent' },
+  { title: 'Antiguas', value: 'oldest' },
+  { title: 'Mayor valor', value: 'highest' },
+]
 const CUSTOMER_AUTOLOAD_MIN_SCORE = 0.82
 const saleDateTime = ref('')
 const saleDateTimeTouched = ref(false)
@@ -1412,7 +1495,7 @@ const fetchSuggestions = async (query) => {
     if (r.success) {
       searchResults.value = r.data.map(v => ({
         ...v,
-        _displayName: `${v.product?.name || ''}${v.variant_name ? ' — ' + v.variant_name : ''} (${v.sku})${v.stock_on_hand !== undefined ? ` [Stock: ${v.stock_available || 0}]` : ''}`,
+        _displayName: `${v.product?.name || ''}${v.variant_name ? ' — ' + v.variant_name : ''} (${v.sku})`,
         _stock: v.stock_on_hand ?? null
       }))
     }
@@ -1953,6 +2036,54 @@ const getHeldSaleItemsCount = (held) => {
   return (held?.cart || []).reduce((sum, line) => sum + (Number(line?.quantity) || 0), 0)
 }
 
+const getHeldSaleTotal = (held) => (held?.cart || []).reduce(
+  (sum, line) => sum + (Number(line?.line_total) || 0),
+  0
+)
+
+const getHeldSaleDescription = (held) => {
+  const productNames = (held?.cart || [])
+    .map((line) => String(line?.productName || line?.variantName || '').trim())
+    .filter(Boolean)
+    .slice(0, 2)
+
+  const productsLabel = productNames.join(', ')
+  const note = String(held?.saleNote || '').trim()
+  return [productsLabel, note].filter(Boolean).join(' · ') || 'Venta temporal'
+}
+
+const heldSalesTotal = computed(() => heldSales.value.reduce(
+  (sum, held) => sum + getHeldSaleTotal(held),
+  0
+))
+
+const displayedHeldSales = computed(() => {
+  const query = heldSalesSearch.value.trim().toLocaleLowerCase('es')
+  const filtered = query
+    ? heldSales.value.filter((held) => {
+        const searchable = [
+          getHeldSaleCustomerLabel(held),
+          held?.saleNote,
+          ...(held?.cart || []).flatMap((line) => [line?.productName, line?.variantName, line?.sku]),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLocaleLowerCase('es')
+        return searchable.includes(query)
+      })
+    : [...heldSales.value]
+
+  return filtered.sort((left, right) => {
+    if (heldSalesSort.value === 'oldest') {
+      return new Date(left?.createdAt || 0).getTime() - new Date(right?.createdAt || 0).getTime()
+    }
+    if (heldSalesSort.value === 'highest') {
+      return getHeldSaleTotal(right) - getHeldSaleTotal(left)
+    }
+    return new Date(right?.createdAt || 0).getTime() - new Date(left?.createdAt || 0).getTime()
+  })
+})
+
 const buildVariantLabel = (line) => {
   if (!line) return null
   const productName = String(line.productName || '').trim()
@@ -2347,7 +2478,7 @@ const handleKeyboardShortcuts = (e) => {
 }
 
 .pos-main-row {
-  align-items: flex-start;
+  align-items: stretch !important;
 }
 
 .pos-header-card {
@@ -2360,18 +2491,67 @@ const handleKeyboardShortcuts = (e) => {
   box-shadow: 0 14px 28px rgba(6, 12, 26, 0.22);
 }
 
+.pos-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 18px;
+}
+
+.pos-header-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pos-header-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border: 1px solid rgba(99, 145, 255, 0.35);
+  border-radius: 8px;
+  color: rgb(var(--v-theme-primary));
+  background: rgba(61, 105, 206, 0.12);
+}
+
+.pos-header-copy {
+  min-width: 0;
+  line-height: 1.2;
+}
+
 .pos-panel {
   border: 1px solid rgba(94, 132, 244, 0.22);
+  border-radius: 8px;
   background: linear-gradient(145deg, rgba(14, 22, 43, 0.9), rgba(9, 16, 31, 0.92)) !important;
+}
+
+.pos-workspace-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pos-search-card {
+  flex: 0 0 auto;
+}
+
+.pos-cart-card {
+  flex: 1 1 auto;
+  min-height: 280px;
 }
 
 .pos-summary-col {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .pos-summary-card {
   width: 100%;
+  overflow: hidden;
 }
 
 .pos-header-actions {
@@ -2380,7 +2560,8 @@ const handleKeyboardShortcuts = (e) => {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
-  width: 100%;
+  width: auto;
+  flex: 0 0 auto;
 }
 
 .pos-header-actions__charge,
@@ -2390,7 +2571,7 @@ const handleKeyboardShortcuts = (e) => {
 }
 
 .pos-header-actions__charge {
-  min-width: 190px;
+  min-width: 180px;
 }
 
 .pos-header-status {
@@ -2409,7 +2590,7 @@ const handleKeyboardShortcuts = (e) => {
 }
 
 .pos-container :deep(.v-field) {
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 .pos-container :deep(.v-field__input) {
@@ -2417,9 +2598,40 @@ const handleKeyboardShortcuts = (e) => {
 }
 
 .pos-container :deep(.v-btn) {
-  border-radius: 10px;
-  letter-spacing: 0.3px;
+  border-radius: 7px;
+  letter-spacing: 0;
   font-weight: 700;
+}
+
+.pos-product-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.pos-add-product {
+  min-width: 112px;
+  min-height: 40px;
+}
+
+.pos-ai-order-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 10px;
+}
+
+.pos-ai-order-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pos-ai-action {
+  width: 100%;
+  flex: 1 1 0;
 }
 
 .pos-container :deep(.v-table thead th) {
@@ -2438,7 +2650,7 @@ const handleKeyboardShortcuts = (e) => {
 }
 
 .held-sale-card {
-  border-radius: 12px;
+  border-radius: 8px;
   border-color: rgba(98, 139, 255, 0.24) !important;
 }
 
@@ -2452,9 +2664,49 @@ const handleKeyboardShortcuts = (e) => {
   padding-bottom: 10px;
 }
 
+.pos-cart-list :deep(.ofir-list-view__card),
+.pos-cart-list :deep(.ofir-list-view__list) {
+  background: transparent !important;
+}
+
+.pos-cart-list :deep(.ofir-list-view__list) {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
 .pos-cart-list :deep(.ofir-list-view__item) {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid rgba(98, 139, 255, 0.22);
+  border-radius: 8px;
+}
+
+.pos-cart-list :deep(.ofir-list-view__item-divider) {
+  display: none;
+}
+
+.pos-section-heading,
+.pos-held-sale-topline,
+.pos-held-sale-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pos-held-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 8px;
+}
+
+.pos-held-sale-description {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pos-cart-line-grid {
@@ -2511,7 +2763,7 @@ const handleKeyboardShortcuts = (e) => {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid rgba(96, 134, 255, 0.22);
   background: linear-gradient(145deg, rgba(9, 17, 33, 0.96), rgba(7, 14, 27, 0.94));
   backdrop-filter: blur(16px);
@@ -2558,24 +2810,29 @@ const handleKeyboardShortcuts = (e) => {
   min-width: 180px;
 }
 
+.pos-checkout-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 /* Total sticky en desktop */
 @media (min-width: 960px) {
   .totals-sticky {
     position: relative;
     z-index: 1;
-    box-shadow: 0 8px 16px rgba(16, 24, 40, 0.12);
-    border: 1px solid rgba(88, 123, 223, 0.18);
-    border-radius: 12px;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
   }
 
   :global(.ofir-shell--dark) .totals-sticky {
-    background: linear-gradient(130deg, rgba(14, 23, 46, 0.95), rgba(9, 16, 31, 0.92));
-    box-shadow: 0 10px 22px rgba(4, 9, 21, 0.34);
-    border-color: rgba(92, 128, 234, 0.28);
+    background: transparent;
+    box-shadow: none;
   }
 
   :global(.ofir-shell--light) .totals-sticky {
-    background: rgba(var(--v-theme-surface), 0.94);
+    background: transparent;
   }
 
   :global(.ofir-shell--light) .pos-floating-actions {
@@ -2612,24 +2869,54 @@ const handleKeyboardShortcuts = (e) => {
   }
 
   .pos-header-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    justify-content: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pos-header-status {
-    order: -1;
-    justify-self: start;
+    width: 100%;
+    justify-content: center;
   }
 
+  .pos-header-actions__wizard,
   .pos-header-actions__charge,
   .pos-header-actions__clear {
     width: 100%;
     min-width: 0;
   }
+
+  .pos-product-search-row,
+  .pos-ai-order-row,
+  .pos-held-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pos-add-product {
+    width: 100%;
+  }
+
+  .pos-ai-order-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pos-section-heading,
+  .pos-held-sale-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pos-section-heading :deep(.v-btn) {
+    width: 100%;
+  }
 }
 
 @media (max-width: 959px) {
+  .pos-header-content {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
   .pos-floating-actions {
     left: 16px;
     right: 16px;
@@ -2658,11 +2945,13 @@ const handleKeyboardShortcuts = (e) => {
 
   .pos-header-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, auto));
     justify-content: stretch;
     align-items: center;
+    width: 100%;
   }
 
+  .pos-header-actions__wizard,
   .pos-header-actions__charge,
   .pos-header-actions__clear {
     flex: 1 1 0;
@@ -2670,9 +2959,22 @@ const handleKeyboardShortcuts = (e) => {
   }
 
   .pos-header-status {
-    grid-column: 1 / -1;
-    order: -1;
-    justify-self: start;
+    justify-self: stretch;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .pos-header-content {
+    padding: 14px;
+  }
+
+  .pos-header-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pos-header-copy .text-caption {
+    white-space: normal;
   }
 }
 </style>
