@@ -2177,8 +2177,10 @@ watch(holdSalesStorageKey, () => {
 }, { immediate: true })
 
 // Procesar venta
+let checkoutAttemptId = null
+
 const processSale = async (options = {}) => {
-  if (cart.value.length === 0 || remaining.value > 0) return
+  if (processing.value || cart.value.length === 0 || remaining.value > 0) return
   if (!tenantId.value || !userProfile.value) return
 
   // Validar pagos a crédito
@@ -2213,7 +2215,7 @@ const processSale = async (options = {}) => {
     const lines = buildSalePayloadLines(cart.value)
 
     // Ajustar pagos: si hay cambio, reducir el monto del último pago al total exacto
-    const adjustedPayments = [...payments.value]
+    const adjustedPayments = payments.value.map(payment => ({ ...payment }))
     if (change.value > 0 && adjustedPayments.length > 0) {
       // Reducir el último pago en el monto del cambio
       const lastPayment = adjustedPayments[adjustedPayments.length - 1]
@@ -2226,7 +2228,9 @@ const processSale = async (options = {}) => {
       reference: null
     }))
 
+    checkoutAttemptId ??= crypto.randomUUID()
     const r = await salesService.createSale(tenantId.value, {
+      checkoutAttemptId,
       location_id: currentSession.value?.cash_register?.location_id || null,
       cash_session_id: currentSession.value?.cash_session_id || null,
       customer_id:     selectedCustomer.value?.customer_id     || null,
@@ -2285,6 +2289,7 @@ const processSale = async (options = {}) => {
 }
 
 const clearSale = () => {
+  checkoutAttemptId = null
   cart.value = []
   selectedCustomer.value = null
   selectedThirdParty.value = null

@@ -45,13 +45,14 @@ class SalesService {
   async createSale(tenantId, saleData) {
     try {
       if (USE_BACKEND_SALES) {
+        const attemptId = saleData.checkoutAttemptId ?? crypto.randomUUID()
         const payload = {
-          id: crypto.randomUUID(),
+          id: attemptId,
           location_id: saleData.location_id,
           customer_id: saleData.customer_id || '',
           cash_session_id: saleData.cash_session_id || '',
           status: 'completed',
-          idempotency_key: `web-${crypto.randomUUID()}`,
+          idempotency_key: `web-${attemptId}`,
           lines: (saleData.lines || []).map(line => ({
             variant_id: line.variant_id,
             batch_id: line.batch_id || '',
