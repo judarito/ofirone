@@ -13,7 +13,7 @@ type PGStore struct{ pool *pgxpool.Pool }
 
 func NewPGStore(pool *pgxpool.Pool) *PGStore { return &PGStore{pool: pool} }
 
-func (s *PGStore) Create(ctx context.Context, sale Sale) error {
+func (s *PGStore) Create(ctx context.Context, sale *Sale) error {
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("sales: nil postgres pool")
 	}

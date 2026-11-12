@@ -24,7 +24,7 @@ func (s *fakeCustomerStore) Delete(context.Context, string, string) error       
 
 type fakeSalesStore struct{ page sales.Page }
 
-func (s *fakeSalesStore) Create(context.Context, sales.Sale) error { return nil }
+func (s *fakeSalesStore) Create(context.Context, *sales.Sale) error { return nil }
 func (s *fakeSalesStore) List(context.Context, string, int, string, string) (sales.Page, error) {
 	return s.page, nil
 }

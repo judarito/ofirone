@@ -7,7 +7,7 @@ import (
 
 type secondaryStore struct{}
 
-func (secondaryStore) Create(context.Context, Sale) error { return nil }
+func (secondaryStore) Create(context.Context, *Sale) error { return nil }
 func (secondaryStore) List(context.Context, string, int, string, string) (Page, error) {
 	return Page{}, nil
 }

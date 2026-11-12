@@ -15,7 +15,10 @@ import (
 
 type captureSaleStore struct{ got sales.Sale }
 
-func (s *captureSaleStore) Create(_ context.Context, sale sales.Sale) error { s.got = sale; return nil }
+func (s *captureSaleStore) Create(_ context.Context, sale *sales.Sale) error {
+	s.got = *sale
+	return nil
+}
 func (s *captureSaleStore) List(context.Context, string, int, string, string) (sales.Page, error) {
 	return sales.Page{}, nil
 }
@@ -49,7 +52,7 @@ func TestCreateSaleUsesAuthenticatedTenant(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if response["id"] != "00000000-0000-4000-8000-000000000001" {
+	if response["id"] != store.got.ID || response["total"] != float64(100) {
 		t.Fatalf("response = %#v", response)
 	}
 }

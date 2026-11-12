@@ -3,7 +3,7 @@ package sales
 import "context"
 
 type Store interface {
-	Create(context.Context, Sale) error
+	Create(context.Context, *Sale) error
 	List(context.Context, string, int, string, string) (Page, error)
 }
 type DetailStore interface {

@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - dev
 
 jobs:
   web:
@@ -17,6 +18,7 @@ jobs:
     env:
       VITE_SUPABASE_URL: https://test.supabase.co
       VITE_SUPABASE_ANON_KEY: test-anon-key
+      VITE_BACKEND_API_URL: https://api.test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +38,23 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  backend-go:
+    name: Backend Go
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: backend-go/go.sum
+      - name: Test
+        run: go test ./...
+      - name: Build API and worker
+        run: go build ./cmd/api ./cmd/worker
 
   backend:
     name: Backend Gateway

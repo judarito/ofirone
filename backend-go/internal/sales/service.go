@@ -14,9 +14,12 @@ func NewService(store Store) (*Service, error) {
 	return &Service{store: store}, nil
 }
 
-func (s *Service) Create(ctx context.Context, sale Sale) error {
+func (s *Service) Create(ctx context.Context, sale *Sale) error {
 	if s == nil || s.store == nil {
 		return fmt.Errorf("sales: service is not configured")
+	}
+	if sale == nil {
+		return fmt.Errorf("sales: sale is required")
 	}
 	if err := sale.Recalculate(); err != nil {
 		return err
