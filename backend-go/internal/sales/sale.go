@@ -8,6 +8,7 @@ import (
 )
 
 var ErrInvalidSale = errors.New("sales: invalid sale")
+var ErrIdempotencyConflict = errors.New("sales: idempotency key already used for another request")
 
 type Status string
 

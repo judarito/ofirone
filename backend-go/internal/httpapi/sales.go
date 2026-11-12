@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -67,6 +68,10 @@ func (s *Server) createSale(w http.ResponseWriter, r *http.Request) {
 	}
 	sale := sales.Sale{ID: request.ID, TenantID: string(principal.Tenant.ID), LocationID: request.LocationID, CustomerID: request.CustomerID, CashSessionID: request.CashSessionID, CreatedByIdentityID: string(principal.Identity.ID), SaleNumber: request.SaleNumber, IdempotencyKey: request.IdempotencyKey, Status: request.Status, Lines: request.Lines, Payments: request.Payments}
 	if err := s.sales.Create(r.Context(), &sale); err != nil {
+		if errors.Is(err, sales.ErrIdempotencyConflict) {
+			WriteError(w, r, http.StatusConflict, "SALE_IDEMPOTENCY_CONFLICT", "La clave ya corresponde a otra solicitud de venta.", false)
+			return
+		}
 		WriteError(w, r, http.StatusUnprocessableEntity, "INVALID_SALE", "La venta no es válida.", false)
 		return
 	}

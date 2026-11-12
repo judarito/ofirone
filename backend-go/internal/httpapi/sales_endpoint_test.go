@@ -13,11 +13,14 @@ import (
 	"ofirone/backend-go/internal/sales"
 )
 
-type captureSaleStore struct{ got sales.Sale }
+type captureSaleStore struct {
+	got       sales.Sale
+	createErr error
+}
 
 func (s *captureSaleStore) Create(_ context.Context, sale *sales.Sale) error {
 	s.got = *sale
-	return nil
+	return s.createErr
 }
 func (s *captureSaleStore) List(context.Context, string, int, string, string) (sales.Page, error) {
 	return sales.Page{}, nil
@@ -65,5 +68,29 @@ func TestCreateSaleRequiresAuthentication(t *testing.T) {
 	server.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestCreateSaleReportsIdempotencyConflict(t *testing.T) {
+	service, err := sales.NewService(&captureSaleStore{createErr: sales.ErrIdempotencyConflict})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := New(Config{Sales: service}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := auth.WithPrincipal(context.Background(), auth.Principal{
+		Identity: auth.Identity{ID: "identity-1"}, Tenant: auth.Tenant{ID: "tenant-1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := `{"id":"sale-1","location_id":"location-1","status":"draft","idempotency_key":"same","lines":[{"variant_id":"variant-1","quantity":1,"unit_price":100}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sales", strings.NewReader(body)).WithContext(ctx)
+	w := httptest.NewRecorder()
+	server.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "SALE_IDEMPOTENCY_CONFLICT") {
+		t.Fatalf("status = %d: %s", w.Code, w.Body.String())
 	}
 }

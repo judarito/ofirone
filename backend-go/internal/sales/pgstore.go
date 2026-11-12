@@ -3,9 +3,13 @@ package sales
 import (
 	"context"
 	cryptorand "crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -30,11 +34,50 @@ func (s *PGStore) Create(ctx context.Context, sale *Sale) error {
 	if err := sale.ValidatePayments(); err != nil {
 		return err
 	}
-	tx, err := s.pool.Begin(ctx)
+	var fingerprint string
+	if sale.IdempotencyKey != "" {
+		request, err := json.Marshal(sale)
+		if err != nil {
+			return err
+		}
+		fingerprint = fmt.Sprintf("%x", sha256.Sum256(request))
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true), set_config('app.identity_id', $2, true)`, sale.TenantID, sale.CreatedByIdentityID); err != nil {
+		return err
+	}
+	if fingerprint != "" {
+		// Serialize retries before running sale triggers or allocating another number.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`, sale.TenantID, sale.IdempotencyKey); err != nil {
+			return err
+		}
+		var existingID, existingFingerprint string
+		var number, total int64
+		var status Status
+		err := tx.QueryRow(ctx, `SELECT sale_id, sale_number, status, total::bigint,
+			COALESCE(request_fingerprint, '') FROM public.sales
+			WHERE tenant_id=$1 AND idempotency_key=$2`, sale.TenantID, sale.IdempotencyKey).
+			Scan(&existingID, &number, &status, &total, &existingFingerprint)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// The first request continues to the normal sale transaction.
+		case err != nil:
+			return err
+		case existingFingerprint != fingerprint:
+			return ErrIdempotencyConflict
+		default:
+			if err := tx.Commit(ctx); err != nil {
+				return err
+			}
+			sale.ID, sale.SaleNumber, sale.Status, sale.Total = existingID, number, status, total
+			return nil
+		}
+	}
 	if sale.SaleNumber <= 0 {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, sale.TenantID+":"+sale.LocationID); err != nil {
 			return err
@@ -45,10 +88,10 @@ func (s *PGStore) Create(ctx context.Context, sale *Sale) error {
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO public.sales
 		(sale_id, tenant_id, location_id, created_by_identity_id, customer_id, cash_session_id, sale_number, idempotency_key,
-		 status, subtotal, tax_total, discount_total, total)
-		VALUES ($1,$2,$3,NULLIF($4,'')::uuid,NULLIF($5,'')::uuid,NULLIF($6,'')::uuid,$7,NULLIF($8,''),$9,$10,$11,$12,$13)`,
+		 status, subtotal, tax_total, discount_total, total, request_fingerprint)
+		VALUES ($1,$2,$3,NULLIF($4,'')::uuid,NULLIF($5,'')::uuid,NULLIF($6,'')::uuid,$7,NULLIF($8,''),$9,$10,$11,$12,$13,NULLIF($14,''))`,
 		sale.ID, sale.TenantID, sale.LocationID, sale.CreatedByIdentityID, sale.CustomerID, sale.CashSessionID, sale.SaleNumber,
-		sale.IdempotencyKey, sale.Status, sale.Subtotal, sale.Tax, sale.Discount, sale.Total)
+		sale.IdempotencyKey, sale.Status, sale.Subtotal, sale.Tax, sale.Discount, sale.Total, fingerprint)
 	if err != nil {
 		return err
 	}

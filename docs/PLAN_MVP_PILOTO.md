@@ -24,7 +24,9 @@ Salida: CI verifica las dos aplicaciones y una base descartable se puede inicial
 
 - [ ] Calcular precios, impuestos y descuentos en servidor a partir del catálogo y de permisos explícitos. Acordar unidades monetarias y redondeo.
 - [x] Mantener el mismo ID y la misma clave mientras se reintenta el cobro en el POS web abierto. Bloquear envíos simultáneos y ajustar el cambio sobre una copia de los pagos.
-- [ ] En la API, deduplicar por empresa y clave, devolver la venta original ante un reintento equivalente y rechazar un cuerpo diferente con la misma clave. Validar con PostgreSQL descartable.
+- [x] En la API, deduplicar por empresa y clave, devolver la venta original ante un reintento equivalente y responder HTTP 409 si cambia el cuerpo. Validado con PostgreSQL local descartable, dos solicitudes simultáneas y un reintento después del cierre de caja.
+  - Aplicar la migración `0029_sale_request_fingerprint` antes de desplegar la API actualizada. Las claves creadas antes de esta migración se rechazan con 409 si se reenvían, porque no hay huella con la cual verificar el cuerpo.
+  - Para repetir la prueba, desde `backend-go` apuntar `OFIRONE_SALE_RETRY_TEST_DATABASE_URL` a una base vacía en `127.0.0.1` y ejecutar `go test ./internal/sales -run TestSaleRetryPostgres -v`. El test carga los SQL `up` por nombre para preparar su base de prueba. La reconciliación del historial de migraciones de los entornos sigue siendo una tarea independiente.
 - [ ] Recuperar el estado de un cobro pendiente después de recargar el navegador antes de iniciar otro intento.
 - [ ] Resolver existencias según tipo de producto. Para artículos con stock, rechazar la venta si falta inventario. Si se requiere lote, resolverlo o exigirlo. Registrar venta, pago y movimiento dentro de una transacción.
 - [ ] Verificar que la caja pertenezca a la empresa y sede, siga abierta y pueda ser operada por la sesión actual. Conciliar efectivo, transferencias y otros medios por separado.
