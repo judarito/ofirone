@@ -1,6 +1,6 @@
 # OfirOne · Plan para el MVP piloto
 
-Base revisada: `dev`, commit `b03f1a5`. Objetivo: que una tienda pueda operar un turno completo desde la web con la API Go y PostgreSQL, y que el equipo pueda demostrar que ventas, caja e inventario concilian.
+Base revisada: `dev`, 2026-11-13. Objetivo: que una tienda pueda operar un turno completo desde la web con la API Go y PostgreSQL, y que el equipo pueda demostrar que ventas, compras, inventario y caja concilian.
 
 ## Alcance y decisiones
 
@@ -8,7 +8,7 @@ Base revisada: `dev`, commit `b03f1a5`. Objetivo: que una tienda pueda operar un
 - Usar PostgreSQL estándar con Neon como primer proveedor. Probar las migraciones contra PostgreSQL limpio antes de apuntar a Neon. Mantener una URL configurable en el servidor.
 - Operar en línea, con una sede por empresa para el piloto. Conservar el aislamiento entre empresas. Habilitar administrador y cajero con permisos explícitos en el servidor.
 - Entregar acceso, productos, ingreso manual de stock, caja, venta, comprobante, anulación autorizada y resumen del turno. Mantener clientes básicos si hacen falta para emitir el comprobante.
-- Posponer compras completas, cartera, manufactura, tienda pública, pasarela, IA, móvil, operación offline y reportes avanzados. Tratar el comprobante del piloto como interno y confirmar las necesidades de facturación antes de operar con ventas reales.
+- Priorizar compras, inventario, ventas, clientes y CXC. Posponer manufactura, tienda pública, pasarela, IA, móvil, operación offline y reportes avanzados. Tratar el comprobante del piloto como interno y confirmar las necesidades de facturación antes de operar con ventas reales.
 - Preparar un contenedor Go y desplegarlo en un entorno de prueba. Usar R2 y Queues cuando haya un caso de uso concreto. La confirmación del cobro, sus pagos y sus movimientos de stock pertenecen a la transacción de PostgreSQL.
 
 ## Fase 1 · Instalar, probar y responder correctamente
@@ -41,6 +41,14 @@ Salida: los saldos de stock y caja coinciden con sus movimientos y cada operaci�
 - [ ] Aplicar autorización por empresa, rol y recurso en cada operación. Evaluar cookies HttpOnly para la sesión web y, según la topología, CORS y protección CSRF.
 - [ ] Probar que un usuario de otra empresa no puede listar, leer, modificar ni anular recursos ajenos. Comprobar que cajero y administrador tengan las acciones esperadas.
 - [ ] Dejar el menú del piloto limitado a las pantallas operativas. Probar sesión expirada, pérdida de red y recuperación de la venta antes de volver a cobrar.
+
+### Avance de migración Go — 2026-11-13
+
+- [x] Compras MVP: crear/recibir compras en una transacción Go/PostgreSQL, generar lote y movimiento de inventario, listar con líneas enriquecidas y abrir detalle.
+- [x] Compras MVP: exigir sede y proveedor antes de enviar; evitar el `422 INVALID_PURCHASE` por formularios incompletos.
+- [x] Frontend de compras: el flujo Go no usa Supabase para crear, listar ni consultar el detalle cuando `VITE_DATA_PROVIDER=go`.
+- [x] Inventario MVP: stock y Kardex consumen los endpoints Go; el stock se calcula desde lotes y los movimientos desde `inventory_moves`.
+- [ ] Verificación E2E pendiente: compra → stock → Kardex → venta, contra el despliegue actualizado de Render/Cloudflare.
 
 Salida: el navegador completa un turno usando la API Go y sin tráfico hacia Supabase en el alcance del piloto.
 
