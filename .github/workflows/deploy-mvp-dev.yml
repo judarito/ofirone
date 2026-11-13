@@ -59,25 +59,7 @@ jobs:
       - name: Build
         env:
           VITE_BACKEND_API_URL: ${{ vars.VITE_BACKEND_API_URL || secrets.VITE_BACKEND_API_URL }}
-          # MVP: todas las operaciones soportadas deben usar el backend Go.
-          # Son flags públicos del bundle, no secretos.
-          VITE_USE_BACKEND_AUTH: 'true'
-          VITE_USE_BACKEND_CUSTOMERS: 'true'
-          VITE_USE_BACKEND_TENANT_CONFIG: 'true'
-          VITE_USE_BACKEND_LOOKUPS: 'true'
-          VITE_USE_BACKEND_MASTERS: 'true'
-          VITE_USE_BACKEND_CATALOG: 'true'
-          VITE_USE_BACKEND_INVENTORY: 'true'
-          VITE_USE_BACKEND_POS_CONTEXT: 'true'
-          VITE_USE_BACKEND_PURCHASES: 'true'
-          VITE_USE_BACKEND_SALES: 'true'
-          VITE_USE_BACKEND_CXC: 'true'
-          VITE_USE_BACKEND_REPORTS: 'true'
-          VITE_USE_BACKEND_ALERTS: 'true'
-          VITE_USE_BACKEND_PRICING: 'true'
-          # Estos dos flujos aún no forman parte del MVP Go.
-          VITE_USE_BACKEND_IMPORT_JOBS: 'false'
-          VITE_USE_BACKEND_MEDIA_JOBS: 'false'
+          VITE_DATA_PROVIDER: 'go'
         run: npm run build
       - name: Upload build
         uses: actions/upload-artifact@v4
