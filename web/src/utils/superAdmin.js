@@ -3,6 +3,7 @@
  * Se usa en router guard (no puede usar composables)
  */
 import { supabase } from '@/plugins/supabase'
+import { USE_BACKEND_AUTH } from '@/services/backendAuthClient'
 
 const normalizeEmail = (value) => String(value || '')
   .trim()
@@ -83,6 +84,7 @@ export const isSuperAdminByEmail = async () => {
  * Validación completa para acceso de gestión de tenants
  */
 export const canManageTenants = async () => {
+  if (USE_BACKEND_AUTH) return false
   const isSuper = await isSuperAdmin()
   const isAllowedEmail = await isSuperAdminByEmail()
   
