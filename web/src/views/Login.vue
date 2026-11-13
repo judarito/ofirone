@@ -404,13 +404,20 @@ onMounted(async () => {
 
 <style scoped>
 .login-root {
-  min-height: 100%;
+  min-height: 100vh;
+  width: 100%;
+  background: #eef5ff;
 }
 
 .login-page {
   position: relative;
   min-height: 100vh;
+  width: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
   background:
     radial-gradient(circle at 10% 15%, rgba(10, 79, 211, 0.2), transparent 30%),
     radial-gradient(circle at 88% 12%, rgba(245, 158, 11, 0.2), transparent 32%),
@@ -421,7 +428,18 @@ onMounted(async () => {
 .login-page :deep(.v-container) {
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  width: 100%;
+  max-width: 1180px;
+  min-height: 0;
+  padding: 0;
+}
+
+.login-page :deep(.v-row) {
+  margin: 0;
+}
+
+.login-page :deep(.v-col) {
+  padding: 0;
 }
 
 .bg-orb {
@@ -450,6 +468,9 @@ onMounted(async () => {
 }
 
 .login-shell {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
   min-height: 620px;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
@@ -651,6 +672,10 @@ onMounted(async () => {
     radial-gradient(circle at 90% 88%, rgba(34, 197, 94, 0.2), transparent 32%),
     radial-gradient(circle at 88% 12%, rgba(245, 158, 11, 0.2), transparent 30%),
     linear-gradient(135deg, #0d1424 0%, #111f37 100%);
+}
+
+.login-root.login-dark {
+  background: #0d1424;
 }
 
 .login-root.login-dark .login-shell {
