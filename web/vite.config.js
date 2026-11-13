@@ -25,7 +25,10 @@ const BACKEND_FLAGS = [
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const provider = String(env.VITE_DATA_PROVIDER || 'hybrid').trim().toLowerCase()
+  // Go is the production/default provider. Legacy providers must be selected
+  // explicitly so a missing Cloudflare variable cannot silently re-enable
+  // Supabase calls after a deployment.
+  const provider = String(env.VITE_DATA_PROVIDER || 'go').trim().toLowerCase()
   const useGo = provider === 'go'
   const define = Object.fromEntries(BACKEND_FLAGS.map((name) => [
     `import.meta.env.${name}`,
