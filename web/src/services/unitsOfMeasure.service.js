@@ -1,11 +1,29 @@
 import supabaseService from './supabase.service'
 import queryCache from '@/utils/queryCache'
+import { backendUnitsOfMeasure } from './backendReferenceCatalogClient'
+
+const USE_BACKEND_MASTERS = import.meta.env.VITE_USE_BACKEND_MASTERS === 'true'
 
 const UNITS_CACHE_TTL_MS = 10 * 60 * 1000
 
 class UnitsOfMeasureService {
   constructor() {
     this.table = 'units_of_measure'
+  }
+
+  // El backend Go usa nombres de API (`id`, `is_active`); el frontend
+  // histórico usa nombres de dominio (`unit_id`, `is_active`). Mantener la
+  // normalización aquí evita que cada pantalla conozca ambos contratos.
+  normalizeBackendUnit(item) {
+    if (!item) return item
+    return {
+      ...item,
+      unit_id: item.unit_id || item.id,
+      is_active: item.is_active !== false,
+      is_system: item.is_system === true,
+      dian_code: item.dian_code || null,
+      description: item.description || null,
+    }
   }
 
   /**
@@ -19,6 +37,13 @@ class UnitsOfMeasureService {
   async getUnits(tenantId, page = 1, pageSize = 50, search = '') {
     try {
       const normalizedSearch = String(search || '').trim().toLowerCase()
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendUnitsOfMeasure.list({ limit: Math.min(pageSize, 100) })
+        const data = (result?.items || [])
+          .map(item => this.normalizeBackendUnit(item))
+          .filter(item => !normalizedSearch || `${item.code} ${item.name} ${item.description || ''} ${item.dian_code || ''}`.toLowerCase().includes(normalizedSearch))
+        return { success: true, data, total: data.length }
+      }
       return await queryCache.getOrLoad(
         `units:list:${JSON.stringify({ page, pageSize, search: normalizedSearch })}`,
         async () => {
@@ -78,6 +103,9 @@ class UnitsOfMeasureService {
    */
   async getUnitById(unitId) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        return { success: true, data: this.normalizeBackendUnit(await backendUnitsOfMeasure.get(unitId)) }
+      }
       const { data, error } = await supabaseService.client
         .from(this.table)
         .select('*')
@@ -85,8 +113,6 @@ class UnitsOfMeasureService {
         .single()
 
       if (error) throw error
-      queryCache.invalidateByTags(['units'], { tenantId })
-
       return {
         success: true,
         data: data || null
@@ -109,6 +135,15 @@ class UnitsOfMeasureService {
    */
   async createUnit(tenantId, unitData) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const data = await backendUnitsOfMeasure.create({
+          code: unitData.code.toUpperCase().trim(),
+          name: unitData.name.trim(),
+          decimal_places: Number(unitData.decimal_places || 0),
+          is_active: unitData.is_active !== false,
+        })
+        return { success: true, data: this.normalizeBackendUnit(data) }
+      }
       const newUnit = {
         tenant_id: tenantId,
         code: unitData.code.toUpperCase().trim(),
@@ -151,6 +186,15 @@ class UnitsOfMeasureService {
    */
   async updateUnit(tenantId, unitId, unitData) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const data = await backendUnitsOfMeasure.update(unitId, {
+          code: unitData.code.toUpperCase().trim(),
+          name: unitData.name.trim(),
+          decimal_places: Number(unitData.decimal_places || 0),
+          is_active: unitData.is_active !== false,
+        })
+        return { success: true, data: this.normalizeBackendUnit(data) }
+      }
       const updatedUnit = {
         code: unitData.code.toUpperCase().trim(),
         dian_code: unitData.dian_code ? unitData.dian_code.toUpperCase().trim() : null,
@@ -192,6 +236,11 @@ class UnitsOfMeasureService {
    */
   async deleteUnit(tenantId, unitId) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        await backendUnitsOfMeasure.deactivate(unitId)
+        queryCache.invalidateByTags(['units'], { tenantId })
+        return { success: true }
+      }
       // Validar que no esté en uso
       const usageCheck = await this.checkUnitUsage(unitId)
       if (!usageCheck.success) {
@@ -232,6 +281,11 @@ class UnitsOfMeasureService {
    */
   async checkUnitUsage(unitId) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        // La API Go protege la baja de maestros; la pantalla solo necesita
+        // conocer si puede continuar mostrando el diálogo de confirmación.
+        return { success: true, inUse: false, usage: { products: 0, variants: 0, bom_components: 0, total: 0 } }
+      }
       // Verificar productos
       const { count: productsCount } = await supabaseService.client
         .from('products')
@@ -284,6 +338,15 @@ class UnitsOfMeasureService {
    */
   async getActiveUnits(tenantId) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendUnitsOfMeasure.list({ limit: 100 })
+        return {
+          success: true,
+          data: (result?.items || [])
+            .map(item => this.normalizeBackendUnit(item))
+            .filter(item => item.is_active !== false),
+        }
+      }
       return await queryCache.getOrLoad(
         'units:active',
         async () => {
@@ -333,6 +396,16 @@ class UnitsOfMeasureService {
    */
   async getUnitByCode(tenantId, code) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendUnitsOfMeasure.list({ limit: 100 })
+        const normalized = String(code || '').trim().toLowerCase()
+        return {
+          success: true,
+          data: (result?.items || [])
+            .map(item => this.normalizeBackendUnit(item))
+            .find(item => item.is_active && item.code.toLowerCase() === normalized) || null,
+        }
+      }
       let query = supabaseService.client
         .from(this.table)
         .select('*')
