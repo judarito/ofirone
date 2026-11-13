@@ -10,10 +10,13 @@ body {
   font-family: 'Sora', 'Segoe UI', sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  min-width: 320px;
+  background: #eef5ff;
 }
 
 #app {
   min-height: 100vh;
+  background: inherit;
 }
 
 ::-webkit-scrollbar {
