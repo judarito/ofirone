@@ -406,6 +406,8 @@ const sidebarWidth = computed(() => (isGridMenuMode.value ? 392 : 304))
 
 // Menús dinámicos cargados desde DB (fn_get_user_menus)
 const dynamicMenuTree = ref(null)  // null = sin cargar, [] = cargado vacío, [{...}] = árbol
+let loadedMenuKey = ''
+let pendingMenuRequest = null
 /**
  * Carga el árbol de menús del usuario desde la base de datos.
  * fn_get_user_menus ya resuelve la jerarquía: incluye grupos padre
@@ -413,26 +415,41 @@ const dynamicMenuTree = ref(null)  // null = sin cargar, [] = cargado vacío, [{
  */
 async function loadDynamicMenus(authUserId) {
   if (!authUserId) return
-  try {
-    if (USE_BACKEND_AUTH && getBackendSession()?.accessToken) {
-      const backendItems = await getBackendMenus()
-      dynamicMenuTree.value = backendItems
-      return
-    }
-    const result = await rolesService.getUserMenus(authUserId)
-    if (result.success && result.data.length > 0) {
-      dynamicMenuTree.value = result.data  // árbol con children ya armado
-    } else {
-      // Función existe pero sin menús asignados, O error de red/404
-      // → mantener null para que menuSections use el menú estático como fallback
-      dynamicMenuTree.value = null
-      if (!result.success) {
-        console.debug('Menús dinámicos no disponibles (fn_get_user_menus), usando menú estático:', result.error)
+  const menuKey = `${authUserId}:${tenantId.value || ''}:${USE_BACKEND_AUTH ? 'go' : 'supabase'}`
+  if (loadedMenuKey === menuKey) return
+  if (pendingMenuRequest?.key === menuKey) return pendingMenuRequest.promise
+
+  const promise = (async () => {
+    try {
+      if (USE_BACKEND_AUTH && getBackendSession()?.accessToken) {
+        dynamicMenuTree.value = await getBackendMenus()
+      } else {
+        const result = await rolesService.getUserMenus(authUserId)
+        if (result.success && result.data.length > 0) {
+          dynamicMenuTree.value = result.data  // árbol con children ya armado
+        } else {
+          // Función existe pero sin menús asignados, O error de red/404
+          // → mantener null para que menuSections use el menú estático como fallback
+          dynamicMenuTree.value = null
+          if (!result.success) {
+            console.debug('Menús dinámicos no disponibles (fn_get_user_menus), usando menú estático:', result.error)
+          }
+        }
       }
+    } catch (e) {
+      console.debug('fn_get_user_menus no disponible, usando menú estático:', e.message)
+      dynamicMenuTree.value = null
     }
-  } catch (e) {
-    console.debug('fn_get_user_menus no disponible, usando menú estático:', e.message)
-    dynamicMenuTree.value = null
+    // Treat both success and fallback as handled for this user/tenant. This
+    // prevents the lifecycle watchers from repeating the same request.
+    loadedMenuKey = menuKey
+  })()
+
+  pendingMenuRequest = { key: menuKey, promise }
+  try {
+    await promise
+  } finally {
+    if (pendingMenuRequest?.key === menuKey) pendingMenuRequest = null
   }
 }
 
@@ -673,6 +690,8 @@ watch(
     if (newUserId && userProfile.value) {
       loadDynamicMenus(newUserId)
     } else {
+      loadedMenuKey = ''
+      pendingMenuRequest = null
       dynamicMenuTree.value = null  // Limpiar al cerrar sesión
     }
     if (tenantId.value) {
