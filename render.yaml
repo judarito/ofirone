@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ofirone-api
+    runtime: docker
+    rootDir: backend-go
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
