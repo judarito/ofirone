@@ -1186,6 +1186,7 @@ import {
   suggestCatalogMatchesFromChatText
 } from '@/services/chatOrderAgent.service'
 import salesService from '@/services/sales.service'
+import { getBackendSaleTaxInfo, searchBackendPOSVariants } from '@/services/backendSalesClient'
 import cashService from '@/services/cash.service'
 import paymentMethodsService from '@/services/paymentMethods.service'
 import taxesService from '@/services/taxes.service'
@@ -1491,14 +1492,28 @@ const fetchSuggestions = async (query) => {
   searchingProduct.value = true
   try {
     const locationId = currentSession.value?.cash_register?.location_id || null
-    const r = await productsService.searchVariants(tenantId.value, query, 20, locationId)
-    if (r.success) {
-      searchResults.value = r.data.map(v => ({
+    const useGoSales = import.meta.env.VITE_USE_BACKEND_SALES === 'true'
+    const r = useGoSales
+      ? await searchBackendPOSVariants(query, { limit: 20, locationId })
+      : await productsService.searchVariants(tenantId.value, query, 20, locationId)
+    if (r.success || Array.isArray(r?.items) || Array.isArray(r?.Items)) {
+      const rows = r.data || r.items || r.Items || []
+      searchResults.value = rows.map(v => ({
         ...v,
-        _displayName: `${v.product?.name || ''}${v.variant_name ? ' — ' + v.variant_name : ''} (${v.sku})`,
-        _stock: v.stock_on_hand ?? null
+        variant_id: v.variant_id || v.ID,
+        variant_name: v.variant_name || v.Name,
+        sku: v.sku || v.SKU,
+        price: v.price ?? v.sale_price ?? v.SalePrice ?? 0,
+        cost: v.cost ?? v.Cost ?? 0,
+        stock_on_hand: v.stock_on_hand ?? v.StockOnHand ?? 0,
+        product: { name: v.product?.name || v.product_name || v.ProductName || '' },
+        _displayName: `${v.product?.name || v.product_name || v.ProductName || ''}${v.variant_name || v.Name ? ' — ' + (v.variant_name || v.Name) : ''} (${v.sku || v.SKU})`,
+        _stock: v.stock_on_hand ?? v.StockOnHand ?? 0
       }))
     }
+  } catch (error) {
+    searchResults.value = []
+    showMsg(error?.message || 'No se pudo buscar el producto.', 'error')
   } finally {
     searchingProduct.value = false
   }
@@ -1507,10 +1522,33 @@ const fetchSuggestions = async (query) => {
 // Enter directo: buscar por barcode/SKU exacto (pistola de código de barras)
 const searchByBarcode = async () => {
   if (!searchTerm.value || !tenantId.value) return
-  const exact = await productsService.findVariantByBarcode(tenantId.value, searchTerm.value)
-  if (exact.success) {
-    addToCart(exact.data)
+  try {
+    let exact
+    if (import.meta.env.VITE_USE_BACKEND_SALES === 'true') {
+      const locationId = currentSession.value?.cash_register?.location_id || null
+      const result = await searchBackendPOSVariants(searchTerm.value, { limit: 20, locationId })
+      const rows = result.items || result.Items || []
+      exact = rows.find(v => (v.sku || v.SKU || '').toLowerCase() === searchTerm.value.trim().toLowerCase())
+      if (exact) {
+        exact = {
+          ...exact,
+          variant_id: exact.variant_id || exact.ID,
+          variant_name: exact.variant_name || exact.Name,
+          sku: exact.sku || exact.SKU,
+          price: exact.price ?? exact.sale_price ?? exact.SalePrice ?? 0,
+          cost: exact.cost ?? exact.Cost ?? 0,
+          stock_on_hand: exact.stock_on_hand ?? exact.StockOnHand ?? 0,
+          product: { name: exact.product?.name || exact.product_name || exact.ProductName || '' },
+        }
+      }
+    } else {
+      exact = (await productsService.findVariantByBarcode(tenantId.value, searchTerm.value)).data
+    }
+    if (!exact) return showMsg('Producto no encontrado.', 'warning')
+    await addToCart(exact)
     clearSearch()
+  } catch (error) {
+    showMsg(error?.message || 'No se pudo buscar el producto.', 'error')
   }
 }
 
@@ -1614,7 +1652,9 @@ const listCatalogForChatMatching = async (sourceText, lineItems = []) => {
 const recalculateTaxes = async (line) => {
   if (!tenantId.value || !line.variant_id) return
 
-  const taxResult = await taxesService.getTaxInfoForVariant(tenantId.value, line.variant_id)
+  const taxResult = import.meta.env.VITE_USE_BACKEND_SALES === 'true'
+    ? await getBackendSaleTaxInfo(line.variant_id)
+    : await taxesService.getTaxInfoForVariant(tenantId.value, line.variant_id)
   normalizeLineDiscountValue(line)
 
   const subtotal = getLineSubtotal(line)

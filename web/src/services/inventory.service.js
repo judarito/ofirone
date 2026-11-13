@@ -9,6 +9,8 @@ class InventoryService {
   constructor() {
     this.movesTable = 'inventory_moves';
     this.stockTable = 'stock_balances';
+    this.backendMovePages = new Map();
+    this.backendMoveRequests = new Map();
   }
 
   _normalizeInventoryMove(row) {
@@ -178,19 +180,72 @@ class InventoryService {
   // Kardex: movimientos de inventario
   async getInventoryMoves(tenantId, page = 1, pageSize = 20, filters = {}) {
     try {
-      if (USE_BACKEND_INVENTORY && import.meta.env.MODE !== 'test') {
-        const result = await listBackendInventoryMoves({ limit: pageSize, locationId: filters.location_id, variantId: filters.variant_id })
-        return {
-          success: true,
-          data: (result.items || []).map(row => this._normalizeInventoryMove({
+      if (USE_BACKEND_INVENTORY) {
+        const key = JSON.stringify([
+          tenantId,
+          pageSize,
+          filters.location_id || null,
+          filters.variant_id || null,
+          filters.move_type || null,
+        ])
+        const pageKey = `${key}:${page}`
+        if (page === 1) {
+          for (const cachedKey of this.backendMovePages.keys()) {
+            if (cachedKey.startsWith(`${key}:`)) this.backendMovePages.delete(cachedKey)
+          }
+        }
+        if (this.backendMovePages.has(pageKey)) return this.backendMovePages.get(pageKey)
+        if (this.backendMoveRequests.has(pageKey)) return this.backendMoveRequests.get(pageKey)
+
+        const request = (async () => {
+          let cursor = { occurredAt: null, id: null }
+          let result = null
+          for (let currentPage = 1; currentPage <= page; currentPage += 1) {
+            const currentKey = `${key}:${currentPage}`
+            if (this.backendMovePages.has(currentKey)) {
+              result = this.backendMovePages.get(currentKey)
+              cursor = {
+                occurredAt: result.next_occurred_at || null,
+                id: result.next_id || null,
+              }
+              continue
+            }
+
+            result = await listBackendInventoryMoves({
+              limit: pageSize,
+              locationId: filters.location_id,
+              variantId: filters.variant_id,
+              moveType: filters.move_type,
+              afterOccurredAt: cursor.occurredAt,
+              afterId: cursor.id,
+            })
+            this.backendMovePages.set(currentKey, result)
+            if (!result.has_more || currentPage === page) break
+            cursor = {
+              occurredAt: result.next_occurred_at || null,
+              id: result.next_id || null,
+            }
+          }
+
+          const current = result && (page === 1 || result.has_more || this.backendMovePages.has(`${key}:${page}`))
+            ? result
+            : { items: [], has_more: false }
+          const data = (current.items || []).map(row => this._normalizeInventoryMove({
             ...row,
             inventory_move_id: row.inventory_move_id || row.movement_id,
             signed_qty: row.quantity_delta,
             abs_qty: Math.abs(Number(row.quantity_delta || 0)),
             move_type: row.movement_type,
             created_at: row.occurred_at,
-          })),
-          total: result.items?.length || 0,
+          }))
+          const total = current.has_more ? page * pageSize + 1 : (page - 1) * pageSize + data.length
+          return { success: true, data, total }
+        })()
+        this.backendMoveRequests.set(pageKey, request)
+        try {
+          return await request
+        } finally {
+          this.backendMoveRequests.delete(pageKey)
         }
       }
       const from = (page - 1) * pageSize;

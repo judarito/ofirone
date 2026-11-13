@@ -1,7 +1,13 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { getBackendSalesReport } from '../backendReportsClient'
+import { beforeAll, describe, expect, it, vi, beforeEach } from 'vitest'
+
+let getBackendSalesReport
 
 vi.mock('../backendAuthClient', () => ({ getBackendSession: () => ({ accessToken: 'test-token' }) }))
+
+beforeAll(async () => {
+  vi.stubEnv('VITE_BACKEND_API_URL', 'http://localhost:8787')
+  ;({ getBackendSalesReport } = await import('../backendReportsClient'))
+})
 
 describe('backendReportsClient', () => {
   beforeEach(() => { global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ items: [] }) }) })

@@ -1,10 +1,13 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"ofirone/backend-go/internal/auth"
 	"strconv"
 )
+
+const inventoryMoveTypeContextKey = "ofirone.inventory.move_type"
 
 func (s *Server) listInventoryMoves(w http.ResponseWriter, r *http.Request) {
 	t, ok := auth.TenantFromContext(r.Context())
@@ -21,7 +24,18 @@ func (s *Server) listInventoryMoves(w http.ResponseWriter, r *http.Request) {
 		}
 		n = x
 	}
-	p, e := s.inventory.ListMoves(r.Context(), string(t.ID), r.URL.Query().Get("location_id"), r.URL.Query().Get("variant_id"), n, r.URL.Query().Get("after_occurred_at"), r.URL.Query().Get("after_id"))
+	afterAt := r.URL.Query().Get("after_occurred_at")
+	afterID := r.URL.Query().Get("after_id")
+	if (afterAt == "") != (afterID == "") {
+		WriteError(w, r, 400, "INVALID_PAGINATION", "El cursor debe incluir fecha e identificador.", false)
+		return
+	}
+
+	ctx := r.Context()
+	if moveType := r.URL.Query().Get("move_type"); moveType != "" {
+		ctx = context.WithValue(ctx, inventoryMoveTypeContextKey, moveType)
+	}
+	p, e := s.inventory.ListMoves(ctx, string(t.ID), r.URL.Query().Get("location_id"), r.URL.Query().Get("variant_id"), n, afterAt, afterID)
 	if e != nil {
 		WriteError(w, r, 400, "INVALID_REQUEST", "Solicitud inválida.", false)
 		return

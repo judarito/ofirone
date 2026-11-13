@@ -51,6 +51,7 @@
           avatar-color="blue"
           empty-message="Sin registros de stock"
           :show-create-button="false"
+          :auto-load="false"
           :editable="false"
           :deletable="false"
           :searchable="false"
@@ -248,6 +249,7 @@
           avatar-color="teal"
           empty-message="Sin movimientos"
           :show-create-button="false"
+          :auto-load="false"
           :editable="false"
           :deletable="false"
           :searchable="false"
@@ -770,7 +772,7 @@ const loadKardex = async () => {
         ...move,
         _list_key: move.inventory_move_id || move.movement_id
       }))
-      kardexTotal.value = r.total
+      kardexTotal.value = Number.isFinite(r.total) ? r.total : kardexItems.value.length
     } else {
       kardexItems.value = []
       kardexTotal.value = 0

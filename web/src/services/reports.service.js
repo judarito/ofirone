@@ -5,6 +5,11 @@ import { getBackendDashboardSummary } from './backendReportsClient'
 const USE_BACKEND_REPORTS = import.meta.env.VITE_USE_BACKEND_REPORTS === 'true'
 
 const DASHBOARD_SUMMARY_TTL_MS = 60 * 1000
+const backendReportUnavailable = (name) => ({
+  success: false,
+  error: `El reporte ${name} aún no tiene una implementación Go; Supabase está deshabilitado.`,
+  data: []
+})
 const getDateKey = (value) => {
   if (!value) return null
   const parsed = new Date(value)
@@ -26,6 +31,7 @@ class ReportsService {
   // Resumen de ventas por período
   async getSalesSummary(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de resumen de ventas')
       // Las políticas RLS de sales ya filtran por rol automáticamente
       let query = supabaseService.client
         .from('sales')
@@ -78,6 +84,7 @@ class ReportsService {
   // Ventas agrupadas por día
   async getSalesByDay(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de ventas por día')
       let query = supabaseService.client
         .from(this.salesTable)
         .select('sold_at, total, status')
@@ -122,6 +129,7 @@ class ReportsService {
   // Productos más vendidos
   async getTopProducts(tenantId, fromDate, toDate, limit = 20) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de productos más vendidos')
       const { data, error } = await supabaseService.client
         .from(this.saleLinesTable)
         .select(`
@@ -175,6 +183,7 @@ class ReportsService {
   // Ventas por vendedor
   async getSalesBySeller(tenantId, fromDate, toDate) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de ventas por vendedor')
       const { data, error } = await supabaseService.client
         .from(this.salesTable)
         .select('sold_by, total, sold_by_user:sold_by(full_name)')
@@ -203,6 +212,7 @@ class ReportsService {
   // Ventas por método de pago
   async getSalesByPaymentMethod(tenantId, fromDate, toDate) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de ventas por método de pago')
       const { data, error } = await supabaseService.client
         .from(this.salePaymentsTable)
         .select(`
@@ -236,6 +246,7 @@ class ReportsService {
   // Movimientos de caja (gastos e ingresos)
   async getCashMovements(tenantId, fromDate, toDate, locationId = null, type = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de movimientos de caja')
       let query = supabaseService.client
         .from(this.cashMovementsTable)
         .select(`
@@ -301,6 +312,7 @@ class ReportsService {
   // Movimientos agrupados por categoría
   async getCashMovementsByCategory(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de movimientos de caja por categoría')
       const r = await this.getCashMovements(tenantId, fromDate, toDate, locationId)
       if (!r.success) return r
 
@@ -330,6 +342,7 @@ class ReportsService {
   // Resumen de plan separe
   async getLayawaySummary(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de apartados')
       let query = supabaseService.client
         .from('vw_layaway_report')
         .select('*')
@@ -373,6 +386,7 @@ class ReportsService {
   // Abonos de plan separe
   async getLayawayPayments(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de pagos de apartados')
       let query = supabaseService.client
         .from('vw_layaway_payments_report')
         .select('*')
@@ -395,6 +409,7 @@ class ReportsService {
   // Reporte de costos de producción (órdenes manufacturadas)
   async getProductionCostReport(tenantId, fromDate, toDate, locationId = null, status = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de costos de producción')
       let query = supabaseService.client
         .from('vw_production_cost_report')
         .select('*')
@@ -424,6 +439,7 @@ class ReportsService {
   // Resumen de costos por producto manufacturado (últimos 90 días)
   async getProductionCostSummary(tenantId) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de resumen de costos de producción')
       const { data, error } = await supabaseService.client
         .from('vw_production_cost_summary_by_product')
         .select('*')
@@ -441,6 +457,7 @@ class ReportsService {
   // Top productos manufacturados por margen
   async getTopManufacturedByMargin(tenantId, limit = 10) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de margen de manufactura')
       const { data, error } = await supabaseService.client
         .rpc('fn_top_manufactured_products_by_margin', {
           p_tenant_id: tenantId,
@@ -460,6 +477,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getSalesByCategory(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de ventas por categoría')
       const { data, error } = await supabaseService.client
         .from('sale_lines')
         .select(`
@@ -507,6 +525,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getInventoryValue(tenantId, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de valor de inventario')
       let query = supabaseService.client
         .from('stock_balances')
         .select(`
@@ -568,6 +587,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getProductsWithNoMovement(tenantId, days = 30, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de productos sin movimiento')
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - days)
       const cutoff = cutoffDate.toISOString()
@@ -624,6 +644,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getProductsExpiringSoon(tenantId, days = 90, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de productos por vencer')
       const today = new Date().toISOString().substring(0, 10)
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() + days)
@@ -676,6 +697,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getInventoryByLocation(tenantId) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de inventario por sede')
       const { data, error } = await supabaseService.client
         .from('stock_balances')
         .select(`
@@ -708,6 +730,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getTopBomComponents(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de componentes BOM')
       let query = supabaseService.client
         .from('sale_line_components')
         .select(`
@@ -758,6 +781,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getSalesByCashRegister(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de ventas por caja')
       let query = supabaseService.client
         .from('sales')
         .select(`
@@ -801,6 +825,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getCashSessionsReport(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de sesiones de caja')
       let query = supabaseService.client
         .from('cash_sessions')
         .select(`
@@ -895,6 +920,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getFinancialSummary(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('financiero')
       // 1. ingresos por ventas
       let salesQuery = supabaseService.client
         .from('sales')
@@ -1003,6 +1029,7 @@ class ReportsService {
   // ─────────────────────────────────────────────────────
   async getCashFlowByDay(tenantId, fromDate, toDate, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('de flujo de caja')
       let salesQuery = supabaseService.client
         .from('sales')
         .select('total, sold_at, location_id')
@@ -1097,6 +1124,7 @@ class ReportsService {
 
   async getDashboardSummaryLegacy(tenantId, locationId = null) {
     try {
+      if (USE_BACKEND_REPORTS) return backendReportUnavailable('dashboard legacy')
       const now = new Date()
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
       const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()

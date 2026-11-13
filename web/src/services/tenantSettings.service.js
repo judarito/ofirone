@@ -124,6 +124,9 @@ class TenantSettingsService {
   // Obtener datos del tenant
   async getTenant(tenantId, options = {}) {
     try {
+      if (USE_BACKEND_TENANT_CONFIG) {
+        throw new Error('Datos generales del tenant aún no tienen endpoint Go; no se usará Supabase.')
+      }
       return await queryCache.getOrLoad(
         'tenant-settings:tenant',
         async () => {
@@ -193,6 +196,9 @@ class TenantSettingsService {
   // Actualizar datos generales del tenant (incluye campos fiscales para FE)
   async updateTenant(tenantId, updates) {
     try {
+      if (USE_BACKEND_TENANT_CONFIG) {
+        throw new Error('Datos generales del tenant aún no tienen endpoint Go; no se usará Supabase.')
+      }
       const { data, error } = await supabaseService.update(this.tenantsTable, {
         name:                  updates.name,
         tax_id:                updates.tax_id                || null,

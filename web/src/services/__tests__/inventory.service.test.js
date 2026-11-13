@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { rpcMock, fromMock, serviceErrorResultMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -23,7 +23,12 @@ vi.mock('@/utils/appErrors', () => ({
   serviceErrorResult: serviceErrorResultMock,
 }))
 
-import inventoryService from '@/services/inventory.service'
+let inventoryService
+
+beforeAll(async () => {
+  vi.stubEnv('VITE_USE_BACKEND_INVENTORY', 'false')
+  inventoryService = (await import('@/services/inventory.service')).default
+})
 
 function createAwaitableQuery(result) {
   const query = {
@@ -42,6 +47,7 @@ function createAwaitableQuery(result) {
 
 describe('inventory.service', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs()
     rpcMock.mockReset()
     fromMock.mockReset()
     serviceErrorResultMock.mockClear()

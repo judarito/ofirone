@@ -19,6 +19,19 @@ export function createBackendSale(payload) {
   return request('/api/v1/sales', { method: 'POST', body: JSON.stringify(payload) })
 }
 
+// POS-only catalog calls. They intentionally live on the Go sales path so a
+// Go checkout never traverses the legacy products service (which can consult
+// Supabase when its catalog flag is stale or partially configured).
+export function searchBackendPOSVariants(search, { limit = 20, locationId } = {}) {
+  const params = new URLSearchParams({ limit: String(Math.min(Math.max(Number(limit) || 20, 1), 100)), search: String(search || '') })
+  if (locationId) params.set('location_id', locationId)
+  return request(`/api/v1/variants?${params.toString()}`)
+}
+
+export function getBackendSaleTaxInfo(variantId) {
+  return request(`/api/v1/tax-info/variants/${encodeURIComponent(variantId)}`)
+}
+
 export function listBackendSales({ limit = 25, afterSoldAt, afterId } = {}) {
   const params = new URLSearchParams({ limit: String(limit) })
   if (afterSoldAt) params.set('after_sold_at', afterSoldAt)

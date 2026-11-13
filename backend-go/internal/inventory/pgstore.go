@@ -111,7 +111,26 @@ LIMIT $6`, tenantID, locationID, variantID, afterUpdatedAt, afterID, limit+1)
 	return page, nil
 }
 func (s *PGStore) ListMoves(ctx context.Context, t, l, v string, n int, a, id string) (MovePage, error) {
-	rows, e := s.pool.Query(ctx, `SELECT m.movement_id,m.location_id,m.variant_id,m.quantity_delta::bigint,m.movement_type,m.occurred_at::text,l.name,p.name,v.name,v.sku,COALESCE(m.unit_cost,b.unit_cost,0)::bigint FROM public.inventory_moves m JOIN public.locations l ON l.tenant_id=m.tenant_id AND l.location_id=m.location_id JOIN public.product_variants v ON v.tenant_id=m.tenant_id AND v.variant_id=m.variant_id JOIN public.products p ON p.tenant_id=v.tenant_id AND p.product_id=v.product_id LEFT JOIN public.inventory_batches b ON b.tenant_id=m.tenant_id AND b.batch_id=m.batch_id WHERE m.tenant_id=$1 AND ($2='' OR m.location_id=$2::uuid) AND ($3='' OR m.variant_id=$3::uuid) AND ($4='' OR (m.occurred_at,m.movement_id::text)<($4::timestamptz,$5)) ORDER BY m.occurred_at DESC,m.movement_id DESC LIMIT $6`, t, l, v, a, id, n+1)
+	if s == nil || s.pool == nil {
+		return MovePage{}, fmt.Errorf("inventory: nil postgres pool")
+	}
+	if t == "" || n < 1 || n > 100 || (a == "") != (id == "") {
+		return MovePage{}, fmt.Errorf("inventory: invalid movement list request")
+	}
+	moveType, _ := ctx.Value("ofirone.inventory.move_type").(string)
+	rows, e := s.pool.Query(ctx, `SELECT m.movement_id,m.location_id,m.variant_id,m.quantity_delta::bigint,m.movement_type,m.occurred_at::text,l.name,p.name,v.name,v.sku,COALESCE(m.unit_cost,b.unit_cost,0)::bigint
+FROM public.inventory_moves m
+JOIN public.locations l ON l.tenant_id=m.tenant_id AND l.location_id=m.location_id
+JOIN public.product_variants v ON v.tenant_id=m.tenant_id AND v.variant_id=m.variant_id
+JOIN public.products p ON p.tenant_id=v.tenant_id AND p.product_id=v.product_id
+LEFT JOIN public.inventory_batches b ON b.tenant_id=m.tenant_id AND b.batch_id=m.batch_id
+WHERE m.tenant_id=$1
+  AND ($2='' OR m.location_id=$2::uuid)
+  AND ($3='' OR m.variant_id=$3::uuid)
+  AND ($4='' OR (m.occurred_at,m.movement_id::text)<($4::timestamptz,$5))
+  AND ($6='' OR lower(m.movement_type)=lower($6) OR (upper($6)='ADJUSTMENT' AND lower(m.movement_type) IN ('adjustment','adjustment_in','adjustment_out')))
+ORDER BY m.occurred_at DESC,m.movement_id DESC
+LIMIT $7`, t, l, v, a, id, moveType, n+1)
 	if e != nil {
 		return MovePage{}, e
 	}

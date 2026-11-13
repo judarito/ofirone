@@ -109,8 +109,25 @@ func (s *PGStore) Create(ctx context.Context, sale *Sale) error {
 		if err != nil {
 			return err
 		}
-		if line.BatchID != "" {
-			result, stockErr := tx.Exec(ctx, `UPDATE public.inventory_batches SET quantity_on_hand=quantity_on_hand-$1 WHERE tenant_id=$2 AND batch_id=$3 AND location_id=$4 AND variant_id=$5 AND quantity_on_hand-quantity_reserved >= $1`, line.Quantity, sale.TenantID, line.BatchID, sale.LocationID, line.VariantID)
+		batchID := line.BatchID
+		if batchID == "" {
+			// POS lines do not need to expose an internal batch selector. Resolve
+			// the oldest expiring available batch while holding the row lock so a
+			// concurrent sale cannot consume the same stock.
+			if err := tx.QueryRow(ctx, `SELECT batch_id::text
+				FROM public.inventory_batches
+				WHERE tenant_id=$1 AND location_id=$2 AND variant_id=$3 AND is_active
+				  AND quantity_on_hand-quantity_reserved >= $4
+				ORDER BY expiration_date NULLS LAST, received_at, batch_id
+				LIMIT 1 FOR UPDATE`, sale.TenantID, sale.LocationID, line.VariantID, line.Quantity).Scan(&batchID); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("sales: insufficient stock")
+				}
+				return err
+			}
+		}
+		if batchID != "" {
+			result, stockErr := tx.Exec(ctx, `UPDATE public.inventory_batches SET quantity_on_hand=quantity_on_hand-$1 WHERE tenant_id=$2 AND batch_id=$3 AND location_id=$4 AND variant_id=$5 AND quantity_on_hand-quantity_reserved >= $1`, line.Quantity, sale.TenantID, batchID, sale.LocationID, line.VariantID)
 			if stockErr != nil {
 				return stockErr
 			}
@@ -121,7 +138,7 @@ func (s *PGStore) Create(ctx context.Context, sale *Sale) error {
 			if idErr != nil {
 				return idErr
 			}
-			if _, stockErr = tx.Exec(ctx, `INSERT INTO public.inventory_moves(movement_id,tenant_id,location_id,variant_id,batch_id,quantity_delta,movement_type,source_type,source_id) VALUES($1,$2,$3,$4,$5,$6,'sale_out','sale',$7)`, movementID, sale.TenantID, sale.LocationID, line.VariantID, line.BatchID, -line.Quantity, sale.ID); stockErr != nil {
+			if _, stockErr = tx.Exec(ctx, `INSERT INTO public.inventory_moves(movement_id,tenant_id,location_id,variant_id,batch_id,quantity_delta,movement_type,source_type,source_id) VALUES($1,$2,$3,$4,$5,$6,'sale_out','sale',$7)`, movementID, sale.TenantID, sale.LocationID, line.VariantID, batchID, -line.Quantity, sale.ID); stockErr != nil {
 				return stockErr
 			}
 		}
@@ -160,16 +177,14 @@ func (s *PGStore) List(ctx context.Context, tenantID string, limit int, afterSol
 	}
 	defer rows.Close()
 	items := make([]Summary, 0, limit+1)
-	times, ids := make([]string, 0, limit+1), make([]string, 0, limit+1)
+	times := make([]string, 0, limit+1)
 	for rows.Next() {
 		var item Summary
-		var rowID string
-		if err := rows.Scan(&item.ID, &item.TenantID, &item.LocationID, &item.SaleNumber, &item.Status, &item.Total, &item.SoldAt, &rowID); err != nil {
+		if err := rows.Scan(&item.ID, &item.TenantID, &item.LocationID, &item.SaleNumber, &item.Status, &item.Total, &item.SoldAt); err != nil {
 			return Page{}, err
 		}
 		items = append(items, item)
 		times = append(times, item.SoldAt)
-		ids = append(ids, rowID)
 	}
 	if err := rows.Err(); err != nil {
 		return Page{}, err
@@ -178,7 +193,7 @@ func (s *PGStore) List(ctx context.Context, tenantID string, limit int, afterSol
 	if len(items) > limit {
 		p.HasMore = true
 		p.Items = items[:limit]
-		p.NextSoldAt, p.NextID = times[limit-1], ids[limit-1]
+		p.NextSoldAt, p.NextID = times[limit-1], p.Items[limit-1].ID
 	}
 	return p, nil
 }

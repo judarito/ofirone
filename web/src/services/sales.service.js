@@ -59,7 +59,9 @@ class SalesService {
             quantity: Number(line.quantity ?? line.qty ?? 0),
             unit_price: Math.round(Number(line.unit_price || 0)),
             discount: Math.round(Number(line.discount || 0)),
-            tax: Math.round(Number(line.tax || 0)),
+            // buildSalePayloadLines exposes the calculated tax as tax_amount.
+            // Do not drop it when crossing from the UI calculator into Go.
+            tax: Math.round(Number(line.tax ?? line.tax_amount ?? 0)),
           })),
           payments: (saleData.payments || []).map(payment => ({
             method_id: payment.method_id || '',

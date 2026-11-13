@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fromMock } = vi.hoisted(() => ({
   fromMock: vi.fn(),
@@ -20,7 +20,12 @@ vi.mock('@/services/ai-purchase-advisor.service', () => ({
   },
 }))
 
-import purchasesService from '@/services/purchases.service'
+let purchasesService
+
+beforeAll(async () => {
+  vi.stubEnv('VITE_USE_BACKEND_PURCHASES', 'false')
+  purchasesService = (await import('@/services/purchases.service')).default
+})
 
 function createAwaitableQuery(result) {
   const query = {

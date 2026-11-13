@@ -173,6 +173,14 @@ class PaymentMethodsService {
   // Verificar si el código ya existe
   async checkCodeExists(tenantId, code, excludeId = null) {
     try {
+      if (USE_BACKEND_MASTERS) {
+        const result = await backendPaymentMethods.list({ limit: 100 })
+        return (result?.items || []).some(item =>
+          String(item.code || '').toUpperCase() === String(code || '').toUpperCase() &&
+          item.payment_method_id !== excludeId &&
+          item.id !== excludeId
+        )
+      }
       let query = supabaseService.client
         .from(this.table)
         .select('payment_method_id')
