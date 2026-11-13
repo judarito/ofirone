@@ -212,6 +212,7 @@ class PurchasesService {
           return {
             purchase_id: row.purchase_id || row.ID || row.id,
             supplier_name: row.supplier_name || row.SupplierName || 'Sin proveedor',
+            location_name: row.location_name || row.LocationName || '',
             items_count: lines.length,
             qty_total: qty,
             sku: first.sku || first.SKU || '',
@@ -478,6 +479,9 @@ class PurchasesService {
   async createPurchaseOrder({ tenantId, locationId, supplierId = null, createdBy, lines, note = null }) {
     try {
       if (USE_BACKEND_PURCHASES) {
+        if (!locationId || !supplierId) {
+          return { success: false, error: 'La compra requiere una sede y un proveedor.' }
+        }
         const payload = {
           purchase_id: crypto.randomUUID(), location_id: locationId, supplier_id: supplierId,
           status: 'received', lines: (lines || []).map((line) => ({ variant_id: line.variant_id, quantity: Number(line.quantity), unit_cost: Number(line.unit_cost || line.cost || 0) })),
