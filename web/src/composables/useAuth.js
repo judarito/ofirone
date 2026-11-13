@@ -165,7 +165,7 @@ async function fetchUserProfile(authUserId) {
 let authListener = null
 
 function setupAuthListener() {
-  if (authListener) return
+  if (authListener || USE_BACKEND_AUTH) return
 
   authListener = supabase.auth.onAuthStateChange((event, currentSession) => {
     console.log('Auth state changed:', event)
