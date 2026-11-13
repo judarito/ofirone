@@ -20,8 +20,15 @@ async function requestJson(path, params = {}, { includeCursor = false, method = 
     throw new Error(`VITE_BACKEND_API_URL no configurado para ${path}.`);
   }
 
-  const { data } = await supabase.auth.getSession();
-  const accessToken = getBackendSession()?.accessToken || data?.session?.access_token;
+  // En modo Go la sesión vive en localStorage y no debemos consultar Supabase
+  // ni siquiera para resolver el token. El fallback Supabase solo se conserva
+  // para el modo híbrido/legacy.
+  const backendSession = getBackendSession();
+  let accessToken = backendSession?.accessToken;
+  if (!accessToken) {
+    const { data } = await supabase.auth.getSession();
+    accessToken = data?.session?.access_token;
+  }
   if (!accessToken) {
     throw new Error('Sesión requerida para consultar el backend.');
   }

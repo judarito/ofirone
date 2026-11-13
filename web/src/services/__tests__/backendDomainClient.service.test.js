@@ -12,9 +12,10 @@ vi.mock('@/plugins/supabase', () => ({
   },
 }));
 
-async function loadClientWithEnv({ baseUrl = 'http://localhost:8787' } = {}) {
+async function loadClientWithEnv({ baseUrl = 'http://localhost:8787', backendAuth = undefined } = {}) {
   vi.resetModules();
   vi.stubEnv('VITE_BACKEND_API_URL', baseUrl);
+  if (backendAuth !== undefined) vi.stubEnv('VITE_USE_BACKEND_AUTH', backendAuth ? 'true' : 'false');
   return import('@/services/backendDomainClient');
 }
 
@@ -23,6 +24,12 @@ describe('backendDomainClient', () => {
     vi.unstubAllEnvs();
     getSessionMock.mockReset();
     globalThis.fetch = vi.fn();
+    const storage = new Map();
+    globalThis.localStorage = {
+      getItem: (key) => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, String(value)),
+      removeItem: (key) => storage.delete(key),
+    };
     getSessionMock.mockResolvedValue({ data: { session: { access_token: 'token-1' } } });
   });
 
@@ -107,5 +114,22 @@ describe('backendDomainClient', () => {
       'http://localhost:8787/api/v1/products?limit=10&after_name=A&after_id=p-0',
       expect.anything()
     );
+  });
+
+  it('en modo auth Go usa la sesión local sin consultar Supabase', async () => {
+    localStorage.setItem('ofirone_backend_session', JSON.stringify({ accessToken: 'go-token' }));
+    const client = await loadClientWithEnv({ backendAuth: true });
+    globalThis.fetch.mockResolvedValue(Response.json({ data: [] }));
+
+    await client.listBackendSales({});
+
+    expect(getSessionMock).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://localhost:8787/sales?page=1&page_size=20',
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: 'Bearer go-token' }),
+      })
+    );
+    globalThis.localStorage.removeItem('ofirone_backend_session');
   });
 });
