@@ -1076,6 +1076,7 @@
                   clearable
                   :loading="suppliersLoading"
                   :no-data-text="'Sin proveedores'"
+                  :rules="[rules.required]"
                   @update:search="loadSuppliers"
                 >
                   <template #item="{ props, item }">
@@ -3289,6 +3290,15 @@ const savePurchase = async () => {
   const { valid } = await form.value.validate();
   if (!valid || !tenantId.value) return;
 
+  if (!purchaseData.value.location_id) {
+    showMsg('Selecciona una sede antes de guardar la compra', 'warning');
+    return;
+  }
+  if (!purchaseData.value.supplier_id) {
+    showMsg('Selecciona un proveedor antes de guardar la compra', 'warning');
+    return;
+  }
+
   if (purchaseData.value.lines.length === 0) {
     showMsg('Agrega al menos un producto', 'warning');
     return;
@@ -3314,7 +3324,7 @@ const savePurchase = async () => {
       const result = await purchasesService.createPurchaseOrder({
         tenantId: tenantId.value,
         locationId: purchaseData.value.location_id,
-        supplierId: purchaseData.value.supplier_id || null,
+        supplierId: purchaseData.value.supplier_id,
         createdBy: userProfile.value.user_id,
         lines: formattedLines.map(line => ({ variant_id: line.variant_id, quantity: line.qty, unit_cost: line.unit_cost })),
         note: purchaseData.value.note || null,
@@ -3351,6 +3361,15 @@ const savePurchaseOrder = async () => {
   const { valid } = await form.value.validate();
   if (!valid || !tenantId.value) return;
 
+  if (!purchaseData.value.location_id) {
+    showMsg('Selecciona una sede antes de guardar la orden', 'warning');
+    return;
+  }
+  if (!purchaseData.value.supplier_id) {
+    showMsg('Selecciona un proveedor antes de guardar la orden', 'warning');
+    return;
+  }
+
   if (purchaseData.value.lines.length === 0) {
     showMsg('Agrega al menos un producto', 'warning');
     return;
@@ -3374,7 +3393,7 @@ const savePurchaseOrder = async () => {
     const result = await purchasesService.createPurchaseOrder({
       tenantId: tenantId.value,
       locationId: purchaseData.value.location_id,
-      supplierId: purchaseData.value.supplier_id || null,
+      supplierId: purchaseData.value.supplier_id,
       createdBy: userProfile.value.user_id,
       lines: formattedLines,
       note: purchaseData.value.note || null,

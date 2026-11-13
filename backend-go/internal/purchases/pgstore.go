@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -62,7 +63,12 @@ func (s *PGStore) List(ctx context.Context, tenant string, limit int, afterAt, a
 	if s == nil || s.pool == nil {
 		return Page{}, fmt.Errorf("purchases: nil postgres pool")
 	}
-	rows, err := s.pool.Query(ctx, `SELECT purchase_id,tenant_id,location_id,supplier_id,status,subtotal,tax_total,discount_total,total,purchase_number FROM public.purchases WHERE tenant_id=$1 AND ($2='' OR (purchased_at,purchase_id::text)<($2::timestamptz,$3)) ORDER BY purchased_at DESC,purchase_id DESC LIMIT $4`, tenant, afterAt, afterID, limit+1)
+	rows, err := s.pool.Query(ctx, `SELECT pu.purchase_id,pu.tenant_id,pu.location_id,pu.supplier_id,pu.status,pu.subtotal,pu.tax_total,pu.discount_total,pu.total,pu.purchase_number,pu.purchased_at,COALESCE(l.name,''),COALESCE(tp.legal_name,'')
+		FROM public.purchases pu
+		LEFT JOIN public.locations l ON l.tenant_id=pu.tenant_id AND l.location_id=pu.location_id
+		LEFT JOIN public.third_parties tp ON tp.tenant_id=pu.tenant_id AND tp.third_party_id=pu.supplier_id
+		WHERE pu.tenant_id=$1 AND ($2='' OR (pu.purchased_at,pu.purchase_id::text)<($2::timestamptz,$3))
+		ORDER BY pu.purchased_at DESC,pu.purchase_id DESC LIMIT $4`, tenant, afterAt, afterID, limit+1)
 	if err != nil {
 		return Page{}, err
 	}
@@ -71,18 +77,22 @@ func (s *PGStore) List(ctx context.Context, tenant string, limit int, afterAt, a
 	for rows.Next() {
 		var p Purchase
 		var id, tid, lid, sid string
-		if err := rows.Scan(&id, &tid, &lid, &sid, &p.Status, &p.Subtotal, &p.TaxTotal, &p.Discount, &p.Total, &p.PurchaseNumber); err != nil {
+		if err := rows.Scan(&id, &tid, &lid, &sid, &p.Status, &p.Subtotal, &p.TaxTotal, &p.Discount, &p.Total, &p.PurchaseNumber, &p.CreatedAt, &p.LocationName, &p.SupplierName); err != nil {
 			return Page{}, err
 		}
 		p.ID, p.TenantID, p.LocationID, p.SupplierID = id, tid, lid, sid
 		p.Lines = make([]Line, 0)
-		lineRows, lineErr := s.pool.Query(ctx, `SELECT variant_id,quantity::bigint,unit_cost::bigint FROM public.purchase_lines WHERE tenant_id=$1 AND purchase_id=$2 ORDER BY line_number`, tenant, id)
+		lineRows, lineErr := s.pool.Query(ctx, `SELECT pl.variant_id,COALESCE(p.name,''),COALESCE(v.name,''),COALESCE(v.sku,''),pl.quantity::bigint,pl.unit_cost::bigint,pl.line_total::bigint
+			FROM public.purchase_lines pl
+			LEFT JOIN public.product_variants v ON v.tenant_id=pl.tenant_id AND v.variant_id=pl.variant_id
+			LEFT JOIN public.products p ON p.tenant_id=v.tenant_id AND p.product_id=v.product_id
+			WHERE pl.tenant_id=$1 AND pl.purchase_id=$2 ORDER BY pl.line_number`, tenant, id)
 		if lineErr != nil {
 			return Page{}, lineErr
 		}
 		for lineRows.Next() {
 			var line Line
-			if lineErr = lineRows.Scan(&line.VariantID, &line.Quantity, &line.UnitCost); lineErr != nil {
+			if lineErr = lineRows.Scan(&line.VariantID, &line.ProductName, &line.VariantName, &line.SKU, &line.Quantity, &line.UnitCost, &line.LineTotal); lineErr != nil {
 				lineRows.Close()
 				return Page{}, lineErr
 			}
@@ -98,6 +108,9 @@ func (s *PGStore) List(ctx context.Context, tenant string, limit int, afterAt, a
 	if len(page.Items) > limit {
 		page.HasMore = true
 		page.Items = page.Items[:limit]
+		last := page.Items[len(page.Items)-1]
+		page.NextPurchasedAt = last.CreatedAt.UTC().Format(time.RFC3339Nano)
+		page.NextID = last.ID
 	}
 	return page, rows.Err()
 }
